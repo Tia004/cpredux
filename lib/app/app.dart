@@ -8,6 +8,7 @@ import '../design/palette.dart';
 import '../design/theme.dart';
 import '../design/typography.dart';
 import '../features/campaign/campaign_screen.dart';
+import '../features/compare/compare_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/sheet/sheet_screen.dart';
@@ -218,6 +219,8 @@ class _Root extends StatelessWidget {
         return const CampaignScreen();
       case AppScreen.settings:
         return const SettingsScreen();
+      case AppScreen.compare:
+        return const CompareScreen();
     }
   }
 }

@@ -12,6 +12,7 @@ import '../../widgets/chamfer_panel.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import '../compare/compare_picker.dart';
 import '../files/file_browser.dart';
 
 /// Impostazioni della scheda.
@@ -132,6 +133,12 @@ class _SheetSettingsTabState extends State<SheetSettingsTab> {
                       onPressed: () => _exportCopy(state),
                     ),
                     _ActionRow(
+                      title: 'Confronta con un\'altra versione',
+                      description: 'Metti questa scheda accanto a una copia salvata, e vedi cosa e\' cambiato',
+                      icon: Icons.difference_outlined,
+                      onPressed: () => _compareWith(state),
+                    ),
+                    _ActionRow(
                       title: 'Cartella dei documenti',
                       description: AppPaths.documentsDir().path,
                       icon: Icons.folder_special_outlined,
@@ -161,6 +168,22 @@ class _SheetSettingsTabState extends State<SheetSettingsTab> {
     state.mutate(
       (s) => s.meta.id = 'sheet-${DateTime.now().microsecondsSinceEpoch}',
     );
+  }
+
+  /// Confronta la scheda aperta con una copia salvata.
+  ///
+  /// Il lato "adesso" e' la scheda **in memoria**, con le modifiche non ancora
+  /// salvate: e' l'unica versione che l'utente non puo' vedere altrove, ed e'
+  /// esattamente quella che si vuole confrontare quando ci si chiede "cosa ho
+  /// cambiato?". Il dialogo lo dichiara.
+  Future<void> _compareWith(AppState state) async {
+    final ComparisonSide? open = state.sideOfOpenSheet();
+    if (open == null) return;
+
+    final Comparison? comparison =
+        await showComparePicker(context, state: state, openSheet: open);
+    if (comparison == null || !mounted) return;
+    state.openComparison(comparison);
   }
 
   Future<void> _openFolder(AppState state) async {

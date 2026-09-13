@@ -13,6 +13,7 @@ import '../domain/campaign.dart';
 import '../domain/catalog_item.dart';
 import '../domain/items.dart';
 import '../domain/enums.dart';
+import '../domain/json_support.dart';
 import '../domain/rules.dart';
 import '../domain/sheet.dart';
 import '../domain/world_map.dart';
@@ -1702,6 +1703,108 @@ class AppState extends ChangeNotifier {
     _totals = computeTotals(report.sheet, lookup: catalogLookup);
     _afterOpen(outputPath, AppScreen.sheet);
     return report;
+  }
+
+  // --- Confronto fra due schede --------------------------------------------
+
+  Comparison? _comparison;
+
+  /// Il confronto in corso, se ce n'e' uno.
+  Comparison? get comparison => _comparison;
+
+  /// Il lato che rappresenta **la scheda aperta**, come e' adesso.
+  ///
+  /// Serve a confrontare una scheda con se stessa nel tempo: quello che si sta
+  /// guardando adesso contro una copia di prima. Se la scheda ha modifiche non
+  /// salvate, il lato lo dichiara: e' una versione che su disco non esiste.
+  ComparisonSide? sideOfOpenSheet({String? label}) {
+    final CharacterSheet? sheet = _sheet;
+    if (sheet == null) return null;
+    return ComparisonSide(
+      label: label ?? (sheet.meta.name.isEmpty ? 'Scheda aperta' : sheet.meta.name),
+      sheet: sheet,
+      path: _documentPath,
+      savedAt: sheet.meta.updatedAt,
+      dirty: _dirty,
+    );
+  }
+
+  /// Legge una scheda da un file **senza aprirlo**.
+  ///
+  /// A differenza di `openDocument` non tocca lo stato dell'applicazione e
+  /// **non scrive niente**: aprire un documento puo' aggiornarlo al formato
+  /// corrente (con un backup), e lo fa perche' l'utente ha chiesto di lavorarci.
+  /// Guardare un file per confrontarlo non e' la stessa richiesta, quindi un
+  /// documento vecchio viene aggiornato in memoria e lasciato com'e' su disco.
+  ComparisonSide readSheetSide(String path, {String? label}) {
+    final CpreduxFile doc = CpreduxFile.open(path);
+    late final DocumentSummary summary;
+    late final Map<String, Object?> payload;
+    try {
+      summary = doc.summary();
+      if (summary.formatVersion > cpreduxFormatVersion) {
+        throw CpreduxException(
+          'Questo documento e\' stato creato con una versione piu\' recente dell\'app.',
+          detail: 'Formato del file: v${summary.formatVersion} — supportato: v$cpreduxFormatVersion',
+        );
+      }
+      payload = doc.readPayload();
+    } finally {
+      doc.close();
+    }
+
+    if (summary.kind != DocumentKind.sheet) {
+      throw CpreduxException(
+        'Si confrontano due schede, e questo documento e\' una campagna.',
+        detail: path,
+      );
+    }
+    if (payload.isEmpty) {
+      throw CpreduxException('Il documento e\' vuoto.', detail: path);
+    }
+
+    Map<String, Object?> effective = payload;
+    if (summary.formatVersion < cpreduxFormatVersion || DocumentUpgrade.looksLikeV1(payload)) {
+      final DocumentUpgradeResult upgraded = DocumentUpgrade.upgrade(
+        payload,
+        fromVersion: summary.formatVersion == 0 ? 1 : summary.formatVersion,
+        toVersion: cpreduxFormatVersion,
+        catalog: _catalog,
+      );
+      if (upgraded.upgraded) effective = upgraded.payload;
+    }
+
+    final CharacterSheet sheet = CharacterSheet.fromJson(effective);
+    return ComparisonSide(
+      label: label ?? (sheet.meta.name.isEmpty ? summary.name : sheet.meta.name),
+      sheet: sheet,
+      path: path,
+      savedAt: summary.updatedAt,
+    );
+  }
+
+  /// Apre la schermata di confronto.
+  void openComparison(Comparison comparison) {
+    _comparison = comparison;
+    _screen = AppScreen.compare;
+    notifyListeners();
+  }
+
+  /// Scambia i due lati.
+  ///
+  /// Non e' un vezzo: quale delle due schede sia "prima" dipende dalla
+  /// domanda, e riguardare un confronto al contrario e' spesso il modo piu'
+  /// rapido di rispondere all'altra domanda.
+  void swapComparison() {
+    final Comparison? current = _comparison;
+    if (current == null) return;
+    _comparison = current.swapped();
+    notifyListeners();
+  }
+
+  void closeComparison() {
+    _comparison = null;
+    goHome();
   }
 
   // --- Modifica e salvataggio ----------------------------------------------
