@@ -18,6 +18,7 @@ import '../domain/enums.dart';
 import '../domain/json_support.dart';
 import '../domain/rules.dart';
 import '../domain/sheet.dart';
+import '../domain/sheet_diff.dart';
 import '../domain/world_map.dart';
 import '../net/session.dart';
 import '../net/discord_rpc.dart';
@@ -262,6 +263,14 @@ class AppState extends ChangeNotifier {
   /// campagna come i suoi giocatori, e salvarla gonfierebbe il file di ogni
   /// sessione. Gli eventi che contano si salvano a parte, in [Campaign.events].
   final List<SessionEvent> sessionLog = <SessionEvent>[];
+
+  /// Registro delle differenze applicate alla scheda dal master o dal tavolo.
+  final List<StateDiffEntry> stateDiffLog = <StateDiffEntry>[];
+
+  void clearStateDiffLog() {
+    stateDiffLog.clear();
+    notifyListeners();
+  }
 
   /// Stato dei personaggi visti dal giocatore, deciso dal master.
   final List<CampaignPlayer> remotePlayers = <CampaignPlayer>[];
@@ -997,15 +1006,54 @@ class AppState extends ChangeNotifier {
     switch ('${message['t']}') {
       case SessionMessage.chat:
         final String text = '${message['text'] ?? ''}'.trim();
-        if (text.isEmpty) return;
+        final String gifUrl = '${message['gifUrl'] ?? ''}'.trim();
+        if (text.isEmpty && gifUrl.isEmpty) return;
         _host?.broadcast(<String, Object?>{
           't': SessionMessage.chat,
           'playerId': player.id,
           'name': name,
           'text': text,
+          if (gifUrl.isNotEmpty) 'gifUrl': gifUrl,
           'at': DateTime.now().toIso8601String(),
         });
-        _appendSession(description: text, delta: name, playerId: player.id, persist: false);
+        _appendSession(
+          description: text.isNotEmpty ? text : 'GIF inviata',
+          delta: name,
+          playerId: player.id,
+          gifUrl: gifUrl,
+          persist: false,
+        );
+
+      case SessionMessage.attachment:
+        final String fileName = '${message['fileName'] ?? ''}';
+        final String data = '${message['data'] ?? ''}';
+        final int size = message['size'] is int
+            ? message['size']! as int
+            : int.tryParse('${message['size']}') ?? 0;
+        final String mimeType = '${message['mimeType'] ?? ''}';
+        final String caption = '${message['caption'] ?? ''}';
+        if (fileName.isEmpty || data.isEmpty) return;
+        _host?.broadcast(<String, Object?>{
+          't': SessionMessage.attachment,
+          'playerId': player.id,
+          'name': name,
+          'fileName': fileName,
+          'size': size,
+          'mimeType': mimeType,
+          'data': data,
+          if (caption.isNotEmpty) 'caption': caption,
+          'at': DateTime.now().toIso8601String(),
+        });
+        _appendSession(
+          description: caption.isNotEmpty ? caption : 'Allegato: $fileName',
+          delta: name,
+          playerId: player.id,
+          attachmentName: fileName,
+          attachmentSize: size,
+          attachmentType: mimeType,
+          attachmentData: data,
+          persist: false,
+        );
 
       case SessionMessage.roll:
         _host?.broadcast(<String, Object?>{
@@ -1252,17 +1300,56 @@ class AppState extends ChangeNotifier {
   }
 
   /// Il master parla a tutto il tavolo.
-  void masterChat(String text) {
+  void masterChat(String text, {String? gifUrl}) {
     final String clean = text.trim();
-    if (clean.isEmpty) return;
+    final String cleanGif = (gifUrl ?? '').trim();
+    if (clean.isEmpty && cleanGif.isEmpty) return;
     _host?.broadcast(<String, Object?>{
       't': SessionMessage.chat,
       'playerId': 'master',
       'name': 'MASTER',
       'text': clean,
+      if (cleanGif.isNotEmpty) 'gifUrl': cleanGif,
       'at': DateTime.now().toIso8601String(),
     });
-    _appendSession(description: clean, delta: 'MASTER', playerId: 'master', persist: false);
+    _appendSession(
+      description: clean.isNotEmpty ? clean : 'GIF inviata',
+      delta: 'MASTER',
+      playerId: 'master',
+      gifUrl: cleanGif,
+      persist: false,
+    );
+  }
+
+  /// Il master invia un file o un'immagine in peer-to-peer a tutto il tavolo.
+  void masterSendAttachment({
+    required String fileName,
+    required int size,
+    required String mimeType,
+    required String base64Data,
+    String? caption,
+  }) {
+    _host?.broadcast(<String, Object?>{
+      't': SessionMessage.attachment,
+      'playerId': 'master',
+      'name': 'MASTER',
+      'fileName': fileName,
+      'size': size,
+      'mimeType': mimeType,
+      'data': base64Data,
+      if (caption != null && caption.isNotEmpty) 'caption': caption,
+      'at': DateTime.now().toIso8601String(),
+    });
+    _appendSession(
+      description: '${caption ?? 'Allegato condiviso'}: $fileName'.trim(),
+      delta: 'MASTER',
+      playerId: 'master',
+      attachmentName: fileName,
+      attachmentSize: size,
+      attachmentType: mimeType,
+      attachmentData: base64Data,
+      persist: false,
+    );
   }
 
   void masterBroadcastRoll({
@@ -1370,21 +1457,74 @@ class AppState extends ChangeNotifier {
         );
 
       case SessionMessage.players:
+        final List<CampaignPlayer> updatedPlayers = (message['players'] is List
+                ? message['players']! as List<Object?>
+                : const <Object?>[])
+            .whereType<Map<Object?, Object?>>()
+            .map((Map<Object?, Object?> m) => CampaignPlayer.fromJson(
+                  m.map((Object? k, Object? v) => MapEntry(k.toString(), v)),
+                ))
+            .toList();
         remotePlayers
           ..clear()
-          ..addAll(
-            (message['players'] is List ? message['players']! as List<Object?> : const <Object?>[])
-                .whereType<Map<Object?, Object?>>()
-                .map((Map<Object?, Object?> m) => CampaignPlayer.fromJson(
-                      m.map((Object? k, Object? v) => MapEntry(k.toString(), v)),
-                    )),
+          ..addAll(updatedPlayers);
+        _syncPlayerSheetFromRemote(updatedPlayers);
+
+      case SessionMessage.sheetSync:
+        if (_sheet != null &&
+            '${message['playerId']}' == _sheet!.meta.id &&
+            message['sheet'] is Map) {
+          final CharacterSheet before = CharacterSheet.fromJson(_sheet!.toJson());
+          final Map<String, Object?> sheetJson = (message['sheet'] as Map<Object?, Object?>)
+              .map((Object? k, Object? v) => MapEntry(k.toString(), v));
+          _sheet = CharacterSheet.fromJson(sheetJson);
+          _totals = computeTotals(_sheet!, lookup: catalogLookup);
+          final SheetDiff diff = SheetDiff.compare(
+            before: before,
+            after: _sheet!,
+            beforeLabel: 'Prima',
+            afterLabel: 'Stato dal Master',
+            lookup: catalogLookup,
           );
+          if (!diff.identical) {
+            final StateDiffEntry entry = StateDiffEntry(
+              id: 'diff-${DateTime.now().microsecondsSinceEpoch}',
+              timestamp: DateTime.now(),
+              reason: '${message['reason'] ?? "Aggiornamento scheda dal Master"}',
+              diff: diff,
+            );
+            stateDiffLog.insert(0, entry);
+            if (stateDiffLog.length > 50) stateDiffLog.removeLast();
+          }
+          _scheduleSave();
+        }
 
       case SessionMessage.chat:
+        final String gifUrl = '${message['gifUrl'] ?? ''}'.trim();
         _appendSession(
           description: '${message['text'] ?? ''}',
           delta: '${message['name'] ?? ''}',
           playerId: '${message['playerId'] ?? ''}',
+          gifUrl: gifUrl,
+          persist: false,
+        );
+
+      case SessionMessage.attachment:
+        final String fileName = '${message['fileName'] ?? ''}';
+        final String data = '${message['data'] ?? ''}';
+        final int size = message['size'] is int
+            ? message['size']! as int
+            : int.tryParse('${message['size']}') ?? 0;
+        final String mimeType = '${message['mimeType'] ?? ''}';
+        final String caption = '${message['caption'] ?? ''}';
+        _appendSession(
+          description: caption.isNotEmpty ? caption : 'Allegato: $fileName',
+          delta: '${message['name'] ?? 'P2P'}',
+          playerId: '${message['playerId'] ?? ''}',
+          attachmentName: fileName,
+          attachmentSize: size,
+          attachmentType: mimeType,
+          attachmentData: data,
           persist: false,
         );
 
@@ -1463,11 +1603,116 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  void sendChat(String text) {
+  /// Sincronizza lo stato locale della scheda del giocatore quando il master trasmette
+  /// un aggiornamento e calcola il diff per il registro delle differenze.
+  void _syncPlayerSheetFromRemote(List<CampaignPlayer> players) {
+    final CharacterSheet? current = _sheet;
+    if (current == null) return;
+    CampaignPlayer? target;
+    for (final CampaignPlayer p in players) {
+      if (p.id == current.meta.id) {
+        target = p;
+        break;
+      }
+    }
+    if (target == null) return;
+
+    final CharacterSheet before = CharacterSheet.fromJson(current.toJson());
+    bool changed = false;
+
+    final int? hp = _currentOf(target.hitPoints);
+    if (hp != null && hp != current.identity.currentHp) {
+      current.identity.currentHp = hp;
+      changed = true;
+    }
+
+    final int? hum = _currentOf(target.humanity);
+    if (hum != null && hum != current.identity.currentHumanity) {
+      current.identity.currentHumanity = hum;
+      changed = true;
+    }
+
+    final int? luck = _currentOf(target.luck);
+    if (luck != null && luck != current.identity.currentLuck) {
+      current.identity.currentLuck = luck;
+      changed = true;
+    }
+
+    if (target.severeInjuries != current.identity.severeInjuries) {
+      current.identity.severeInjuries = target.severeInjuries;
+      changed = true;
+    }
+
+    if (target.addictions != current.identity.addictions) {
+      current.identity.addictions = target.addictions;
+      changed = true;
+    }
+
+    if (target.inspirationPoints != current.identity.inspirationPoints) {
+      current.identity.inspirationPoints = target.inspirationPoints;
+      changed = true;
+    }
+
+    if (changed) {
+      _totals = computeTotals(current, lookup: catalogLookup);
+      final SheetDiff diff = SheetDiff.compare(
+        before: before,
+        after: current,
+        beforeLabel: 'Prima',
+        afterLabel: 'Stato dal Master',
+        lookup: catalogLookup,
+      );
+      if (!diff.identical) {
+        final StateDiffEntry entry = StateDiffEntry(
+          id: 'diff-${DateTime.now().microsecondsSinceEpoch}',
+          timestamp: DateTime.now(),
+          reason: 'Aggiornamento ricevuto dal master',
+          diff: diff,
+        );
+        stateDiffLog.insert(0, entry);
+        if (stateDiffLog.length > 50) stateDiffLog.removeLast();
+      }
+      _scheduleSave();
+    }
+  }
+
+  void sendChat(String text, {String? gifUrl}) {
     final String clean = text.trim();
-    if (clean.isEmpty) return;
-    _client?.sendChat(clean);
-    _appendSession(description: clean, delta: 'TU', persist: false);
+    final String cleanGif = (gifUrl ?? '').trim();
+    if (clean.isEmpty && cleanGif.isEmpty) return;
+    _client?.sendChat(clean, gifUrl: cleanGif.isEmpty ? null : cleanGif);
+    _appendSession(
+      description: clean.isNotEmpty ? clean : 'GIF inviata',
+      delta: 'TU',
+      gifUrl: cleanGif,
+      persist: false,
+    );
+    _sessionChanged();
+  }
+
+  void sendAttachment({
+    required String fileName,
+    required int size,
+    required String mimeType,
+    required String base64Data,
+    String? caption,
+  }) {
+    _client?.sendAttachment(
+      fileName: fileName,
+      size: size,
+      mimeType: mimeType,
+      base64Data: base64Data,
+      caption: caption,
+    );
+    _appendSession(
+      description: '${caption ?? 'Allegato inviato'}: $fileName'.trim(),
+      delta: 'TU',
+      attachmentName: fileName,
+      attachmentSize: size,
+      attachmentType: mimeType,
+      attachmentData: base64Data,
+      persist: false,
+    );
     _sessionChanged();
   }
 
@@ -1540,6 +1785,11 @@ class AppState extends ChangeNotifier {
     required String description,
     String delta = '',
     String playerId = '',
+    String gifUrl = '',
+    String attachmentName = '',
+    int attachmentSize = 0,
+    String attachmentType = '',
+    String attachmentData = '',
     bool persist = true,
   }) {
     final SessionEvent event = SessionEvent(
@@ -1548,6 +1798,11 @@ class AppState extends ChangeNotifier {
       playerId: playerId,
       description: description,
       delta: delta,
+      gifUrl: gifUrl,
+      attachmentName: attachmentName,
+      attachmentSize: attachmentSize,
+      attachmentType: attachmentType,
+      attachmentData: attachmentData,
     );
     sessionLog.insert(0, event);
     if (sessionLog.length > 400) sessionLog.removeLast();

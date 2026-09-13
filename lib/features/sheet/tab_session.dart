@@ -1,16 +1,24 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../../app/app_state.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/campaign.dart';
 import '../../domain/rules.dart';
+import '../../domain/sheet_diff.dart';
+import '../../domain/sheet_diff_export.dart';
 import '../../domain/skills.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import '../files/file_browser.dart';
+import 'chat_rich_tools.dart';
 
 /// La sessione vista dal giocatore.
 ///
@@ -118,6 +126,8 @@ class _SessionTabState extends State<SessionTab> {
                     );
                     final Widget side = Column(
                       children: <Widget>[
+                        _DiffRegisterPanel(state: state),
+                        const SizedBox(height: 14),
                         _RequestsPanel(state: state),
                         const SizedBox(height: 14),
                         _RollPanel(
@@ -355,42 +365,156 @@ class _ChatPanel extends StatelessWidget {
                       final bool mine = event.delta == 'TU';
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            if (event.delta.isNotEmpty)
-                              Container(
-                                margin: const EdgeInsets.only(right: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                color: CprPalette.veil(
-                                  event.delta == 'MASTER'
-                                      ? CprPalette.yellow
-                                      : mine
-                                          ? CprPalette.inkFaint
-                                          : CprPalette.cyan,
-                                  0.12,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                if (event.delta.isNotEmpty)
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    color: CprPalette.veil(
+                                      event.delta == 'MASTER'
+                                          ? CprPalette.yellow
+                                          : mine
+                                              ? CprPalette.inkFaint
+                                              : CprPalette.cyan,
+                                      0.12,
+                                    ),
+                                    child: Text(
+                                      event.delta.toUpperCase(),
+                                      style: CprType.label.copyWith(
+                                        fontSize: 8.5,
+                                        color: event.delta == 'MASTER'
+                                            ? CprPalette.yellow
+                                            : mine
+                                                ? CprPalette.inkMuted
+                                                : CprPalette.cyan,
+                                      ),
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Text(
+                                    event.description,
+                                    style: CprType.caption.copyWith(
+                                      color: CprPalette.ink,
+                                      height: 1.4,
+                                    ),
+                                  ),
                                 ),
-                                child: Text(
-                                  event.delta.toUpperCase(),
-                                  style: CprType.label.copyWith(
-                                    fontSize: 8.5,
-                                    color: event.delta == 'MASTER'
-                                        ? CprPalette.yellow
-                                        : mine
-                                            ? CprPalette.inkMuted
-                                            : CprPalette.cyan,
+                              ],
+                            ),
+                            if (event.hasGif) ...<Widget>[
+                              const SizedBox(height: 6),
+                              Container(
+                                constraints: const BoxConstraints(maxWidth: 280, maxHeight: 180),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: CprPalette.hairline),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: Image.network(
+                                  event.gifUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
                                   ),
                                 ),
                               ),
-                            Expanded(
-                              child: Text(
-                                event.description,
-                                style: CprType.caption.copyWith(
-                                  color: CprPalette.ink,
-                                  height: 1.4,
+                            ],
+                            if (event.hasAttachment) ...<Widget>[
+                              const SizedBox(height: 6),
+                              if (event.isImageAttachment)
+                                Container(
+                                  constraints: const BoxConstraints(maxWidth: 280, maxHeight: 200),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: CprPalette.cyan),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Stack(
+                                    children: <Widget>[
+                                      Image.memory(
+                                        base64Decode(event.attachmentData),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        right: 6,
+                                        bottom: 6,
+                                        child: CircleAvatar(
+                                          backgroundColor: CprPalette.veil(CprPalette.voidBlack, 0.7),
+                                          radius: 14,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.download, size: 14, color: CprPalette.cyan),
+                                            tooltip: 'Salva immagine',
+                                            padding: EdgeInsets.zero,
+                                            onPressed: () => saveAttachmentToDisk(
+                                              context,
+                                              fileName: event.attachmentName,
+                                              base64Data: event.attachmentData,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: CprPalette.surfaceRaised,
+                                    border: Border.all(color: CprPalette.hairline),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      const Icon(Icons.insert_drive_file_outlined, color: CprPalette.cyan, size: 20),
+                                      const SizedBox(width: 8),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          Text(
+                                            event.attachmentName,
+                                            style: CprType.caption.copyWith(
+                                              color: CprPalette.ink,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            '${(event.attachmentSize / 1024).toStringAsFixed(1)} KB',
+                                            style: CprType.label.copyWith(
+                                              color: CprPalette.inkFaint,
+                                              fontSize: 8.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 12),
+                                      TechButton(
+                                        label: 'Salva',
+                                        icon: Icons.download,
+                                        variant: TechButtonVariant.secondary,
+                                        compact: true,
+                                        onPressed: () => saveAttachmentToDisk(
+                                          context,
+                                          fileName: event.attachmentName,
+                                          base64Data: event.attachmentData,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ),
+                            ],
                           ],
                         ),
                       );
@@ -400,11 +524,37 @@ class _ChatPanel extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: <Widget>[
+              IconButton(
+                icon: const Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
+                tooltip: 'Aggiungi emoji Unicode',
+                onPressed: () async {
+                  final String? emoji = await showCyberEmojiPicker(context);
+                  if (emoji != null) {
+                    controller.text = '${controller.text}$emoji';
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
+                tooltip: 'Invia GIF (Tenor / Giphy)',
+                onPressed: () async {
+                  final String? gifUrl = await showCyberGifPicker(context);
+                  if (gifUrl != null) {
+                    state.sendChat('', gifUrl: gifUrl);
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
+                tooltip: 'Invia file o immagine P2P',
+                onPressed: () => pickAndSendAttachment(context, onSend: state.sendAttachment),
+              ),
+              const SizedBox(width: 4),
               Expanded(
                 child: TechField(
                   label: '',
                   value: controller.text,
-                  hint: 'Scrivi al tavolo…',
+                  hint: 'Scrivi al tavolo (supporta Unicode, emoji, GIF)…',
                   onChanged: (String v) => controller.text = v,
                 ),
               ),
@@ -418,6 +568,331 @@ class _ChatPanel extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Registro delle differenze applicate alla scheda dal master.
+///
+/// Riusa la logica visiva del confronto (valori prima/dopo, chip colorati, sezioni)
+/// direttamente nella scheda, come storico delle variazioni trasmesse dal master.
+class _DiffRegisterPanel extends StatefulWidget {
+  const _DiffRegisterPanel({required this.state});
+
+  final AppState state;
+
+  @override
+  State<_DiffRegisterPanel> createState() => _DiffRegisterPanelState();
+}
+
+class _DiffRegisterPanelState extends State<_DiffRegisterPanel> {
+  final Set<String> _expandedEntries = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final List<StateDiffEntry> entries = widget.state.stateDiffLog;
+
+    return ChamferPanel(
+      title: 'Registro differenze (dal master)',
+      accent: CprPalette.cyan,
+      trailing: entries.isNotEmpty
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  color: CprPalette.veil(CprPalette.cyan, 0.15),
+                  child: Text(
+                    '${entries.length} AGGIORNAMENTI',
+                    style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 8.5),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 16, color: CprPalette.inkMuted),
+                  tooltip: 'Pulisci registro differenze',
+                  onPressed: widget.state.clearStateDiffLog,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            )
+          : null,
+      child: entries.isEmpty
+          ? Text(
+              'In attesa di modifiche dal master. Quando il master applichera danni, cure o cambiera lo stato della scheda, il confronto comparira qui in tempo reale.',
+              style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                for (int i = 0; i < entries.length; i++) ...<Widget>[
+                  _DiffEntryCard(
+                    entry: entries[i],
+                    isExpanded: _expandedEntries.contains(entries[i].id) || i == 0,
+                    onToggle: () {
+                      setState(() {
+                        if (!_expandedEntries.remove(entries[i].id)) {
+                          _expandedEntries.add(entries[i].id);
+                        }
+                      });
+                    },
+                  ),
+                  if (i < entries.length - 1) const SizedBox(height: 8),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _DiffEntryCard extends StatelessWidget {
+  const _DiffEntryCard({
+    required this.entry,
+    required this.isExpanded,
+    required this.onToggle,
+  });
+
+  final StateDiffEntry entry;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  String _formatTime(DateTime dt) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(dt.hour)}:${two(dt.minute)}:${two(dt.second)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final SheetDiff diff = entry.diff;
+    final List<DiffGroup> groups = diff.groupsWith(onlyDifferences: true);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: CprPalette.surfaceRaised,
+        border: Border.all(color: CprPalette.hairline),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                    size: 18,
+                    color: CprPalette.cyan,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _formatTime(entry.timestamp),
+                    style: CprType.label.copyWith(color: CprPalette.inkMuted, fontSize: 9.5),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.reason,
+                      style: CprType.caption.copyWith(
+                        color: CprPalette.ink,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: CprPalette.veil(CprPalette.yellow, 0.12),
+                      border: Border.all(color: CprPalette.yellow.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    child: Text(
+                      '${diff.changes} ${diff.changes == 1 ? "variazione" : "variazioni"}',
+                      style: CprType.label.copyWith(color: CprPalette.yellow, fontSize: 8.5),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 16, color: CprPalette.inkMuted),
+                    tooltip: 'Esporta confronto',
+                    padding: EdgeInsets.zero,
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'copy',
+                        child: Row(
+                          children: <Widget>[
+                            Icon(Icons.copy, size: 16, color: CprPalette.cyan),
+                            SizedBox(width: 8),
+                            Text('Copia per chat'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'html',
+                        child: Row(
+                          children: <Widget>[
+                            Icon(Icons.html, size: 16, color: CprPalette.yellow),
+                            SizedBox(width: 8),
+                            Text('Esporta file .html'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'json',
+                        child: Row(
+                          children: <Widget>[
+                            Icon(Icons.data_object, size: 16, color: CprPalette.magenta),
+                            SizedBox(width: 8),
+                            Text('Esporta file .json'),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onSelected: (String value) async {
+                      if (value == 'copy') {
+                        final String summary = SheetDiffExport.toChatSummary(diff);
+                        await Clipboard.setData(ClipboardData(text: summary));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Riepilogo differenze copiato negli appunti per la chat.'),
+                              backgroundColor: CprPalette.success,
+                            ),
+                          );
+                        }
+                      } else if (value == 'html') {
+                        final String? path = await showFileBrowser(
+                          context,
+                          mode: FileBrowserMode.save,
+                          title: 'Salva confronto HTML',
+                          suggestedName: 'diff_master_${entry.id}.html',
+                          extensions: const <String>['.html', '.htm'],
+                        );
+                        if (path != null) {
+                          File(path).writeAsStringSync(SheetDiffExport.toStandaloneHtml(diff));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('File HTML salvato: ${p.basename(path)}'),
+                                backgroundColor: CprPalette.success,
+                              ),
+                            );
+                          }
+                        }
+                      } else if (value == 'json') {
+                        final String? path = await showFileBrowser(
+                          context,
+                          mode: FileBrowserMode.save,
+                          title: 'Salva confronto JSON',
+                          suggestedName: 'diff_master_${entry.id}.json',
+                          extensions: const <String>['.json'],
+                        );
+                        if (path != null) {
+                          File(path).writeAsStringSync(SheetDiffExport.toJsonString(diff));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('File JSON salvato: ${p.basename(path)}'),
+                                backgroundColor: CprPalette.success,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...<Widget>[
+            const Divider(height: 1, color: CprPalette.hairline),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  for (final DiffGroup group in groups) ...<Widget>[
+                    Text(
+                      group.title.toUpperCase(),
+                      style: CprType.label.copyWith(
+                        color: CprPalette.yellow,
+                        fontSize: 9,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    for (final DiffRow row in group.rows) ...<Widget>[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          children: <Widget>[
+                            _diffBadge(row.state),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 4,
+                              child: Text(
+                                row.label,
+                                style: CprType.caption.copyWith(
+                                  color: CprPalette.ink,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 6,
+                              child: Text(
+                                row.state == DiffState.changed
+                                    ? '${row.before ?? "—"} → ${row.after ?? "—"}'
+                                    : (row.after ?? row.before ?? "—"),
+                                style: CprType.caption.copyWith(
+                                  color: row.state == DiffState.changed
+                                      ? CprPalette.yellow
+                                      : row.state == DiffState.added
+                                          ? CprPalette.success
+                                          : CprPalette.danger,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _diffBadge(DiffState state) {
+    final (Color color, String text) = switch (state) {
+      DiffState.added => (CprPalette.success, '+ AGGIUNTO'),
+      DiffState.removed => (CprPalette.danger, '- RIMOSSO'),
+      DiffState.changed => (CprPalette.yellow, '~ MODIFICATO'),
+      DiffState.unchanged => (CprPalette.inkFaint, 'INVARIATO'),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: CprPalette.veil(color, 0.12),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        text,
+        style: CprType.label.copyWith(color: color, fontSize: 7.5),
       ),
     );
   }

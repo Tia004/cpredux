@@ -28,6 +28,9 @@ abstract final class SessionMessage {
   static const String snapshot = 'snapshot';
   static const String ping = 'ping';
 
+  /// Invio peer-to-peer di file o immagini tramite la sessione del tavolo.
+  static const String attachment = 'attachment';
+
   /// Un waypoint che il giocatore propone al master. Il master decide: fino a
   /// quando non lo accetta, quel segno esiste solo sulla mappa di chi l'ha
   /// messo. Non e' burocrazia — e' cio' che impedisce a un giocatore di
@@ -41,6 +44,9 @@ abstract final class SessionMessage {
   static const String event = 'event';
   static const String kicked = 'kicked';
   static const String pong = 'pong';
+
+  /// Trasmissione diretta di uno stato aggiornato della scheda da parte del master.
+  static const String sheetSync = 'sheetSync';
 
   /// La mappa condivisa, mandata al momento del collegamento: senza, un
   /// giocatore che rientra a meta' serata vedrebbe una mappa vuota mentre al
@@ -398,7 +404,28 @@ class CampaignClient {
     return client;
   }
 
-  void sendChat(String text) => channel.send(<String, Object?>{'t': SessionMessage.chat, 'text': text});
+  void sendChat(String text, {String? gifUrl}) => channel.send(<String, Object?>{
+        't': SessionMessage.chat,
+        'text': text,
+        if (gifUrl != null && gifUrl.isNotEmpty) 'gifUrl': gifUrl,
+      });
+
+  /// Invia un file o un'immagine in peer-to-peer tramite la sessione del tavolo.
+  void sendAttachment({
+    required String fileName,
+    required int size,
+    required String mimeType,
+    required String base64Data,
+    String? caption,
+  }) =>
+      channel.send(<String, Object?>{
+        't': SessionMessage.attachment,
+        'fileName': fileName,
+        'size': size,
+        'mimeType': mimeType,
+        'data': base64Data,
+        if (caption != null && caption.isNotEmpty) 'caption': caption,
+      });
 
   void sendRoll({
     required String label,

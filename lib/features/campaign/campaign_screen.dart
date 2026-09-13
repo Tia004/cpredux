@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../../app/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../sheet/chat_rich_tools.dart';
 import '../../domain/campaign.dart';
 import '../../domain/enums.dart';
 import '../../domain/rules.dart';
@@ -269,38 +271,43 @@ class _CampaignRail extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(right: BorderSide(color: CprPalette.hairline)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          const SizedBox(height: 12),
-          for (final CampaignSection s in CampaignSection.values)
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () => onSelect(s),
-                child: AnimatedContainer(
-                  duration: CprMotion.fast,
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                  color: s == current ? CprPalette.veil(s.accent, 0.10) : null,
-                  child: Row(
-                    children: <Widget>[
-                      Icon(s.icon, size: 15, color: s == current ? s.accent : CprPalette.inkMuted),
-                      const SizedBox(width: 10),
-                      Text(
-                        s.label,
-                        style: CprType.caption.copyWith(
-                          color: s == current ? s.accent : CprPalette.inkMuted,
-                          fontSize: 12.5,
-                          fontWeight: s == current ? FontWeight.w600 : FontWeight.w400,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            for (final CampaignSection s in CampaignSection.values)
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => onSelect(s),
+                  child: AnimatedContainer(
+                    duration: CprMotion.fast,
+                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                    margin: const EdgeInsets.only(bottom: 2),
+                    color: s == current ? CprPalette.veil(s.accent, 0.10) : null,
+                    child: Row(
+                      children: <Widget>[
+                        Icon(s.icon, size: 15, color: s == current ? s.accent : CprPalette.inkMuted),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            s.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: CprType.caption.copyWith(
+                              color: s == current ? s.accent : CprPalette.inkMuted,
+                              fontSize: 12.5,
+                              fontWeight: s == current ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -942,11 +949,46 @@ class _TableSectionState extends State<_TableSection> {
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
+                  IconButton(
+                    icon: const Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
+                    tooltip: 'Aggiungi emoji Unicode',
+                    onPressed: state.isHosting
+                        ? () async {
+                            final String? emoji = await showCyberEmojiPicker(context);
+                            if (emoji != null) {
+                              _controller.text = '${_controller.text}$emoji';
+                            }
+                          }
+                        : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
+                    tooltip: 'Invia GIF (Tenor / Giphy)',
+                    onPressed: state.isHosting
+                        ? () async {
+                            final String? gifUrl = await showCyberGifPicker(context);
+                            if (gifUrl != null) {
+                              state.masterChat('', gifUrl: gifUrl);
+                            }
+                          }
+                        : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
+                    tooltip: 'Invia file o immagine P2P a tutto il tavolo',
+                    onPressed: state.isHosting
+                        ? () => pickAndSendAttachment(
+                              context,
+                              onSend: state.masterSendAttachment,
+                            )
+                        : null,
+                  ),
+                  const SizedBox(width: 4),
                   Expanded(
                     child: TechField(
                       label: '',
                       value: _controller.text,
-                      hint: 'Parla al tavolo…',
+                      hint: 'Parla al tavolo (supporta Unicode, emoji, GIF)…',
                       onChanged: (String v) => _controller.text = v,
                     ),
                   ),
@@ -996,38 +1038,155 @@ class _LogRow extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SizedBox(
-            width: 62,
-            child: Text(
-              _time(event.timestamp),
-              style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9),
-            ),
-          ),
-          if (event.delta.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              color: CprPalette.veil(
-                event.delta == 'MASTER' ? CprPalette.yellow : CprPalette.cyan,
-                0.12,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SizedBox(
+                width: 62,
+                child: Text(
+                  _time(event.timestamp),
+                  style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9),
+                ),
               ),
-              child: Text(
-                event.delta.toUpperCase(),
-                style: CprType.label.copyWith(
-                  fontSize: 8.5,
-                  color: event.delta == 'MASTER' ? CprPalette.yellow : CprPalette.cyan,
+              if (event.delta.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  color: CprPalette.veil(
+                    event.delta == 'MASTER' ? CprPalette.yellow : CprPalette.cyan,
+                    0.12,
+                  ),
+                  child: Text(
+                    event.delta.toUpperCase(),
+                    style: CprType.label.copyWith(
+                      fontSize: 8.5,
+                      color: event.delta == 'MASTER' ? CprPalette.yellow : CprPalette.cyan,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  event.description,
+                  style: CprType.caption.copyWith(color: color, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+          if (event.hasGif) ...<Widget>[
+            const SizedBox(height: 6),
+            Container(
+              margin: const EdgeInsets.only(left: 62),
+              constraints: const BoxConstraints(maxWidth: 280, maxHeight: 180),
+              decoration: BoxDecoration(
+                border: Border.all(color: CprPalette.hairline),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.network(
+                event.gifUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
                 ),
               ),
             ),
-          Expanded(
-            child: Text(
-              event.description,
-              style: CprType.caption.copyWith(color: color, height: 1.4),
+          ],
+          if (event.hasAttachment) ...<Widget>[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 62),
+              child: event.isImageAttachment
+                  ? Container(
+                      constraints: const BoxConstraints(maxWidth: 280, maxHeight: 200),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: CprPalette.cyan),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: <Widget>[
+                          Image.memory(
+                            base64Decode(event.attachmentData),
+                            fit: BoxFit.cover,
+                            errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
+                            ),
+                          ),
+                          Positioned(
+                            right: 6,
+                            bottom: 6,
+                            child: CircleAvatar(
+                              backgroundColor: CprPalette.veil(CprPalette.voidBlack, 0.7),
+                              radius: 14,
+                              child: IconButton(
+                                icon: const Icon(Icons.download, size: 14, color: CprPalette.cyan),
+                                tooltip: 'Salva immagine',
+                                padding: EdgeInsets.zero,
+                                onPressed: () => saveAttachmentToDisk(
+                                  context,
+                                  fileName: event.attachmentName,
+                                  base64Data: event.attachmentData,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: CprPalette.surfaceRaised,
+                        border: Border.all(color: CprPalette.hairline),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(Icons.insert_drive_file_outlined, color: CprPalette.cyan, size: 20),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                event.attachmentName,
+                                style: CprType.caption.copyWith(
+                                  color: CprPalette.ink,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${(event.attachmentSize / 1024).toStringAsFixed(1)} KB',
+                                style: CprType.label.copyWith(
+                                  color: CprPalette.inkFaint,
+                                  fontSize: 8.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 12),
+                          TechButton(
+                            label: 'Salva',
+                            icon: Icons.download,
+                            variant: TechButtonVariant.secondary,
+                            compact: true,
+                            onPressed: () => saveAttachmentToDisk(
+                              context,
+                              fileName: event.attachmentName,
+                              base64Data: event.attachmentData,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
             ),
-          ),
+          ],
         ],
       ),
     );

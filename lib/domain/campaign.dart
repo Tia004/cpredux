@@ -103,6 +103,11 @@ class SessionEvent {
     this.playerId = '',
     this.description = '',
     this.delta = '',
+    this.gifUrl = '',
+    this.attachmentName = '',
+    this.attachmentSize = 0,
+    this.attachmentType = '',
+    this.attachmentData = '',
   });
 
   final String id;
@@ -110,8 +115,27 @@ class SessionEvent {
   final String playerId;
   final String description;
 
-  /// Variazione in forma leggibile ("PV -12", "Oggetto rimosso").
+  /// Variazione in forma leggibile ("PV -12", "Oggetto rimosso", "JACKIE").
   final String delta;
+
+  /// URL di una GIF animata (Tenor/Giphy).
+  final String gifUrl;
+
+  /// Metadati e dati di un allegato peer-to-peer (immagine o file).
+  final String attachmentName;
+  final int attachmentSize;
+  final String attachmentType;
+  final String attachmentData;
+
+  bool get hasGif => gifUrl.isNotEmpty;
+  bool get hasAttachment => attachmentData.isNotEmpty;
+  bool get isImageAttachment =>
+      attachmentType.startsWith('image/') ||
+      attachmentName.endsWith('.png') ||
+      attachmentName.endsWith('.jpg') ||
+      attachmentName.endsWith('.jpeg') ||
+      attachmentName.endsWith('.gif') ||
+      attachmentName.endsWith('.webp');
 
   Map<String, Object?> toJson() => <String, Object?>{
         'id': id,
@@ -119,6 +143,11 @@ class SessionEvent {
         'playerId': playerId,
         'description': description,
         'delta': delta,
+        if (gifUrl.isNotEmpty) 'gifUrl': gifUrl,
+        if (attachmentName.isNotEmpty) 'attachmentName': attachmentName,
+        if (attachmentSize > 0) 'attachmentSize': attachmentSize,
+        if (attachmentType.isNotEmpty) 'attachmentType': attachmentType,
+        if (attachmentData.isNotEmpty) 'attachmentData': attachmentData,
       };
 
   static SessionEvent fromJson(Map<String, Object?> json) => SessionEvent(
@@ -127,6 +156,11 @@ class SessionEvent {
         playerId: readString(json['playerId']),
         description: readString(json['description']),
         delta: readString(json['delta']),
+        gifUrl: readString(json['gifUrl']),
+        attachmentName: readString(json['attachmentName']),
+        attachmentSize: readInt(json['attachmentSize']),
+        attachmentType: readString(json['attachmentType']),
+        attachmentData: readString(json['attachmentData']),
       );
 }
 
