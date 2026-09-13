@@ -161,7 +161,34 @@ class _HealthHeartState extends State<HealthHeart> with TickerProviderStateMixin
               AnimatedBuilder(
                 animation: _fill,
                 builder: (BuildContext context, _) {
-                  final Color color = CprPalette.healthColorFor(_fill.value.clamp(0.0, 1.0));
+                  final double ratio = _fill.value.clamp(0.0, 1.0);
+                  final Color healthColor = CprPalette.healthColorFor(ratio);
+
+                  // Quando il livello del liquido e' alto, il testo siede sopra
+                  // il riempimento colorato: servono colori chiari con ombra per
+                  // restare leggibili. Sotto il 50% il testo e' sullo sfondo
+                  // scuro e si puo' usare il colore di salute direttamente.
+                  final bool onLiquid = ratio > 0.50;
+
+                  final Color numberColor = onLiquid
+                      ? const Color(0xFFFFFFFF)
+                      : healthColor;
+                  final Color maxColor = onLiquid
+                      ? const Color(0xCCFFFFFF)
+                      : CprPalette.veil(healthColor, 0.65);
+                  final Color labelColor = onLiquid
+                      ? const Color(0xB3FFFFFF)
+                      : CprPalette.veil(healthColor, 0.7);
+
+                  final List<Shadow> shadows = onLiquid
+                      ? <Shadow>[
+                          Shadow(
+                            color: CprPalette.veil(const Color(0xFF000000), 0.55),
+                            blurRadius: 4,
+                          ),
+                        ]
+                      : const <Shadow>[];
+
                   return Align(
                     alignment: const Alignment(0, 0.30),
                     child: Column(
@@ -174,18 +201,26 @@ class _HealthHeartState extends State<HealthHeart> with TickerProviderStateMixin
                           children: <Widget>[
                             AnimatedNumber(
                               value: widget.current,
-                              style: CprType.numeral.copyWith(color: color, fontSize: 34),
+                              style: CprType.numeral.copyWith(
+                                color: numberColor,
+                                fontSize: 34,
+                                shadows: shadows,
+                              ),
                               upColor: CprPalette.success,
                               downColor: CprPalette.danger,
                             ),
                             Text(
                               ' / ${widget.max}',
-                              style: CprType.numeralSmall.copyWith(color: CprPalette.veil(color, 0.65), fontSize: 15),
+                              style: CprType.numeralSmall.copyWith(
+                                color: maxColor,
+                                fontSize: 15,
+                                shadows: shadows,
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 2),
-                        CprLabel(widget.label, color: CprPalette.veil(color, 0.7)),
+                        CprLabel(widget.label, color: labelColor, shadows: shadows),
                       ],
                     ),
                   );

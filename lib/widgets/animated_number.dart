@@ -109,11 +109,12 @@ class _AnimatedNumberState extends State<AnimatedNumber> with TickerProviderStat
 
 /// Etichetta tecnica in maiuscolo, con eventuale unita' di misura.
 class CprLabel extends StatelessWidget {
-  const CprLabel(this.text, {super.key, this.color, this.units});
+  const CprLabel(this.text, {super.key, this.color, this.units, this.shadows});
 
   final String text;
   final Color? color;
   final String? units;
+  final List<Shadow>? shadows;
 
   @override
   Widget build(BuildContext context) {
@@ -122,10 +123,10 @@ class CprLabel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
       children: <Widget>[
-        Text(text.toUpperCase(), style: CprType.label.copyWith(color: color ?? CprPalette.inkFaint)),
+        Text(text.toUpperCase(), style: CprType.label.copyWith(color: color ?? CprPalette.inkFaint, shadows: shadows)),
         if (units != null) ...<Widget>[
           const SizedBox(width: 5),
-          Text(units!, style: CprType.label.copyWith(color: color ?? CprPalette.inkFaint, letterSpacing: 0.6)),
+          Text(units!, style: CprType.label.copyWith(color: color ?? CprPalette.inkFaint, letterSpacing: 0.6, shadows: shadows)),
         ],
       ],
     );

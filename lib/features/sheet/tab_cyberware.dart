@@ -178,10 +178,11 @@ class CyberwareTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
               ],
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _AddButton(onPressed: () => _add(context, state)),
-          ),
+          if (sheet.cyberware.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _AddButton(onPressed: () => _add(context, state)),
+            ),
         ],
       ),
     );
