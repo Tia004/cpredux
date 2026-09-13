@@ -28,7 +28,16 @@ class AppSettings {
   /// `UpdateManifest` per le ragioni. Si puo' cambiare dalle impostazioni sia
   /// perche' chi ospita i propri build deve poterlo fare, sia perche' un URL
   /// rotto deve essere correggibile senza ricompilare il programma.
-  static const String defaultUpdateFeedUrl = 'https://tiadesigns.it/cpredux/latest.json';
+  ///
+  /// **Vuoto significa "non ancora configurato"**, e non e' la stessa cosa di un
+  /// indirizzo sbagliato: finche' il progetto non e' pubblicato non esiste un URL
+  /// da mettere qui, e un valore inventato produrrebbe un errore di rete a ogni
+  /// avvio — rumore che insegna a ignorare gli avvisi. Con il campo vuoto il
+  /// controllo e' semplicemente spento, e le impostazioni lo dicono.
+  ///
+  /// Va impostato con l'URL di Pages del progetto (`https://<namespace>.gitlab.io/<progetto>/latest.json`)
+  /// appena esiste il primo rilascio.
+  static const String defaultUpdateFeedUrl = '';
 
   /// Tema scuro. Il progetto ha sempre avuto un tema chiaro alternativo, e
   /// vale la pena tenerlo: in una stanza illuminata una scheda chiara si legge
@@ -89,6 +98,9 @@ class AppSettings {
   bool get hasPendingUpdate =>
       pendingUpdateArchive.trim().isNotEmpty && pendingUpdateVersion.trim().isNotEmpty;
 
+  /// True se c'e' un indirizzo su cui controllare gli aggiornamenti.
+  bool get hasUpdateFeed => updateFeedUrl.trim().isNotEmpty;
+
   final List<String> recentFiles;
 
   static const int maxRecentFiles = 12;
@@ -130,8 +142,10 @@ class AppSettings {
       discordClientId: json['discordClientId'] is String ? json['discordClientId']! as String : '',
       autosave: json['autosave'] is bool ? json['autosave']! as bool : true,
       autoCheckUpdates: json['autoCheckUpdates'] is bool ? json['autoCheckUpdates']! as bool : true,
-      updateFeedUrl: json['updateFeedUrl'] is String && (json['updateFeedUrl']! as String).trim().isNotEmpty
-          ? json['updateFeedUrl']! as String
+      // Un indirizzo assente resta assente: si torna ai default, non a un URL
+      // che non esiste.
+      updateFeedUrl: json['updateFeedUrl'] is String
+          ? (json['updateFeedUrl']! as String).trim()
           : defaultUpdateFeedUrl,
       skippedUpdateVersion:
           json['skippedUpdateVersion'] is String ? json['skippedUpdateVersion']! as String : '',
