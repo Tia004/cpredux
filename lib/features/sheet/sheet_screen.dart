@@ -5,8 +5,12 @@ import '../../design/motion.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/enums.dart';
+import '../../domain/sheet.dart';
+import '../../domain/stats.dart';
+import '../../net/cloud_sync_service.dart';
 import '../../widgets/tech_button.dart';
 import '../map/map_section.dart';
+import 'sheet_wizard.dart';
 import 'tab_character.dart';
 import 'tab_cyberware.dart';
 import 'tab_dice.dart';
@@ -187,6 +191,7 @@ class _SheetHeader extends StatelessWidget {
 
     final double hpRatio = totals.maxHitPoints == 0 ? 0 : sheet.identity.currentHp / totals.maxHitPoints;
     final Color hpColor = CprPalette.healthColorFor(hpRatio);
+    final bool isCompact = MediaQuery.of(context).size.width < 900;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -206,45 +211,69 @@ class _SheetHeader extends StatelessWidget {
           const SizedBox(width: 12),
           Container(width: 3, height: 18, color: CprPalette.yellow),
           const SizedBox(width: 9),
-          Flexible(
-            child: Text(
-              sheet.meta.name,
-              overflow: TextOverflow.ellipsis,
-              style: CprType.body.copyWith(color: CprPalette.ink, fontWeight: FontWeight.w600),
+          Expanded(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Flexible(
+                  child: Text(
+                    sheet.meta.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: CprType.body.copyWith(color: CprPalette.ink, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (sheet.identity.role.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      '· ${sheet.identity.role}',
+                      overflow: TextOverflow.ellipsis,
+                      style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 6),
+                // Matitina per modificare identita' e caratteristiche.
+                TechButton(
+                  label: '',
+                  icon: Icons.edit_outlined,
+                  variant: TechButtonVariant.ghost,
+                  compact: true,
+                  tooltip: 'Modifica scheda',
+                  onPressed: () => _openEditWizard(context, state, sheet),
+                ),
+                const SizedBox(width: 6),
+                _SaveIndicator(dirty: state.isDirty, autosave: state.settings.autosave),
+                const SizedBox(width: 4),
+                _CloudSyncIndicator(sheet: sheet),
+              ],
             ),
           ),
-          if (sheet.identity.role.trim().isNotEmpty) ...<Widget>[
-            const SizedBox(width: 8),
-            Text(
-              '· ${sheet.identity.role}',
-              style: CprType.caption.copyWith(color: CprPalette.inkFaint),
-            ),
-          ],
-          const SizedBox(width: 14),
-          _SaveIndicator(dirty: state.isDirty, autosave: state.settings.autosave),
-          const Spacer(),
+          const SizedBox(width: 8),
           _HeaderStat(
             label: 'PV',
             value: '${sheet.identity.currentHp}/${totals.maxHitPoints}',
             color: hpColor,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           _HeaderStat(
             label: 'Umanita',
             value: '${sheet.identity.currentHumanity}/${totals.maxHumanity}',
             color: CprPalette.humanityIntact,
           ),
-          const SizedBox(width: 16),
-          _HeaderStat(
-            label: 'Carico',
-            value: '${totals.currentLoad.toStringAsFixed(1)}/${totals.maxLoad.toStringAsFixed(0)}',
-            color: totals.loadStatus == LoadStatus.overload
-                ? CprPalette.danger
-                : totals.loadStatus == LoadStatus.heavy
-                    ? CprPalette.warning
-                    : CprPalette.inkMuted,
-          ),
-          const SizedBox(width: 18),
+          if (!isCompact) ...<Widget>[
+            const SizedBox(width: 14),
+            _HeaderStat(
+              label: 'Carico',
+              value: '${totals.currentLoad.toStringAsFixed(1)}/${totals.maxLoad.toStringAsFixed(0)}',
+              color: totals.loadStatus == LoadStatus.overload
+                  ? CprPalette.danger
+                  : totals.loadStatus == LoadStatus.heavy
+                      ? CprPalette.warning
+                      : CprPalette.inkMuted,
+            ),
+          ],
+          const SizedBox(width: 14),
           TechButton(
             label: 'Salva',
             icon: Icons.save_outlined,
@@ -255,6 +284,43 @@ class _SheetHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _openEditWizard(BuildContext context, AppState state, CharacterSheet sheet) async {
+    final SheetSetup setup = SheetSetup(
+      name: sheet.meta.name,
+      tag: sheet.identity.tag,
+      playerName: sheet.identity.playerName,
+      role: sheet.identity.role,
+      roleAbility: sheet.identity.roleAbility,
+      roleRank: sheet.identity.roleRank,
+      aliases: sheet.identity.aliases,
+      reputation: sheet.identity.reputation,
+      gameDate: sheet.identity.gameDate,
+      statBase: Map<Stat, int>.from(sheet.statBase),
+    );
+
+    final SheetSetup? result = await showSheetWizard(
+      context,
+      existingSetup: setup,
+      editMode: true,
+    );
+    if (result == null || !context.mounted) return;
+
+    state.mutate((CharacterSheet s) {
+      s.meta.name = result.name;
+      s.identity.tag = result.tag;
+      s.identity.playerName = result.playerName;
+      s.identity.role = result.role;
+      s.identity.roleAbility = result.roleAbility;
+      s.identity.roleRank = result.roleRank;
+      s.identity.aliases = result.aliases;
+      s.identity.reputation = result.reputation;
+      s.identity.gameDate = result.gameDate;
+      for (final Stat stat in Stat.values) {
+        s.statBase[stat] = result.statBase[stat] ?? s.statBase[stat] ?? 1;
+      }
+    });
   }
 }
 
@@ -426,6 +492,126 @@ class _RailItemState extends State<_RailItem> with SingleTickerProviderStateMixi
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CloudSyncIndicator extends StatelessWidget {
+  const _CloudSyncIndicator({required this.sheet});
+
+  final CharacterSheet sheet;
+
+  Future<void> _openCloudModal(BuildContext context) async {
+    final CloudSyncService cloud = CloudSyncService.instance;
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return ListenableBuilder(
+          listenable: cloud,
+          builder: (BuildContext context, _) {
+            final bool auth = cloud.isAuthenticated;
+            return AlertDialog(
+              backgroundColor: CprPalette.surface,
+              shape: const BeveledRectangleBorder(
+                side: BorderSide(color: CprPalette.cyan, width: 1.2),
+              ),
+              title: Row(
+                children: <Widget>[
+                  const Icon(Icons.cloud_outlined, color: CprPalette.cyan, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'SINCRONIZZAZIONE CLOUD (GRATUITA)',
+                    style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 11),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (auth) ...<Widget>[
+                    Text(
+                      'Account collegato: ${cloud.currentUser!.email}',
+                      style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      cloud.syncState == SheetSyncState.synced
+                          ? 'Stato: Sincronizzato sul Cloud'
+                          : 'Stato: Sincronizzazione in corso...',
+                      style: CprType.caption.copyWith(color: CprPalette.success),
+                    ),
+                    const SizedBox(height: 14),
+                    TechButton(
+                      label: 'Salva scheda sul Cloud ora',
+                      icon: Icons.cloud_upload_outlined,
+                      variant: TechButtonVariant.primary,
+                      onPressed: () async {
+                        await cloud.saveSheetToCloud(sheet);
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    TechButton(
+                      label: 'Disconnetti account',
+                      icon: Icons.logout,
+                      variant: TechButtonVariant.ghost,
+                      compact: true,
+                      onPressed: () async {
+                        await cloud.signOut();
+                      },
+                    ),
+                  ] else ...<Widget>[
+                    Text(
+                      'Salva le tue schede direttamente sul cloud in modo 100% gratuito con Google (Firebase Spark).\n\n'
+                      'Nessun costo, sincronizzazione immediata tra dispositivi.',
+                      style: CprType.body.copyWith(color: CprPalette.ink, height: 1.4, fontSize: 12.5),
+                    ),
+                    const SizedBox(height: 14),
+                    TechButton(
+                      label: 'Accedi con Google',
+                      icon: Icons.account_circle_outlined,
+                      variant: TechButtonVariant.primary,
+                      onPressed: () async {
+                        await cloud.signInWithGoogle();
+                        await cloud.saveSheetToCloud(sheet);
+                      },
+                    ),
+                  ],
+                ],
+              ),
+              actions: <Widget>[
+                TechButton(
+                  label: 'Chiudi',
+                  variant: TechButtonVariant.ghost,
+                  compact: true,
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: CloudSyncService.instance,
+      builder: (BuildContext context, _) {
+        final CloudSyncService cloud = CloudSyncService.instance;
+        final bool auth = cloud.isAuthenticated;
+
+        return TechButton(
+          label: auth ? 'Cloud' : '',
+          icon: auth ? Icons.cloud_done_outlined : Icons.cloud_queue_outlined,
+          variant: TechButtonVariant.ghost,
+          compact: true,
+          tooltip: auth ? 'Sincronizzato: ${cloud.currentUser!.email}' : 'Accedi con Google (Cloud gratuito)',
+          onPressed: () => _openCloudModal(context),
+        );
+      },
     );
   }
 }

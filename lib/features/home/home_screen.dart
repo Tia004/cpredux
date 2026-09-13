@@ -13,6 +13,7 @@ import '../../design/motion.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/enums.dart';
+import '../../domain/sheet.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/drop_zone.dart';
@@ -22,6 +23,7 @@ import '../../widgets/menu.dart';
 import '../../widgets/tech_button.dart';
 import '../compare/compare_picker.dart';
 import '../files/file_browser.dart';
+import '../sheet/sheet_wizard.dart';
 
 /// Schermata iniziale: creare, aprire, convertire, partecipare.
 ///
@@ -172,20 +174,44 @@ class _ActionsState extends State<_Actions> {
   // --- Creazione e apertura ------------------------------------------------
 
   Future<void> _newDocument(BuildContext context, {required bool sheet}) async {
+    SheetSetup? setup;
+    if (sheet) {
+      // Mostra il wizard: l'utente puo' personalizzare la scheda prima di crearla.
+      setup = await showSheetWizard(context);
+      if (setup == null || !context.mounted) return;
+    }
+
     final String? path = await showFileBrowser(
       context,
       mode: FileBrowserMode.save,
-      title: sheet ? 'Nuova scheda' : 'Nuova campagna',
+      title: sheet ? 'Dove salvare la scheda' : 'Nuova campagna',
       extensions: <String>[CpreduxFile.extension],
       initialDirectory: AppPaths.documentsDir().path,
-      suggestedName: sheet ? 'Nuova scheda' : 'Nuova campagna',
-      description: 'Scegli dove salvare il documento',
+      suggestedName: sheet ? (setup?.name ?? 'Nuova scheda') : 'Nuova campagna',
+      description: sheet ? 'Scegli dove salvare "${setup?.name}"' : 'Scegli dove salvare il documento',
     );
     if (path == null || !context.mounted) return;
 
-    final String name = p.basenameWithoutExtension(path);
+    final String name = sheet && setup != null ? setup.name : p.basenameWithoutExtension(path);
     try {
-      if (sheet) {
+      if (sheet && setup != null) {
+        final SheetIdentity identity = SheetIdentity(
+          tag: setup.tag,
+          playerName: setup.playerName,
+          role: setup.role,
+          roleAbility: setup.roleAbility,
+          roleRank: setup.roleRank,
+          aliases: setup.aliases,
+          reputation: setup.reputation,
+          gameDate: setup.gameDate,
+        );
+        await state.createSheet(
+          name: name,
+          directory: p.dirname(path),
+          identity: identity,
+          statBase: setup.statBase,
+        );
+      } else if (sheet) {
         await state.createSheet(name: name, directory: p.dirname(path));
       } else {
         await state.createCampaign(name: name, directory: p.dirname(path));
