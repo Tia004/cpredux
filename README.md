@@ -22,13 +22,15 @@
 
 ## 🚀 Download & Release
 
-I binari compilati ufficiali sono scaricabili direttamente dalla sezione [**GitLab Releases**](../../releases):
+Tutte le versioni ufficiali e i sorgenti sono pubblicati e scaricabili nella sezione [**GitLab Releases**](https://gitlab.com/Tia004/cpredux/-/releases):
 
-| Piattaforma | Architettura | Formato Pacchetto | Download Diretto |
+| Piattaforma | Architettura | Tipo Pacchetto | Download Diretto |
 | :--- | :--- | :--- | :--- |
-| **macOS** | Universal (Apple Silicon M1/M2/M3/M4 & Intel) | `.dmg` / `.zip` | [Scarica per Mac](../../releases) |
-| **Windows** | x64 (Windows 10 / 11) | `.exe` Installer / `.zip` | [Scarica per Windows](../../releases) |
-| **Linux** | x86_64 | `.AppImage` / `.tar.gz` | [Scarica per Linux](../../releases) |
+| **macOS** | Universal (Apple Silicon & Intel) | Applicazione Standalone `.app` (ZIP) | [🍎 **Scarica cpredux-macos-v0.2.0.zip**](https://gitlab.com/-/project/86426687/uploads/e843471991676efeae8cf77a828a390f/cpredux-macos-v0.2.0.zip) |
+| **Tutte le Piattaforme** | Windows / Linux / macOS | Pagina Ufficiale Releases & Changelog | [🌐 **Tutte le Release su GitLab**](https://gitlab.com/Tia004/cpredux/-/releases) |
+| **Scheda Release v0.2.0** | Multi-Platform | Note di rilascio, hash & asset | [📦 **Release v0.2.0 Notes**](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.0) |
+| **Codice Sorgente (ZIP)** | Tutti i sorgenti Flutter | Archivio `.zip` | [💾 Scarica cpredux-v0.2.0.zip](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.0/cpredux-v0.2.0.zip) |
+| **Codice Sorgente (Tar.gz)** | Tutti i sorgenti Flutter | Archivio `.tar.gz` | [💾 Scarica cpredux-v0.2.0.tar.gz](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.0/cpredux-v0.2.0.tar.gz) |
 
 > 💡 **Aggiornamenti Automatici:** L'applicazione controlla autonomamente la presenza di nuove versioni all'avvio e notifica la disponibilità di update senza bisogno di inserire link manuali.
 
