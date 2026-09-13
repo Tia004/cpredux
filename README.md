@@ -90,7 +90,7 @@ create.
 Adesso:
 
 - **il catalogo** e' un database SQLite in sola lettura (`assets/catalog/catalog.sqlite`,
-  ~40 KB, 63 voci) **spedito con l'app**. Si interroga — ricerca per nome,
+  ~124 KB, 306 voci) **spedito con l'app**. Si interroga — ricerca per nome,
 filtro per categoria e rarita', ordinamento — e si apre con qualunque strumento
 SQLite: se un giorno vuoi controllare un prezzo, apri il file;
 - **la scheda** salva solo `{id di catalogo, quantita', equipaggiato, munizioni,
@@ -134,6 +134,106 @@ metterne una propria, che resta nella scheda come personalizzazione e non si
 perde mai in una conversione. C'e' un test che verifica che nessuna voce spedita
 porti un'immagine, cosi' aggiungerne una resta una scelta consapevole invece che
 un effetto collaterale del generatore.
+
+### Importare gli oggetti da una vecchia scheda
+
+Una precisazione che vale la pena scrivere, perche' e' facile aspettarsi il
+contrario: **il vecchio progetto non spediva un catalogo di oggetti**. Nel suo
+schema SQL le tabelle `items`, `weapons`, `armors` e `clothing` esistono, ma
+sono vuote finche' non le riempie l'utente: gli oggetti vivevano dentro *la
+singola scheda*, e ogni scheda aveva i suoi. Non c'e' nessun elenco di armi,
+munizioni, armature, abbigliamento ed equipaggiamento da estrarre dal vecchio
+programma — c'e' solo quello che l'utente ci ha messo.
+
+Quindi l'importazione parte da dove i dati esistono davvero:
+
+```bash
+dart run tool/import_legacy_catalog.dart --dry-run ~/Documents/CPRED_Visualizer
+```
+
+Legge una o piu' `.cpred_sheet` (o una cartella), ne estrae gli oggetti come
+voci di catalogo e li **fonde** con il seed. Le regole sono tre:
+
+- **il seed esistente vince.** Le voci scritte a mano portano descrizioni e
+  prezzi verificati: un oggetto omonimo importato da una vecchia scheda non li
+  sovrascrive. Il catalogo si corregge in un posto solo;
+- **il confronto e' per nome normalizzato piu' categoria**, non per
+  identificativo: due schede diverse non hanno gli stessi identificativi, e
+  "Pistola pesante" e' la stessa voce di "Pistola Pesante". Le voci gia'
+  riconosciute vengono **elencate**, non fuse in silenzio;
+- **gli identificativi non si duplicano**: uno slug gia' usato prende un
+  suffisso invece di sostituire la voce precedente.
+
+Il ponte fra i due formati e' meccanico e si vede: identificativi numerici
+delle enumerazioni del vecchio database verso i valori stabili del dominio
+(`weapon_skill` e' gia' l'id dell'abilita' nel nuovo `Skill`), piu' le
+conversioni consapevoli — le munizioni caricate **non** entrano nel catalogo,
+perche' descrivono un esemplare e non l'oggetto, e nemmeno le immagini Base64,
+che sono un dato dell'utente e nel nuovo formato vivono nelle personalizzazioni
+della scheda. Ogni cosa che non entra viene **detta**: l'anteprima elenca le note
+(abilita' fuori scala, categoria inesistente, SP negativa, righe senza nome)
+invece di produrre un catalogo silenziosamente incompleto.
+
+Lo script e `tool/build_catalog.dart` leggono lo stesso formato attraverso
+`lib/data/catalog_seed.dart`: una copia sola del formato, cosi' non puo'
+succedere che il catalogo venga scritto con una struttura e letto con un'altra.
+
+Sulla macchina in cui e' stato scritto, l'unica `.cpred_sheet` presente
+(`SchedaPersonaggio.cpred_sheet`, creata col vecchio programma) ha **zero
+oggetti**: e' una scheda appena creata. L'importatore lo dice in una riga
+("oggetti letti: 0") e non scrive niente. Gli stessi test coprono il caso pieno:
+una scheda con arma, armatura e capo d'abbigliamento diventa tre voci di
+catalogo validate, e i due omonimi del catalogo esistente vengono riconosciuti
+invece di duplicati.
+
+### Importare gli oggetti da un dataset esterno
+
+Le schede vuote non riempiono un catalogo, quindi la seconda fonte e' il sistema
+**Foundry VTT "Cyberpunk RED - Core"** (Project Red Team), contenuto non
+ufficiale pubblicato sotto la Homebrew Content Policy di R. Talsorian Games:
+355 voci con danno, cadenza di tiro, capienza del caricatore, SP e penalita'.
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse \
+  https://gitlab.com/cyberpunk-red-team/fvtt-cyberpunk-red-core.git /tmp/fvtt-cpred
+cd /tmp/fvtt-cpred && git sparse-checkout set src/packs/core
+
+cd <questo progetto>
+dart run tool/import_dataset_catalog.dart --source /tmp/fvtt-cpred --dry-run
+dart run tool/import_dataset_catalog.dart --source /tmp/fvtt-cpred
+dart run tool/build_catalog.dart
+```
+
+`--filter=blob:none --sparse` non e' un dettaglio: scarica 5,7 MB invece di
+tutto il repository, perche' serve **solo** `src/packs/core` (i file YAML). Il
+dataset non viene copiato in questo progetto: si scarica a parte, e nel catalogo
+entra soltanto cio' che ne deriva.
+
+Cosa entra: **62 armi**, **55 munizioni**, **5 armature**, **83 capi
+d'abbigliamento**, **38 equipaggiamenti**. Cosa non entra, e perche':
+
+| Non entra | Perche' |
+|---|---|
+| varianti di qualita' (Excellent/Poor), 58 file | sono voci separate con prezzi e modificatori propri, ma il catalogo non ha un campo "qualita'": due voci con lo stesso nome e dati diversi sarebbero indistinguibili |
+| i 16 tipi generici di arma, 11 armature, 7 capi, 14 equipaggiamenti | sono **gli stessi oggetti** delle voci gia' nel seed, che hanno il nome italiano ("Pistola Pesante" = "Heavy Pistol"): la tabella delle equivalenze sta in `_curatedCounterparts`, ed e' scritta a mano perche' e' una decisione, non un'euristica |
+| impianti (`cyberware`) | hanno un modello proprio, con il costo in umanita' |
+| protesi dermiche (`skin_weave`, `subdermal_armor`) | stanno nella cartella delle armature perche' il sistema le usa per calcolare la protezione, ma sono cyberware: nel catalogo sarebbero armature da 0 eb |
+| profili di attacco a mani nude (`unarmed`, `martial arts`) | non sono oggetti: nessuno li compra o li mette nello zaino |
+| peso | **il dataset non registra il peso**. Le voci importate pesano 0 e si correggono dalla scheda, che ha gia' le personalizzazioni per farlo |
+
+La tabella delle equivalenze si applica **solo se l'identificativo curato esiste
+davvero nel seed**: se un giorno quella voce sparisce, l'oggetto del dataset
+viene importato invece di essere saltato verso il nulla, e c'e' un test che lo
+verifica.
+
+Ogni voce importata porta `source: fvtt-cpred`, e l'app lo mostra: nel selettore
+degli oggetti le voci non curate hanno un'etichetta con la loro provenienza. Non
+e' decorazione: sono dati di terzi che questo progetto non ha verificato, e
+l'utente deve poterlo sapere prima di fidarsene.
+
+Il convertitore e' in `tool/` e non in `lib/` per una ragione precisa: legge
+YAML, e `yaml` e' una dipendenza di **sviluppo**. L'applicazione spedita non la
+contiene.
 
 ## Migratore dal vecchio formato
 
@@ -180,12 +280,56 @@ L'aggiornamento si applica anche quando la versione *dichiarata* nel file e'
 sbagliata, se la forma dei dati e' quella vecchia: i documenti prodotti durante
 lo sviluppo dichiarano versioni che non corrispondono al contenuto.
 
-## La scheda (12 sezioni)
+## La scheda (13 sezioni)
 
 Personaggio (cuore PV + spira Umanita', comandi rapidi di danno/cura), Statistiche
 e abilita' (con competenze e correzioni manuali), Inventario (con carico e
-soglie), Equipaggiamento, Cyberware, Effetti, **Sessione**, Note, Background
-(lifepath completo), Descrizione fisica, Dadi, Impostazioni scheda.
+soglie), Equipaggiamento, Cyberware, Effetti, **Sessione**, **Mappa**, Note,
+Background (lifepath completo), Descrizione fisica, Dadi, Impostazioni scheda.
+
+## Confronto fra due schede
+
+Due schede a confronto, **riga per riga**: due colonne allineate, cosi' l'occhio
+scorre in verticale e trova la differenza invece di ricostruirla a mente. Si
+apre in due modi, che sono due domande diverse:
+
+- **dal menu principale** — "che differenza c'e' fra questi due documenti?";
+- **dalle impostazioni della scheda** — "cosa e' cambiato da quando ho salvato
+  quella copia?". Qui un lato e' la scheda **aperta**, con le sue modifiche non
+  ancora salvate: e' l'unica versione che non esiste altrove, e il dialogo lo
+  dichiara. La copia si sceglie anche fra i backup (`Nome.cpredux.backup`), che
+  non hanno l'estensione del formato e quindi non comparirebbero in un elenco
+  filtrato per estensione.
+
+Le scelte che determinano il risultato stanno in `lib/domain/sheet_diff.dart`, e
+sono tre:
+
+- **si confrontano i valori, non i file.** Due `.cpredux` contengono anche
+  identificativi di riga, date e ordine degli elenchi: un confronto testuale
+  produrrebbe decine di differenze che non interessano a nessuno, nascondendo
+  quelle vere;
+- **le voci si agganciano per nome normalizzato** (maiuscole, punteggiatura e
+  accenti ignorati), non per identificativo: due schede diverse non hanno gli
+  stessi identificativi, e "Armorjack leggero !" e "Armorjack leggero" sono lo
+  stesso oggetto. Conseguenza voluta: **l'ordine non conta**, e una riga spostata
+  in fondo all'inventario non risulta cambiata;
+- **si confrontano anche i valori calcolati** — PV massimi, umanita' persa,
+  carico, stato di carico — perche' sono quelli che contano al tavolo, e la
+  riga di una caratteristica mostra il **totale** con sotto la base quando e'
+  cambiata. Un totale identico con la base cambiata resta una differenza, e
+  nasconderlo renderebbe il confronto inutile proprio quando serve.
+
+Quattordici sezioni: documento, personaggio, valori calcolati, caratteristiche,
+abilita', denaro, correzioni manuali, competenze, inventario, cyberware, effetti,
+note, background, descrizione fisica. La vista parte dalle **differenze** e
+"tutto" e' a un clic; le sezioni senza differenze in quella vista restano chiuse,
+perche' "Abilita" sono 68 righe e in mezzo a quelle la differenza che interessa
+si perde.
+
+Un dettaglio che sembra un dettaglio e non lo e': **l'immagine si confronta per
+presenza, non per percorso**. La stessa scheda su due computer ha percorsi
+diversi, e una differenza che e' solo la cartella di un altro utente non e' una
+differenza.
 
 ## La campagna: il master e' l'autorita'
 
@@ -221,6 +365,122 @@ Serve un **Application ID** (gratuito su discord.com/developers → New
 Application) da inserire in Impostazioni → Integrazione. Senza, la presenza
 resta spenta invece di fallire.
 
+## La mappa di Night City
+
+E' un **riferimento condiviso**, non un motore di gioco: non muove i personaggi,
+non applica regole di movimento, non tira dadi. Serve a sostenere la
+conversazione — "siamo qui, il bersaglio e' li'" — mentre il tavolo parla. Chi
+cerca un motore di gioco ha sbagliato sezione, e la sezione lo dice.
+
+La sezione sta in **due posti** con permessi diversi: nella campagna (il master,
+che decide) e nella scheda (il giocatore, che guarda e propone). E' la stessa
+sezione, non due schermate da tenere allineate.
+
+**Una geometria, due aspetti.** La mappa e' un insieme di poligoni disegnati a
+mano in `lib/domain/night_city.dart`, non un'immagine. "Realistica" (colori
+spenti, terreno, strade) e "digitale" (griglia, neon, contorni luminosi) sono
+due modi di disegnare gli stessi poligoni: un waypoint sta nello stesso posto in
+entrambi, correggere un confine lo corregge per tutti e due, e non esiste il caso
+"sulla mappa realistica il quartiere si chiama diverso". Essendo geometria si
+adatta a qualunque finestra senza sfocare, e un test verifica che ogni vertice
+stia dentro la mappa e che il nome di un distretto cada dentro il suo poligono.
+
+**Perche' disegnata e non scaricata.** La mappa ufficiale e' materiale di
+R. Talsorian Games e CD Projekt RED: la Homebrew Content Policy permette di
+creare contenuti propri e di citare i nomi dei luoghi, non di ridistribuire la
+loro grafica. Qui non c'e' nessun pixel di quella mappa. Vedi le note in fondo,
+con le fonti.
+
+**Mappa tua, se ne hai una.** Chi possiede una mappa — comprata, scansionata o
+disegnata — puo' importarla e posizionarla con **quattro angoli**, che finiscono
+nello stesso sistema di coordinate 0..1 dei waypoint: i segni restano al loro
+posto anche ingrandendo. Il file resta **sulla macchina del master** e non viene
+spedito al tavolo: chi gioca vede la geometria disegnata dal programma. Un test
+salva e rilegge gli angoli, e uno verifica che un'immagine illeggibile lo dica
+invece di far sparire la mappa.
+
+**I waypoint.** Nome, nota, categoria (luogo, pericolo, persona, lavoro,
+negozio, nota) e visibilita'. Il master puo' metterli *solo per se'*: una
+posizione privata non lascia la sua macchina, e non e' un filtro applicato dalla
+schermata ma un percorso che non esiste — `_publishWaypoint` esce prima di
+qualunque invio, e il test lo verifica **sul socket**, non nella logica.
+
+Un giocatore che mette un segno produce una **proposta**: la vede subito lui,
+arriva al master, e resta li' finche' lui non decide. E' l'unico modo perche'
+"condivido un punto" non diventi "scrivo sulla mappa di tutti mentre il master
+descrive". Un test verifica anche il contrario: un client che manda la rimozione
+di un waypoint **non suo** viene ignorato.
+
+L'aspetto scelto dal master viaggia con il resto dello stato; chi rientra a meta'
+serata riceve la mappa gia' fatta (`mapSync`) e non una mappa vuota mentre al
+tavolo ne stanno parlando.
+
+## La schermata iniziale: creare, riprendere, convertire
+
+Il menu' di partenza ha tre strade e le mostra tutte e tre subito, perche' chi
+apre il programma sta in uno di questi tre casi: non ha ancora un personaggio,
+ne ha gia' uno, oppure arriva dal vecchio programma con una `.cpred_sheet`.
+
+**"Apri scheda"** e **"Apri campagna"** sono menu' a tendina: si aprono sulla
+riga e elencano i documenti che **esistono davvero** sul disco, con cartella e
+ultima modifica. L'elenco (`DocumentLibrary`) legge il **contenuto** di ogni
+file per dire se e' una scheda o una campagna, perche' entrambe usano
+`.cpredux`: fidarsi del nome del file significherebbe elencare una campagna
+rinominata fra le schede. Le fonti sono due e si completano — i documenti
+recenti (che possono stare ovunque) e la cartella dell'app (esplorata con un
+tetto su file, cartelle e profondita', perche' questa lettura avviene entrando
+nel menu'): un file rotto o sparito compare **segnato**, non sparisce
+silenziosamente dall'elenco, che farebbe credere di averlo perso.
+
+**"Crea o partecipa a una campagna"** e' una riga sola perche' e' una decisione
+sola: aprire un tavolo da master o entrare in quello di un altro. Partecipare
+chiede **con chi** si va al tavolo (la scheda che si porta) e **dove**
+(indirizzo, porta, password), e aspetta la risposta del master prima di dire che
+il collegamento e' riuscito: `joinSession` ritorna quando il socket e' aperto,
+non quando il tavolo ha accettato il giocatore, e confondere le due cose
+significa dichiarare un successo che non c'e' ancora stato.
+
+### Trascinare la scheda vecchia sulla riga della conversione
+
+La riga "Converti scheda vecchia" e' anche una **zona di rilascio**: si puo'
+cliccare per scegliere il file, oppure trascinare la `.cpred_sheet` dal Finder,
+da Esplora risorse o dal file manager. Mentre il file e' sopra, la zona **lo
+dice** (bordo acceso, alone, "RILASCIA QUI" col formato atteso); al rilascio si
+apre la stessa anteprima della conversione, che chiede **dove salvare** — fra i
+dati dell'app per impostazione predefinita — e mostra cosa verra' convertito
+prima di scrivere qualcosa.
+
+Due dettagli che sono li' per una ragione:
+
+- **il trascinamento dal sistema operativo non esiste in Flutter.** `DragTarget`
+  funziona solo fra widget della stessa applicazione, e un file che arriva dal
+  Finder e' un evento della piattaforma, non ottenibile da `dart:io`. Per questo
+  c'e' un plugin nativo (`desktop_drop`), l'unico del progetto;
+- **la zona si spegne mentre un dialogo e' aperto.** Una zona coperta continua a
+  ricevere i rilasci: senza questo, un file lasciato sul dialogo di conversione
+  finirebbe sulla zona sotto, che l'utente non sta guardando.
+
+Il test di questa parte **non usa `tap` ne' `drag`**: quelli sono eventi interni
+a Flutter e non toccano la zona. Scrive sul canale nativo `desktop_drop`, cioe'
+fa esattamente quello che fa il sistema operativo quando l'utente lascia il file
+sopra la finestra — ingresso, avviso a schermo, rilascio, e i rifiuti (cartella,
+extensione sbagliata, zona spenta). E' l'unico modo di verificare questa parte
+senza una mano umana, e una regressione qui si vedrebbe altrimenti solo
+dall'utente.
+
+### Il difetto che ha rivelato il test del menu'
+
+I primi test del menu' fallivano in un modo istruttivo: `find.text('Partecipa a
+una campagna')` trovava la voce, ma il tocco "non colpiva" niente. Il motivo non
+era il test: **`AnimatedSize` decide la propria altezza durante
+l'impaginazione**, quindi il primo fotogramma dopo l'apertura misura il contenuto
+e *avvia* l'animazione. Con un solo `pump` lungo l'animazione resta a zero: il
+corpo del menu' e' disegnato alla sua altezza finale mentre la colonna gli
+riserva spazio zero, e finisce **sopra** le righe successive. In un'applicazione
+vera i fotogrammi arrivano uno dopo l'altro e l'animazione si vede; in un test
+un `pump` solo non e' un'applicazione vera. I test adesso avanzano a fotogrammi,
+come il programma.
+
 ## Struttura
 
 ```
@@ -228,12 +488,18 @@ lib/
   app/            stato applicativo (AppState) e radice dell'interfaccia
   data/           percorsi, contenitore .cpredux, catalogo, migratore, upgrade
   design/         token: palette, tipografia, movimento, geometria, tema
-  domain/         caratteristiche, abilita', oggetti, cyberware, effetti, regole
-  features/       schermate: home, scheda, campagna, impostazioni, file browser
-  net/            protocollo di sessione e Discord RPC
-  widgets/        componenti riutilizzabili
-tool/             seed leggibile del catalogo e generatore dell'asset
-test/             regole, catalogo, migratore, upgrade, sessione, documenti
+  domain/         caratteristiche, abilita', oggetti, cyberware, effetti, regole,
+                  Night City (geometria), waypoint
+  features/       schermate: home, scheda, campagna, impostazioni, file browser,
+                  aggiornamento, mappa (canvas, painter, sezione, dialogo del
+                  waypoint), confronto (schermata e selettore)
+  net/            protocollo di sessione, Discord RPC, manifest e updater
+  widgets/        componenti riutilizzabili (menu', input, dialoghi, zona di
+                  rilascio)
+tool/             seed leggibile del catalogo, generatore dell'asset, pubblicazione
+test/             regole, catalogo, migratore, upgrade, sessione, documenti,
+                  menu' principale, impostazioni, trascinamento, confronto,
+                  mappa, aggiornamenti
 ```
 
 I token stanno tutti in `lib/design/`: cambiare la palette o la velocita' di
@@ -243,9 +509,29 @@ tutta l'app significa toccare un file solo.
 
 ```bash
 flutter analyze     # No issues found
-flutter test        # 90 test
+flutter test        # 189 test
 flutter build macos # costruisce cpredux.app
 ```
+
+### I bug trovati disegnando la mappa
+
+Il painter non era mai stato eseguito: nessun analizzatore statico vede un
+`Gradient` costruito male o una coordinata sbagliata. Scrivere un test che
+disegna davvero la sezione ha prodotto due difetti che sarebbero arrivati
+all'utente:
+
+- **`Gradient.linear` con tre colori e senza posizioni.** `Gradient` accetta tre
+  colori solo se si dicono le posizioni; senza, il disegno fallisce **a ogni
+  pittura**. La mappa digitale e' l'aspetto predefinito, quindi la sezione
+  sarebbe stata un riquadro di errore rosso al primo avvio.
+- **`isJoined` era vero appena il socket si apriva**, non quando il tavolo
+  accettava. La schermata diceva "in sessione" a chi aveva sbagliato la password
+  e a chi il master non aveva ancora accettato — e in quella finestra il master
+  non aveva ancora registrato il giocatore, quindi **tutto cio' che trasmetteva
+  andava perso senza avviso**. E' il tipo di difetto che si scopre solo
+  trasmettendo qualcosa in quel preciso istante: adesso `isJoined` legge la
+  conferma del tavolo, esiste `isJoining` per dire "sto aspettando", e due test
+  lo bloccano.
 
 L'intera catena di rilascio e' stata eseguita a mano una volta, in locale, prima
 di scrivere la CI:
@@ -271,12 +557,25 @@ riconoscimento di schede e campagne dal contenuto, la schermata dell'inventario
 con un catalogo vero, e la sessione di rete su socket reali (benvenuto, chat,
 tiri, intenzioni, espulsione, riconnessione).
 
+Sulla mappa i test coprono la geometria (vertici dentro la mappa, etichette
+dentro il distretto), la conversione di coordinate nei due versi, la
+serializzazione dei waypoint e degli angoli, il disegno vero della sezione in
+entrambi gli aspetti e con un'immagine importata, il **clic che mette il segno
+dove si e' cliccato**, e sul socket: consegna dei waypoint del tavolo, silenzio
+totale su quelli privati, proposte che non si diffondono finche' il master non
+le accetta, rimozioni di altri ignorate, `mapSync` a chi rientra.
+
 ## Comandi
 
 ```bash
 flutter run -d macos      # app desktop
 flutter test              # suite completa
 flutter analyze           # analisi statica
+
+dart run tool/build_catalog.dart            # rigenera assets/catalog/catalog.sqlite dal seed
+dart run tool/import_legacy_catalog.dart    # importa gli oggetti dalle vecchie .cpred_sheet
+dart run tool/import_dataset_catalog.dart   # importa gli oggetti da un dataset esterno (YAML)
+dart run tool/publish.dart                  # pacchetti e manifesto di aggiornamento
 ```
 
 ## Aggiornamenti automatici
@@ -426,29 +725,68 @@ e' obbligatoria. Se un giorno volessi pubblicare sull'App Store, andrebbe
 riattivata insieme a un pannello di sistema per scegliere i file — cioe' un
 ripensamento di una parte dell'interfaccia, non un interruttore.
 
+## Il bug che faceva cadere le impostazioni
+
+"Crasha quando apro le impostazioni" era, alla lettera, un'eccezione di
+impaginazione:
+
+```
+RenderFlex children have non-zero flex but incoming width constraints are unbounded.
+  Row ← TechSegmented<bool> ← Row ← _ToggleRow ← … ← ChamferPanel
+```
+
+In una `Row` un figlio **non flessibile** riceve larghezza **illimitata**: e'
+cosi' che i widget possono dichiarare da soli quanto sono larghi. Un controllo
+che usa `Expanded` al proprio interno — "riempi lo spazio che avanza" — in quel
+contesto chiede di riempire uno spazio infinito, e Flutter lo rifiuta invece di
+adattarsi. Il selettore Attivo/Spento sta accanto a un'etichetta, non dentro una
+colonna, quindi ogni riga con un interruttore sollevava un'eccezione.
+
+La correzione e' nel **selettore**, non nelle due schermate che lo usavano male:
+con larghezza limitata occupa lo spazio (l'aspetto che ha nelle colonne della
+scheda), senza, si stringe sul contenuto tenendo i segmenti della stessa
+larghezza. Cosi' funziona in qualunque contenitore, che e' quello che ci si
+aspetta da un componente condiviso.
+
+Lo stesso difetto aspettava **nella scheda**, in una riga di alterazione con un
+attivo/spenta accanto all'etichetta: non si era ancora visto perche' quella riga
+compare solo quando si aggiunge una correzione manuale. Lo ha trovato il test
+del selettore, non una segnalazione — ed e' il motivo per cui il test verifica
+la **regola** (funziona con e senza vincolo di larghezza) invece del solo caso
+che aveva fatto rumore.
+
 ## Cosa manca
 
-1. **Mappa di Night City** — non ancora implementata: la ricerca e' fatta, il
-   codice no. Vedi le note qui sotto.
-2. **Repository su GitLab**: i file sono pronti e la pipeline e' scritta, ma il
-   progetto va creato sull'account GitLab (`glab auth login`, oppure un token) —
-   non ci sono credenziali per quell'account su questa macchina.
-3. **Firma e notarizzazione di macOS**: senza un certificato Apple a pagamento,
+1. **Repository su GitLab**: i file sono pronti e la pipeline e' scritta, ma il
+   progetto va creato sull'account GitLab (`glab auth login`, oppure un token con
+   scope `api`) — il token fornito finora non aveva i permessi per creare un
+   progetto (`insufficient_granular_scope`).
+2. **Firma e notarizzazione di macOS**: senza un certificato Apple a pagamento,
    l'utente deve sbloccare l'applicazione al primo avvio da Privacy e Sicurezza.
    La pipeline funziona, ma la pagina di download deve spiegarlo (lo fa).
-4. **Installer nativi** — MSI, DMG, deb/rpm con il runtime incluso. Oggi
+3. **Installer nativi** — MSI, DMG, deb/rpm con il runtime incluso. Oggi
    l'aggiornamento usa zip e AppImage, che funzionano ma non si presentano come
    un'installazione.
+4. **Il peso degli oggetti importati**: il dataset non lo registra, quindi 243
+   voci pesano 0 e il calcolo del carico le tratta come se non pesassero. Manca
+   un modo per compilarlo in blocco — oggi si corregge oggetto per oggetto
+   dalla scheda.
+   Restano fuori dal catalogo, di proposito, i pacchetti `cyberware` (109
+   voci), `drugs` (10), `programs` (15), `vehicles` (14) e `upgrades` (51):
+   sono contenuti con un modello diverso dal catalogo oggetti.
 5. **Aggiornamento del catalogo a runtime**: oggi il catalogo e' quello spedito;
    manca il modo di importare un catalogo piu' nuovo senza reinstallare l'app.
 6. **Import/export di singoli elementi** (`.cpred_element`) del vecchio progetto.
 7. **Tema chiaro**: i widget leggono ancora i colori scuri come costanti; serve
    prima un insieme di token risolti in base al tema. L'opzione resta nascosta
    finche' non funziona davvero.
+8. **Mappa**: la geometria e' schematica e i confini dei distretti si possono
+   correggere — e' un file solo, e c'e' un test che tiene oneste le coordinate.
+   Manca anche il modo di condividere l'immagine importata con il tavolo.
 
-## Note sulla mappa di Night City
+## Note sulla mappa di Night City (fonti e licenze)
 
-La ricerca e' fatta, il codice no. Tre cose da sapere prima di scriverlo.
+Tre cose da sapere sulla scelta di disegnarla invece di importarla.
 
 **Cosa esiste.** Il `.json` dei dati della mappa interattiva ufficiale di
 Cyberpunk 2077 (progetto `sharkAndshark/Cyberpunk-2077-MapData`), i tile set di
@@ -466,14 +804,55 @@ nei pressi di Little Europe" e' un riferimento ammesso). Quindi: una mappa
 disegnata da zero con i nomi dei distretti come riferimenti e' dentro la policy;
 una mappa ufficiale scansionata non lo e'.
 
-**La proposta.** Una sola geometria e due aspetti: "realistica" (colori spenti,
-ombre, etichette discrete) e "digitale" (griglia neon, contorni, glow) sono due
-stili dello stesso disegno, non due mappe da mantenere. In piu' un import con
-georeferenziazione a quattro angoli, cosi' chi possiede una mappa — comprata,
-scansionata o fatta da lui — puo' usarla **senza** che il programma la spedisca.
-I waypoint viaggiano sul protocollo di sessione che esiste gia': visibili a chi e'
-al tavolo, con una categoria privata per il master.
+**La scelta fatta.** Una sola geometria e due aspetti, piu' l'import con
+georeferenziazione a quattro angoli per chi una mappa ce l'ha gia'. Vedi "La
+mappa di Night City" sopra per come e' implementata.
 
 Il vantaggio di disegnarla e' che diventa tua: nessuno potra' chiederti di
 rimuoverla, e la mappa puo' diventare la cosa per cui il programma viene
 ricordato — come i tuoi contatori sul sito.
+
+**Limiti dichiarati.**
+
+1. La geometria e' **schematica**: le posizioni relative dei distretti sono
+   giuste, i confini sono verosimili, non sono un rilevamento. E' una mappa da
+tavolo, non una carta geografica.
+2. Un'immagine importata con una prospettiva **forte** resta piegata lungo la
+   diagonale: `Canvas` non offre una trasformazione prospettica per i bitmap e si
+   usano due triangoli. Con angoli quasi rettangolari — cioe' sempre, cliccando i
+   quattro angoli di una scansione — non si vede.
+3. I waypoint messi da un **giocatore** non sono salvati su disco finche' il
+   master non li accetta: vivono nella sessione. La mappa preparata e' quella del
+   master, ed e' l'unica che ha senso conservare.
+4. L'immagine importata **non e' condivisa**: e' un file del master. Chi gioca
+   vede la geometria del programma. Condividerla significherebbe spedire un file
+   dell'utente senza che l'abbia chiesto.
+
+## Note sul catalogo (fonti e licenze)
+
+Il catalogo ha **due origini**, e ogni voce dichiara la sua.
+
+**Le 63 voci curate** (`source: core`) le ho scritte io a mano dal manuale
+base, e sono tipi generici: "Pistola Media", "Kevlar", "Armaturajack Leggera".
+Sono comode per inventare un personaggio in fretta e non sono verificabili in
+questo repository — valgono come punto di partenza, non come regola.
+
+**Le 243 voci importate** (`source: fvtt-cpred`) vengono dal sistema Foundry
+VTT "Cyberpunk RED - Core" del Project Red Team, distribuito sotto la Homebrew
+Content Policy di R. Talsorian Games. Quella policy copre esplicitamente le
+applicazioni e permette di importare le **statistiche** degli oggetti; non
+permette di riprodurre illustrazioni o loghi dei manuali, e l'uso deve restare
+gratuito. Quindi:
+
+- nessun artwork ufficiale e' nel catalogo, ne' come asset ne' come Base64
+  (c'e' un test che lo verifica);
+- quello che c'e' sono **nomi e numeri** — danno, capienza, SP, prezzo — piu' il
+  riferimento alla pagina del manuale, che serve proprio a poterli controllare;
+- il dataset **non e' nel repository**: si scarica a parte, e la conversione e'
+  uno script che chiunque puo' rieseguire e controllare;
+- togliere tutte le voci importate e' una riga di filtro su `source` nel seed,
+  e un test verifica che le voci curate siano rimaste esattamente 63.
+
+La stessa disciplina della mappa, applicata agli oggetti: dati di terzi
+**dentro la policy**, artwork di terzi fuori, e nessuna pretesa di autorevolezza
+che il progetto non puo' garantire.
