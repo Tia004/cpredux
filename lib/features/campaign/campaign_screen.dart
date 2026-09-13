@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -146,7 +147,16 @@ class _CampaignHeader extends StatelessWidget {
               '${campaign.players.where((CampaignPlayer p) => p.isConnected).length} al tavolo',
               style: CprType.caption.copyWith(color: CprPalette.cyan),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 10),
+            TechButton(
+              label: 'Invita',
+              icon: Icons.share_outlined,
+              variant: TechButtonVariant.secondary,
+              compact: true,
+              tooltip: 'Copia il link di invito e i dettagli per far collegare i giocatori via chat',
+              onPressed: () => _copyInviteLink(context, state, campaign),
+            ),
+            const SizedBox(width: 10),
             TechButton(
               label: 'Chiudi tavolo',
               icon: Icons.stop_circle_outlined,
@@ -174,6 +184,59 @@ class _CampaignHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _copyInviteLink(BuildContext context, AppState state, Campaign campaign) async {
+    final int port = state.host?.port ?? campaign.port;
+    String hostIp = '127.0.0.1';
+
+    try {
+      final List<NetworkInterface> interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+      );
+      for (final NetworkInterface iface in interfaces) {
+        for (final InternetAddress addr in iface.addresses) {
+          if (!addr.isLoopback) {
+            hostIp = addr.address;
+            break;
+          }
+        }
+        if (hostIp != '127.0.0.1') break;
+      }
+    } catch (_) {}
+
+    String? publicIp;
+    try {
+      final HttpClient client = HttpClient()..connectionTimeout = const Duration(milliseconds: 1800);
+      final HttpClientRequest req = await client.getUrl(Uri.parse('https://api.ipify.org'));
+      final HttpClientResponse res = await req.close();
+      if (res.statusCode == 200) {
+        publicIp = (await res.transform(utf8.decoder).join()).trim();
+      }
+    } catch (_) {}
+
+    final String effectiveIp = publicIp ?? hostIp;
+    final String code = 'CP-${campaign.port.toString().substring(math.max(0, campaign.port.toString().length - 4))}';
+    final String link = 'cpred://join?host=$effectiveIp&port=$port&code=$code';
+
+    final String shareText = 'Tavolo CPRed aperto!\n'
+        '• Codice Stanza: $code\n'
+        '• Link Rapido: $link\n'
+        '• Connessione Online / Estero: $effectiveIp:$port\n'
+        '• Connessione Locale (Stessa rete): $hostIp:$port';
+
+    await Clipboard.setData(ClipboardData(text: shareText));
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Link di invito copiato negli appunti! Invialo via chat ai tuoi giocatori.'),
+          backgroundColor: CprPalette.surface,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
   }
 }
 

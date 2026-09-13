@@ -19,6 +19,7 @@ import '../domain/json_support.dart';
 import '../domain/rules.dart';
 import '../domain/sheet.dart';
 import '../domain/sheet_diff.dart';
+import '../domain/stats.dart';
 import '../domain/world_map.dart';
 import '../net/session.dart';
 import '../net/discord_rpc.dart';
@@ -1042,22 +1043,61 @@ class AppState extends ChangeNotifier {
       case SessionMessage.chat:
         final String text = '${message['text'] ?? ''}'.trim();
         final String gifUrl = '${message['gifUrl'] ?? ''}'.trim();
+        final String whisperTo = '${message['whisperTo'] ?? ''}'.trim();
         if (text.isEmpty && gifUrl.isEmpty) return;
-        _host?.broadcast(<String, Object?>{
-          't': SessionMessage.chat,
-          'playerId': player.id,
-          'name': name,
-          'text': text,
-          if (gifUrl.isNotEmpty) 'gifUrl': gifUrl,
-          'at': DateTime.now().toIso8601String(),
-        });
-        _appendSession(
-          description: text.isNotEmpty ? text : 'GIF inviata',
-          delta: name,
-          playerId: player.id,
-          gifUrl: gifUrl,
-          persist: false,
-        );
+
+        if (whisperTo.isNotEmpty) {
+          final String targetLower = whisperTo.toLowerCase();
+          HostedPlayer? targetPlayer;
+          for (final HostedPlayer p in _host!.players.values) {
+            if (p.characterName.toLowerCase() == targetLower ||
+                p.playerName.toLowerCase() == targetLower ||
+                p.id == whisperTo) {
+              targetPlayer = p;
+              break;
+            }
+          }
+
+          final Map<String, Object?> whisperMsg = <String, Object?>{
+            't': SessionMessage.chat,
+            'playerId': player.id,
+            'name': name,
+            'text': text,
+            'whisperTo': targetPlayer?.characterName ?? whisperTo,
+            'isWhisper': true,
+            if (gifUrl.isNotEmpty) 'gifUrl': gifUrl,
+            'at': DateTime.now().toIso8601String(),
+          };
+
+          if (targetPlayer != null) {
+            _host?.sendTo(targetPlayer.id, whisperMsg);
+          }
+          _host?.sendTo(player.id, whisperMsg);
+
+          _appendSession(
+            description: '[Sussurro a ${targetPlayer?.characterName ?? whisperTo}] $text',
+            delta: name,
+            playerId: player.id,
+            gifUrl: gifUrl,
+            persist: false,
+          );
+        } else {
+          _host?.broadcast(<String, Object?>{
+            't': SessionMessage.chat,
+            'playerId': player.id,
+            'name': name,
+            'text': text,
+            if (gifUrl.isNotEmpty) 'gifUrl': gifUrl,
+            'at': DateTime.now().toIso8601String(),
+          });
+          _appendSession(
+            description: text.isNotEmpty ? text : 'GIF inviata',
+            delta: name,
+            playerId: player.id,
+            gifUrl: gifUrl,
+            persist: false,
+          );
+        }
 
       case SessionMessage.attachment:
         final String fileName = '${message['fileName'] ?? ''}';
@@ -1536,9 +1576,13 @@ class AppState extends ChangeNotifier {
 
       case SessionMessage.chat:
         final String gifUrl = '${message['gifUrl'] ?? ''}'.trim();
+        final bool isWhisper = message['isWhisper'] == true;
+        final String senderName = '${message['name'] ?? ''}';
+        final String rawText = '${message['text'] ?? ''}';
+        final String desc = isWhisper ? '[Sussurro] $rawText' : rawText;
         _appendSession(
-          description: '${message['text'] ?? ''}',
-          delta: '${message['name'] ?? ''}',
+          description: desc,
+          delta: senderName,
           playerId: '${message['playerId'] ?? ''}',
           gifUrl: gifUrl,
           persist: false,
@@ -1711,13 +1755,31 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void sendChat(String text, {String? gifUrl}) {
+  void sendChat(String text, {String? gifUrl, String? whisperTo}) {
     final String clean = text.trim();
     final String cleanGif = (gifUrl ?? '').trim();
     if (clean.isEmpty && cleanGif.isEmpty) return;
-    _client?.sendChat(clean, gifUrl: cleanGif.isEmpty ? null : cleanGif);
+
+    // Riconoscimento automatico del comando di sussurro: /w nome messaggio oppure /whisper nome messaggio
+    String actualText = clean;
+    String? target = whisperTo;
+    if (clean.startsWith('/w ') || clean.startsWith('/whisper ')) {
+      final List<String> parts = clean.split(' ');
+      if (parts.length >= 3) {
+        target = parts[1];
+        actualText = parts.sublist(2).join(' ');
+      }
+    }
+
+    _client?.sendChat(
+      actualText,
+      gifUrl: cleanGif.isEmpty ? null : cleanGif,
+      whisperTo: target,
+    );
     _appendSession(
-      description: clean.isNotEmpty ? clean : 'GIF inviata',
+      description: target != null && target.isNotEmpty
+          ? '[Sussurro a $target] $actualText'
+          : (actualText.isNotEmpty ? actualText : 'GIF inviata'),
       delta: 'TU',
       gifUrl: cleanGif,
       persist: false,
@@ -1905,7 +1967,15 @@ class AppState extends ChangeNotifier {
   // --- Creazione -----------------------------------------------------------
 
   /// Crea una nuova scheda e la apre.
-  Future<void> createSheet({required String name, required String directory}) async {
+  ///
+  /// I campi [identity] e [statBase] sono facoltativi: se forniti dal wizard di
+  /// creazione, la scheda nasce gia' compilata; altrimenti si parte dai default.
+  Future<void> createSheet({
+    required String name,
+    required String directory,
+    SheetIdentity? identity,
+    Map<Stat, int>? statBase,
+  }) async {
     final String now = _now();
     final String cleanName = sanitizeName(name);
     final String path = p.join(directory, '$cleanName.${CpreduxFile.extension}');
@@ -1924,7 +1994,11 @@ class AppState extends ChangeNotifier {
     );
     final CharacterSheet sheet;
     try {
-      sheet = CharacterSheet.fresh(id: id, name: cleanName, now: now);
+      sheet = CharacterSheet(
+        meta: DocumentMeta(id: id, name: cleanName, createdAt: now, updatedAt: now),
+        identity: identity,
+        statBase: statBase,
+      );
       doc.writePayload(sheet.toJson(), name: cleanName, now: now);
     } finally {
       doc.close();

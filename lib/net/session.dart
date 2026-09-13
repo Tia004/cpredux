@@ -404,10 +404,11 @@ class CampaignClient {
     return client;
   }
 
-  void sendChat(String text, {String? gifUrl}) => channel.send(<String, Object?>{
+  void sendChat(String text, {String? gifUrl, String? whisperTo}) => channel.send(<String, Object?>{
         't': SessionMessage.chat,
         'text': text,
         if (gifUrl != null && gifUrl.isNotEmpty) 'gifUrl': gifUrl,
+        if (whisperTo != null && whisperTo.isNotEmpty) 'whisperTo': whisperTo,
       });
 
   /// Invia un file o un'immagine in peer-to-peer tramite la sessione del tavolo.

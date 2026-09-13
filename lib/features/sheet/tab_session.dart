@@ -237,6 +237,38 @@ class _StatusPanel extends StatelessWidget {
               ],
             )
           else ...<Widget>[
+            TechField(
+              label: 'Connessione Rapida (Incolla Link Invito o IP:Porta)',
+              value: '',
+              hint: 'Incolla link (cpred://join?host=...) o IP:porta (es. 151.42.12.80:21099)',
+              accent: CprPalette.yellow,
+              onChanged: (String v) {
+                final String trimmed = v.trim();
+                if (trimmed.contains('cpred://join')) {
+                  try {
+                    final Uri uri = Uri.parse(trimmed);
+                    final String? h = uri.queryParameters['host'];
+                    final String? p = uri.queryParameters['port'];
+                    final String? pass = uri.queryParameters['pass'];
+                    if (h != null) address.text = h;
+                    if (p != null) port.text = p;
+                    if (pass != null) password.text = pass;
+                  } catch (_) {}
+                } else if (trimmed.contains(':')) {
+                  final List<String> parts = trimmed.split(':');
+                  address.text = parts[0];
+                  final String rest = parts[1];
+                  if (rest.contains('#')) {
+                    final List<String> sub = rest.split('#');
+                    port.text = sub[0];
+                    password.text = sub[1];
+                  } else {
+                    port.text = rest;
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 12),
             Row(
               children: <Widget>[
                 Expanded(
@@ -363,6 +395,14 @@ class _ChatPanel extends StatelessWidget {
                     itemBuilder: (BuildContext context, int i) {
                       final SessionEvent event = state.sessionLog[i];
                       final bool mine = event.delta == 'TU';
+                      final bool isWhisper = event.description.startsWith('[Sussurro');
+                      final Color tagColor = isWhisper
+                          ? CprPalette.magenta
+                          : event.delta == 'MASTER'
+                              ? CprPalette.yellow
+                              : mine
+                                  ? CprPalette.inkFaint
+                                  : CprPalette.cyan;
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Column(
@@ -375,23 +415,13 @@ class _ChatPanel extends StatelessWidget {
                                   Container(
                                     margin: const EdgeInsets.only(right: 8),
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    color: CprPalette.veil(
-                                      event.delta == 'MASTER'
-                                          ? CprPalette.yellow
-                                          : mine
-                                              ? CprPalette.inkFaint
-                                              : CprPalette.cyan,
-                                      0.12,
-                                    ),
+                                    color: CprPalette.veil(tagColor, 0.14),
                                     child: Text(
-                                      event.delta.toUpperCase(),
+                                      isWhisper ? 'SUSSURRO' : event.delta.toUpperCase(),
                                       style: CprType.label.copyWith(
                                         fontSize: 8.5,
-                                        color: event.delta == 'MASTER'
-                                            ? CprPalette.yellow
-                                            : mine
-                                                ? CprPalette.inkMuted
-                                                : CprPalette.cyan,
+                                        color: tagColor,
+                                        fontWeight: isWhisper ? FontWeight.w700 : FontWeight.normal,
                                       ),
                                     ),
                                   ),
@@ -399,7 +429,8 @@ class _ChatPanel extends StatelessWidget {
                                   child: Text(
                                     event.description,
                                     style: CprType.caption.copyWith(
-                                      color: CprPalette.ink,
+                                      color: isWhisper ? CprPalette.veil(CprPalette.magenta, 0.9) : CprPalette.ink,
+                                      fontStyle: isWhisper ? FontStyle.italic : FontStyle.normal,
                                       height: 1.4,
                                     ),
                                   ),
