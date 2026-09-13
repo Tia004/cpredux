@@ -25,6 +25,7 @@ import 'package:cpredux/features/sheet/tab_stats.dart';
 import 'package:cpredux/features/sheet/tab_text.dart';
 import 'package:cpredux/widgets/dialogs.dart';
 import 'package:cpredux/widgets/tech_button.dart';
+import 'package:cpredux/widgets/window_title_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -504,6 +505,37 @@ void main() {
         expect(find.text('Cancellare definitivamente i dati?'), findsOneWidget);
         await tester.tap(find.widgetWithText(TechButton, 'ANNULLA'));
         await tester.pump(const Duration(milliseconds: 150));
+
+        await _disposeTree(tester);
+      });
+
+      testWidgets('WindowTitleBar si costruisce e centra il titolo', (WidgetTester tester) async {
+        final AppState state = await createPopulatedState();
+        addTearDown(state.dispose);
+
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          AppScope(
+            state: state,
+            child: MaterialApp(
+              theme: CprTheme.dark(),
+              home: const Scaffold(
+                body: Column(
+                  children: <Widget>[
+                    WindowTitleBar(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(find.byType(WindowTitleBar), findsOneWidget);
+        expect(find.byType(RichText), findsWidgets);
 
         await _disposeTree(tester);
       });

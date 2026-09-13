@@ -17,6 +17,7 @@ import '../data/catalog.dart';
 import '../net/update_manifest.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/tech_background.dart';
+import '../widgets/window_title_bar.dart';
 import 'app_state.dart';
 import 'startup.dart';
 
@@ -179,6 +180,7 @@ class _Root extends StatelessWidget {
       body: TechBackground(
         child: Column(
           children: <Widget>[
+            const WindowTitleBar(),
             if (state.errorMessage != null) _ErrorBar(message: state.errorMessage!),
             Expanded(
               child: AnimatedSwitcher(
