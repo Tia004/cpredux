@@ -195,6 +195,16 @@ abstract final class SettingsStore {
     // scrittura non si ottiene un settings.json troncato e illeggibile.
     final File temp = File('${f.path}.tmp');
     temp.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(settings.toJson()), flush: true);
-    temp.renameSync(f.path);
+    try {
+      temp.renameSync(f.path);
+    } catch (_) {
+      try {
+        temp.copySync(f.path);
+        temp.deleteSync();
+      } catch (_) {
+        // Se anche la copia fallisce, proviamo la scrittura diretta
+        f.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(settings.toJson()), flush: true);
+      }
+    }
   }
 }
