@@ -6,6 +6,7 @@ import 'package:cpredux/domain/items.dart';
 import 'package:cpredux/domain/modifiers.dart';
 import 'package:cpredux/domain/sheet.dart';
 import 'package:cpredux/domain/sheet_diff.dart';
+import 'package:cpredux/domain/sheet_diff_export.dart';
 import 'package:cpredux/domain/skills.dart';
 import 'package:cpredux/domain/stats.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -376,6 +377,52 @@ void main() {
       final DiffGroup full =
           diff.groupsWith(onlyDifferences: false).firstWhere((DiffGroup g) => g.title == 'Personaggio');
       expect(full.rows.length, greaterThan(1));
+    });
+  });
+
+  group('esportazione del confronto', () {
+    test('toChatSummary produce testo leggibile con variazioni', () {
+      final CharacterSheet before = _sheet();
+      final CharacterSheet after = _copy(before);
+      after.identity.tag = 'Jackie Cyber';
+
+      final SheetDiff diff = _compare(before, after);
+      final String text = SheetDiffExport.toChatSummary(diff);
+
+      expect(text, contains('CONFRONTO SCHEDE // CYBERPUNK RED'));
+      expect(text, contains('[PERSONAGGIO]'));
+      expect(text, contains('Nome del personaggio: (vuoto) → Jackie Cyber'));
+      expect(text, contains('VARIAZIONI: 1 in 1 sezioni'));
+    });
+
+    test('toStandaloneHtml produce un documento HTML5 completo con stile inline', () {
+      final CharacterSheet before = _sheet();
+      final CharacterSheet after = _copy(before);
+      after.identity.tag = 'Jackie Cyber';
+
+      final SheetDiff diff = _compare(before, after);
+      final String html = SheetDiffExport.toStandaloneHtml(diff);
+
+      expect(html, contains('<!DOCTYPE html>'));
+      expect(html, contains('<html lang="it">'));
+      expect(html, contains('<style>'));
+      expect(html, contains('--neon-cyan'));
+      expect(html, contains('Jackie Cyber'));
+      expect(html, contains('</html>'));
+    });
+
+    test('toJsonString serializza fedelmente la struttura delle differenze', () {
+      final CharacterSheet before = _sheet();
+      final CharacterSheet after = _copy(before);
+      after.identity.tag = 'Jackie Cyber';
+
+      final SheetDiff diff = _compare(before, after);
+      final String json = SheetDiffExport.toJsonString(diff);
+
+      expect(json, contains('"format": "cpredux_diff_v1"'));
+      expect(json, contains('"changes": 1'));
+      expect(json, contains('"changedGroups": 1'));
+      expect(json, contains('"Jackie Cyber"'));
     });
   });
 }
