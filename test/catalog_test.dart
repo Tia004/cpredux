@@ -141,12 +141,33 @@ void main() {
 
     // "Contiene", non "inizia con": al tavolo si cerca "pisto" e ci si aspetta
     // anche "Pistola pesante". Con la ricerca per prefisso non uscirebbe nulla.
-    final String fragment = anyWeapon.name.toLowerCase().substring(0, 4);
+    //
+    // Il frammento si prende dalla **parola piu' lunga**: un frammento che
+    // finisce con uno spazio non e' un buon test, perche' la ricerca toglie gli
+    // spazi eccedenti e finirebbe per combaciare con nomi diversi (e' quello che
+    // succedeva con "Air Pistol" e "Airhypo").
+    final String longest = anyWeapon.name
+        .toLowerCase()
+        .split(' ')
+        .reduce((String a, String b) => b.length > a.length ? b : a);
+    final String fragment = longest.substring(0, longest.length < 4 ? longest.length : 4);
     final List<CatalogItem> found = catalog.search(query: fragment);
     expect(found, isNotEmpty);
     expect(
       found.every((CatalogItem i) => i.name.toLowerCase().contains(fragment)),
       isTrue,
+    );
+
+    final List<CatalogItem> inTheMiddle = catalog.search(query: 'pistol');
+    expect(inTheMiddle, isNotEmpty);
+    expect(
+      inTheMiddle.every((CatalogItem i) => i.name.toLowerCase().contains('pistol')),
+      isTrue,
+    );
+    expect(
+      inTheMiddle.any((CatalogItem i) => !i.name.toLowerCase().startsWith('pistol')),
+      isTrue,
+      reason: 'Cercare una parola che sta in mezzo al nome deve trovarla.',
     );
 
     final List<CatalogItem> weapons = catalog.search(category: ItemCategory.weapon);
