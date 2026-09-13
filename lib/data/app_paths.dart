@@ -35,6 +35,9 @@ abstract final class AppPaths {
   /// Cartella in cui proporre i salvataggi: i Documenti dell'utente, che e'
   /// dove l'utente si aspetta di ritrovare i propri file.
   static Directory documentsDir() {
+    final String? override = _documentsOverride;
+    if (override != null) return Directory(override);
+
     final String? home = _env('HOME') ?? _env('USERPROFILE');
     if (home != null) {
       final Directory docs = Directory(p.join(home, 'Documents'));
@@ -47,20 +50,26 @@ abstract final class AppPaths {
 
   static String? _configOverride;
   static String? _dataOverride;
+  static String? _documentsOverride;
 
   /// Reindirizza le cartelle su una directory temporanea.
   ///
   /// Serve ai test: senza questo scriverebbero nella vera cartella
   /// dell'utente, che oltre a essere scortese renderebbe i test dipendenti
-  /// dallo stato della macchina.
-  static void overrideForTesting({String? config, String? data}) {
+  /// dallo stato della macchina. Vale anche per i **Documenti**, che non sono
+  /// una cartella dell'app ma vengono esplorati dall'elenco dei documenti:
+  /// senza l'override un test finirebbe per leggere i file veri di chi lo
+  /// esegue.
+  static void overrideForTesting({String? config, String? data, String? documents}) {
     _configOverride = config;
     _dataOverride = data;
+    _documentsOverride = documents;
   }
 
   static void clearOverrides() {
     _configOverride = null;
     _dataOverride = null;
+    _documentsOverride = null;
   }
 
   // --- interni -------------------------------------------------------------

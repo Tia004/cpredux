@@ -60,6 +60,32 @@ class MigrationReport {
   int get totalElements => counts.values.fold(0, (int a, int b) => a + b);
 }
 
+/// Dove mettere la scheda convertita.
+///
+/// E' una domanda che vale la pena fare, non un'impostazione da nascondere:
+/// chi converte una scheda vecchia spesso non sa dove il programma tiene i
+/// documenti, e metterla "da qualche parte" e' il modo piu' rapido per non
+/// ritrovarla piu'. La scelta predefinita e' la cartella dell'app, perche' e'
+/// l'unica che i menu' "Apri scheda" esplorano.
+enum MigrationTarget {
+  /// Nella cartella dei documenti dell'app.
+  appData(
+    'Tra i documenti dell\'app',
+    'La ritrovi nei menu\' "Apri scheda". Consigliato.',
+  ),
+
+  /// Accanto alla vecchia `.cpred_sheet`, dove sta gia' l'originale.
+  besideOriginal(
+    'Accanto alla scheda vecchia',
+    'Nella stessa cartella del file di partenza.',
+  );
+
+  const MigrationTarget(this.label, this.description);
+
+  final String label;
+  final String description;
+}
+
 /// Converte i vecchi `.cpred_sheet` nel nuovo formato `.cpredux`.
 ///
 /// La conversione e' **deterministica e verificabile** grazie a una proprieta'

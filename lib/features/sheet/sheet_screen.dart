@@ -6,6 +6,7 @@ import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/enums.dart';
 import '../../widgets/tech_button.dart';
+import '../map/map_section.dart';
 import 'tab_character.dart';
 import 'tab_cyberware.dart';
 import 'tab_dice.dart';
@@ -19,7 +20,7 @@ import 'tab_text.dart';
 /// Le sezioni della scheda.
 ///
 /// La navigazione e' una barra verticale e non una fila di tab orizzontali:
-/// con undici sezioni i tab orizzontali diventano stretti e illeggibili, e
+/// con tredici sezioni i tab orizzontali diventano stretti e illeggibili, e
 /// costringono a scorrere lateralmente. In verticale ci stanno tutte, con il
 /// nome per esteso, e la sezione attiva si legge subito.
 enum SheetSection {
@@ -30,6 +31,7 @@ enum SheetSection {
   cyberware('Cyberware', Icons.memory_outlined, CprPalette.magenta),
   effects('Effetti', Icons.warning_amber_outlined, CprPalette.magenta),
   session('Sessione', Icons.hub_outlined, CprPalette.success),
+  map('Mappa', Icons.map_outlined, CprPalette.info),
   notes('Note', Icons.sticky_note_2_outlined, CprPalette.inkMuted),
   background('Background', Icons.auto_stories_outlined, CprPalette.inkMuted),
   description('Descrizione fisica', Icons.face_outlined, CprPalette.inkMuted),
@@ -52,6 +54,41 @@ class SheetScreen extends StatefulWidget {
 
 class _SheetScreenState extends State<SheetScreen> {
   SheetSection _section = SheetSection.character;
+  SheetLanding _appliedLanding = SheetLanding.start;
+
+  /// Applica la sezione di atterraggio richiesta **prima del disegno**.
+  ///
+  /// `didChangeDependencies` e' l'ultimo punto in cui si puo' leggere lo stato
+  /// dell'applicazione senza dover chiamare `setState`: assegnare qui la sezione
+  /// significa aprirsi direttamente sulla chat del tavolo invece di mostrare
+  /// "Personaggio" per un fotogramma e poi saltare altrove.
+  ///
+  /// La richiesta si azzera dopo il fotogramma e non subito, perche' il valore
+  /// viene letto *qui*: azzerarlo durante la lettura lo cancellerebbe prima che
+  /// un secondo ascoltatore possa vederlo, e in questo caso l'ascoltatore e' la
+  /// schermata stessa quando viene ricostruita.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final AppState state = AppScope.of(context);
+    final SheetLanding landing = state.sheetLandingRequest;
+    if (landing == _appliedLanding) return;
+
+    _appliedLanding = landing;
+    switch (landing) {
+      case SheetLanding.start:
+        break;
+      case SheetLanding.session:
+        _section = SheetSection.session;
+      case SheetLanding.map:
+        _section = SheetSection.map;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) state.clearSheetLanding();
+    });
+  }
 
   Widget _sectionWidget() {
     switch (_section) {
@@ -69,6 +106,11 @@ class _SheetScreenState extends State<SheetScreen> {
         return const EffectsTab();
       case SheetSection.session:
         return const SessionTab();
+      // Il giocatore non decide la mappa del tavolo: qui puo' guardarla e
+      // proporre dei segni. E' la stessa sezione con i permessi di chi gioca,
+      // non una seconda schermata da tenere allineata.
+      case SheetSection.map:
+        return const MapSection(asGameMaster: false);
       case SheetSection.notes:
         return const NotesTab();
       case SheetSection.background:

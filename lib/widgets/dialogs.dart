@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/migrator.dart';
+import '../design/motion.dart';
 import '../design/palette.dart';
 import '../design/typography.dart';
 import 'tech_button.dart';
@@ -86,6 +87,254 @@ Future<bool> showTechConfirm(
     ),
   );
   return result ?? false;
+}
+
+/// La pagina della conversione: cosa e' stato riconosciuto, dove finira' il
+/// file, e il pulsante per convertire.
+///
+/// Restituisce la destinazione scelta, oppure `null` se si annulla. E' una
+/// schermata sola e non due passaggi separati ("confermi?" e poi "dove lo
+/// metto?") perche' sono la stessa decisione: si guarda cosa e' stato
+/// riconosciuto e si decide se e dove tenerlo.
+Future<MigrationTarget?> showMigrationPreview(
+  BuildContext context, {
+  required MigrationReport report,
+  required String fileName,
+  required String Function(MigrationTarget) outputPathOf,
+  MigrationTarget initial = MigrationTarget.appData,
+}) {
+  return showDialog<MigrationTarget>(
+    context: context,
+    barrierColor: CprPalette.veil(CprPalette.voidBlack, 0.7),
+    builder: (BuildContext context) => _MigrationPreview(
+      report: report,
+      fileName: fileName,
+      outputPathOf: outputPathOf,
+      initial: initial,
+    ),
+  );
+}
+
+class _MigrationPreview extends StatefulWidget {
+  const _MigrationPreview({
+    required this.report,
+    required this.fileName,
+    required this.outputPathOf,
+    required this.initial,
+  });
+
+  final MigrationReport report;
+  final String fileName;
+  final String Function(MigrationTarget) outputPathOf;
+  final MigrationTarget initial;
+
+  @override
+  State<_MigrationPreview> createState() => _MigrationPreviewState();
+}
+
+class _MigrationPreviewState extends State<_MigrationPreview> {
+  late MigrationTarget _target = widget.initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final MigrationReport report = widget.report;
+
+    return _TechDialog(
+      title: 'Converti la scheda',
+      accent: report.hasWarnings ? CprPalette.warning : CprPalette.magenta,
+      width: 600,
+      body: <Widget>[
+        Text(
+          widget.fileName,
+          style: CprType.body.copyWith(color: CprPalette.ink, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          report.hasWarnings
+              ? 'Riconosciuti ${report.totalElements} elementi, con ${report.warnings.length} '
+                  'cose da controllare.'
+              : 'Riconosciuti ${report.totalElements} elementi, nessuna perdita.',
+          style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+        ),
+        if (report.counts.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 16),
+          Text('COSA E\' STATO RICONOSCIUTO', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final MapEntry<String, int> entry in report.counts.entries)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  color: CprPalette.surfaceSunken,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text('${entry.value}', style: CprType.numeralSmall.copyWith(color: CprPalette.magenta)),
+                      const SizedBox(width: 6),
+                      Text(
+                        entry.key.toUpperCase(),
+                        style: CprType.label.copyWith(color: CprPalette.inkMuted, fontSize: 9.5),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+        if (report.notes.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 16),
+          Text('DA CONTROLLARE', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+          const SizedBox(height: 8),
+          for (final MigrationNote note in report.notes)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Icon(
+                      note.isWarning ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                      size: 13,
+                      color: note.isWarning ? CprPalette.warning : CprPalette.success,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      note.message,
+                      style: CprType.caption.copyWith(
+                        color: note.isWarning ? CprPalette.ink : CprPalette.inkMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        const SizedBox(height: 18),
+        Text('DOVE SALVARLA', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+        const SizedBox(height: 8),
+        for (final MigrationTarget target in MigrationTarget.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _TargetOption(
+              target: target,
+              selected: target == _target,
+              path: widget.outputPathOf(target),
+              onTap: () => setState(() => _target = target),
+            ),
+          ),
+        const SizedBox(height: 4),
+        Row(
+          children: <Widget>[
+            const Icon(Icons.shield_outlined, size: 13, color: CprPalette.success),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'La scheda vecchia non viene toccata: resta dov\'e\' com\'e\'.',
+                style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+              ),
+            ),
+          ],
+        ),
+      ],
+      actions: <Widget>[
+        TechButton(
+          label: 'Annulla',
+          variant: TechButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TechButton(
+          label: 'Converti',
+          icon: Icons.auto_fix_high,
+          variant: TechButtonVariant.primary,
+          onPressed: () => Navigator.of(context).pop(_target),
+        ),
+      ],
+    );
+  }
+}
+
+/// Una delle due destinazioni possibili, con il percorso che ne risulterebbe.
+class _TargetOption extends StatelessWidget {
+  const _TargetOption({
+    required this.target,
+    required this.selected,
+    required this.path,
+    required this.onTap,
+  });
+
+  final MigrationTarget target;
+  final bool selected;
+  final String path;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: CprMotion.fast,
+          padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+          decoration: BoxDecoration(
+            color: selected ? CprPalette.veil(CprPalette.magenta, 0.10) : CprPalette.surfaceSunken,
+            border: Border.all(
+              color: selected ? CprPalette.magenta : CprPalette.hairline,
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(
+                  selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  size: 14,
+                  color: selected ? CprPalette.magenta : CprPalette.inkFaint,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      target.label,
+                      style: CprType.body.copyWith(
+                        fontSize: 13,
+                        color: selected ? CprPalette.ink : CprPalette.inkMuted,
+                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      target.description,
+                      style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      path,
+                      style: CprType.caption.copyWith(
+                        fontSize: 10.5,
+                        color: CprPalette.inkMuted,
+                        fontFamilyFallback: CprType.monoFamily,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Mostra il resoconto di una conversione da vecchio formato.

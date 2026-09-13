@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../data/app_paths.dart';
 import '../data/catalog.dart';
 import '../data/cpredux_file.dart';
+import '../data/document_library.dart';
 import '../data/document_upgrade.dart';
 import '../data/migrator.dart';
 import '../data/settings_store.dart';
@@ -23,7 +25,57 @@ import '../net/update_installer.dart';
 import '../net/update_manifest.dart';
 import '../net/updater.dart';
 
-enum AppScreen { home, sheet, campaign, settings }
+enum AppScreen { home, sheet, campaign, settings, compare }
+
+/// Un lato di un confronto: una scheda, con il nome con cui va mostrata.
+///
+/// La distinzione fra `path` e `dirty` non e' decorativa: una scheda aperta e
+/// modificata e' una versione che **non esiste su disco**, e chi guarda il
+/// confronto deve poterlo sapere, altrimenti crede di stare confrontando due
+/// file.
+class ComparisonSide {
+  const ComparisonSide({
+    required this.label,
+    required this.sheet,
+    this.path,
+    this.savedAt = '',
+    this.dirty = false,
+  });
+
+  final String label;
+  final CharacterSheet sheet;
+
+  /// Da dove viene la scheda. Nullo per una scheda che non e' mai stata
+  /// salvata: non ha un percorso, non e' un file.
+  final String? path;
+
+  /// Ultima modifica dichiarata **dal file**. Per la scheda aperta e' la data
+  /// dell'ultimo salvataggio, non quella delle modifiche in memoria.
+  final String savedAt;
+
+  final bool dirty;
+
+  String get folder => path == null ? '' : p.dirname(path!);
+
+  String get fileName => path == null ? '' : p.basename(path!);
+}
+
+/// Due schede da confrontare, nell'ordine "prima" e "dopo".
+class Comparison {
+  const Comparison({required this.before, required this.after});
+
+  final ComparisonSide before;
+  final ComparisonSide after;
+
+  Comparison swapped() => Comparison(before: after, after: before);
+}
+
+/// Sezione della scheda su cui atterrare aprendola.
+///
+/// E' un tipo dell'*applicazione* e non della schermata: chi decide dove si
+/// atterra (il flusso di partecipazione a una campagna) non deve conoscere la
+/// barra laterale della scheda per poterlo dire.
+enum SheetLanding { start, session, map }
 
 /// Rende [AppState] disponibile a tutto l'albero dei widget.
 ///
@@ -91,8 +143,33 @@ class AppState extends ChangeNotifier {
 
   void goHome() {
     _screen = AppScreen.home;
+    // L'elenco dei documenti si rilegge tornando al menu': un documento creato,
+    // convertito o cancellato nel frattempo deve comparire (o sparire) senza
+    // che l'utente debba riavviare il programma.
+    refreshDocumentLibrary(notify: false);
     notifyListeners();
     refreshPresence();
+  }
+
+  // --- Documenti esistenti --------------------------------------------------
+
+  List<DocumentEntry> _documents = <DocumentEntry>[];
+
+  /// Le schede e le campagne che esistono sul disco.
+  ///
+  /// Si tiene in memoria e non si rilegge a ogni disegno: esplorare le cartelle
+  /// e aprire ogni file per sapere che tipo e' costa decine di millisecondi, e
+  /// farlo a ogni ricostruzione dell'interfaccia si sentirebbe.
+  List<DocumentEntry> get documents => List<DocumentEntry>.unmodifiable(_documents);
+
+  List<DocumentEntry> documentsOfKind(DocumentKind kind) => <DocumentEntry>[
+        for (final DocumentEntry d in _documents)
+          if (d.kind == kind) d,
+      ];
+
+  void refreshDocumentLibrary({bool notify = true}) {
+    _documents = DocumentLibrary.scan(extraPaths: settings.recentFiles);
+    if (notify) notifyListeners();
   }
 
   void goToSettings() {
@@ -100,8 +177,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void goToSheet() {
+  void goToSheet({SheetLanding landing = SheetLanding.start}) {
     if (_sheet == null) return;
+    _sheetLanding = landing;
     _screen = AppScreen.sheet;
     notifyListeners();
   }
@@ -158,7 +236,25 @@ class AppState extends ChangeNotifier {
 
   CampaignClient? _client;
   CampaignClient? get client => _client;
-  bool get isJoined => _client != null;
+
+  /// True quando il **tavolo** ha accettato il giocatore.
+  ///
+  /// Non basta che il socket sia aperto: `CampaignClient.connect` torna appena
+  /// la connessione e' stabilita, prima che il master abbia risposto. Se qui si
+  /// controllasse `_client != null`, la schermata direbbe "in sessione" a chi ha
+  /// sbagliato la password e a chi il master non ha ancora accettato, e
+  /// qualunque cosa scritta in quella finestra di pochi millisecondi andrebbe
+  /// persa senza che nessuno se ne accorga: il master non ha ancora registrato
+  /// il giocatore, quindi le sue trasmissioni non lo raggiungono.
+  bool get isJoined => _client?.isConnected ?? false;
+
+  /// True fra l'apertura del socket e la risposta del master.
+  ///
+  /// Esiste perche' e' uno stato che l'utente deve poter distinguere: "sto
+  /// provando a collegarmi" e "non sono collegato" si risolvono in modi
+  /// diversi, e mostrarli uguali e' il motivo per cui si preme "Collega" tre
+  /// volte di seguito.
+  bool get isJoining => _client != null && !_client!.isConnected;
 
   /// Log della sessione in corso: chat, tiri, eventi applicati dal master.
   ///
@@ -1489,6 +1585,21 @@ class AppState extends ChangeNotifier {
 
   // --- Documento corrente --------------------------------------------------
 
+  /// Dove far atterrare la scheda aperta.
+  ///
+  /// Serve a un caso solo, ma reale: chi partecipa a una campagna dal menu'
+  /// principale vuole trovarsi davanti alla chat del tavolo, non alla sezione
+  /// "Personaggio" a cercare la voce giusta nella barra laterale.
+  ///
+  /// E' una **richiesta** e non un valore da consumare subito, perche' la
+  /// scheda viene aperta prima che il collegamento riesca: se il valore fosse
+  /// consumato all'apertura, la schermata l'avrebbe gia' buttato via nel momento
+  /// in cui la richiesta arriva davvero.
+  SheetLanding _sheetLanding = SheetLanding.start;
+  SheetLanding get sheetLandingRequest => _sheetLanding;
+
+  void clearSheetLanding() => _sheetLanding = SheetLanding.start;
+
   String? _documentPath;
   String? get documentPath => _documentPath;
 
@@ -1678,17 +1789,39 @@ class AppState extends ChangeNotifier {
   MigrationReport analyseLegacySheet(String legacyPath) =>
       SheetMigrator.analyse(legacyPath, now: _now(), catalog: _catalog);
 
-  /// Converte una vecchia `.cpred_sheet` e apre il risultato.
+  /// Dove finirebbe la scheda convertita, senza convertirla.
   ///
-  /// Non sovrascrive mai l'originale: crea un `.cpredux` affiancato e lascia il
-  /// file vecchio dov'e'. L'utente potra' cancellarlo quando si fidera'.
-  MigrationReport migrateLegacySheet(String legacyPath) {
-    String outputPath = '${p.withoutExtension(legacyPath)}.${CpreduxFile.extension}';
+  /// Esiste perche' l'anteprima deve dire anche **dove** finira' il file: e' la
+  /// prima cosa che si cerca dopo, e scoprirlo solo alla fine significa
+  /// ritrovarsi un documento di cui non si sa il percorso.
+  String migrationOutputPath(String legacyPath, MigrationTarget target) {
+    final String folder = target == MigrationTarget.appData
+        ? AppPaths.documentsDir().path
+        : p.dirname(legacyPath);
+    final String base = p.basenameWithoutExtension(legacyPath);
+
+    String candidate = p.join(folder, '$base.${CpreduxFile.extension}');
     int counter = 1;
-    while (File(outputPath).existsSync()) {
-      outputPath = '${p.withoutExtension(legacyPath)} ($counter).${CpreduxFile.extension}';
+    // Mai sovrascrivere: se esiste gia' una scheda con quel nome si aggiunge un
+    // numero, invece di decidere per l'utente che la sua scheda nuova vale piu'
+    // di quella vecchia.
+    while (File(candidate).existsSync()) {
+      candidate = p.join(folder, '$base ($counter).${CpreduxFile.extension}');
       counter++;
     }
+    return candidate;
+  }
+
+  /// Converte una vecchia `.cpred_sheet` e apre il risultato.
+  ///
+  /// Non sovrascrive mai l'originale: il file vecchio resta dov'e', e la scheda
+  /// nuova nasce accanto oppure fra i documenti dell'app. L'utente potra'
+  /// cancellare il vecchio quando si fidera'.
+  MigrationReport migrateLegacySheet(
+    String legacyPath, {
+    MigrationTarget target = MigrationTarget.appData,
+  }) {
+    final String outputPath = migrationOutputPath(legacyPath, target);
 
     final MigrationReport report = SheetMigrator.convert(
       legacyPath,
