@@ -10,6 +10,7 @@ import '../../domain/enums.dart';
 import '../../domain/rules.dart';
 import '../../domain/skills.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/dice_3d_table.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 
@@ -19,6 +20,9 @@ class RollRecord {
     required this.label,
     required this.detail,
     required this.total,
+    this.die = DiceType.d10,
+    this.results = const <int>[],
+    this.modifier = 0,
     this.isCritical = false,
     this.isFumble = false,
     required this.at,
@@ -27,6 +31,9 @@ class RollRecord {
   final String label;
   final String detail;
   final int total;
+  final DiceType die;
+  final List<int> results;
+  final int modifier;
   final bool isCritical;
   final bool isFumble;
   final DateTime at;
@@ -34,11 +41,11 @@ class RollRecord {
 
 /// Il tiro di dadi.
 ///
-/// Due cose contano qui, e non sono i dadi: il **risultato grande** e il
+/// Due cose contano qui: il **visualizer 3D sul tavolo da gioco** e il
 /// **registro**. In sessione si tira decine di volte e il master chiede "quanto
 /// hai fatto?" due secondi dopo: se il numero precedente e' sparito, il tiro va
-/// rifatto. Per questo il risultato resta a schermo finche' non ne arriva un
-/// altro, e il registro tiene gli ultimi tiri con ora e dettaglio.
+/// rifatto. Per questo il tavolo e il registro tengono gli ultimi tiri con
+/// ora e dettaglio.
 class DiceTab extends StatefulWidget {
   const DiceTab({super.key});
 
@@ -72,27 +79,31 @@ class _DiceTabState extends State<DiceTab> {
         label: label,
         detail: detail,
         total: roll.total,
+        die: _die,
+        results: roll.individualResults,
+        modifier: _modifier,
         isCritical: roll.isCritical,
         isFumble: roll.isFumble,
         at: DateTime.now(),
       );
       _history.insert(0, _last!);
       if (_history.length > 40) _history.removeLast();
-      // Il contatore serve a far ripartire l'animazione di rivelazione: senza,
-      // due tiri con lo stesso totale non farebbero ricomparire nulla e
-      // sembrerebbe che il secondo tiro non sia avvenuto.
       _reveal++;
     });
   }
 
   void _rollSkill(AppState state, Skill skill, SheetTotals totals) {
     final DiceRoll roll = rollSkillCheck(state.sheet!, skill, random: _rng);
+    final int mod = totals.skillCheck(skill);
     setState(() {
       _last = RollRecord(
         label: skill.name,
         detail: '1d10 + ${totals.statValue(skill.stat)} (${skill.stat.short})'
             ' + ${totals.skillValue(skill)}',
         total: roll.total,
+        die: DiceType.d10,
+        results: roll.individualResults,
+        modifier: mod,
         isCritical: roll.isCritical,
         isFumble: roll.isFumble,
         at: DateTime.now(),
@@ -119,7 +130,7 @@ class _DiceTabState extends State<DiceTab> {
             builder: (BuildContext context, BoxConstraints c) {
               final Widget left = Column(
                 children: <Widget>[
-                  _ResultPanel(last: _last, reveal: _reveal),
+                  _ResultPanel(last: _last, reveal: _reveal, defaultDie: _die),
                   const SizedBox(height: 14),
                   _RollerPanel(
                     die: _die,
@@ -162,18 +173,23 @@ class _DiceTabState extends State<DiceTab> {
   }
 }
 
-/// Il risultato, in grande.
+/// Il risultato con il visualizer 3D sul tavolo da gioco.
 class _ResultPanel extends StatelessWidget {
-  const _ResultPanel({required this.last, required this.reveal});
+  const _ResultPanel({
+    required this.last,
+    required this.reveal,
+    required this.defaultDie,
+  });
 
   final RollRecord? last;
   final int reveal;
+  final DiceType defaultDie;
 
   @override
   Widget build(BuildContext context) {
     final RollRecord? roll = last;
     final Color accent = roll == null
-        ? CprPalette.inkFaint
+        ? CprPalette.cyan
         : roll.isCritical
             ? CprPalette.success
             : roll.isFumble
@@ -181,66 +197,45 @@ class _ResultPanel extends StatelessWidget {
                 : CprPalette.yellow;
 
     return ChamferPanel(
-      title: 'Ultimo tiro',
+      title: 'Tavolo dei Dadi 3D',
       accent: accent,
-      child: Column(
-        children: <Widget>[
-          SizedBox(
-            height: 128,
-            child: Center(
-              child: roll == null
-                  ? Text(
-                      'Nessun tiro',
-                      style: CprType.body.copyWith(color: CprPalette.inkFaint),
-                    )
-                  : TweenAnimationBuilder<double>(
-                      key: ValueKey<int>(reveal),
-                      tween: Tween<double>(begin: 0, end: 1),
-                      duration: CprMotion.slow,
-                      curve: CprMotion.enter,
-                      builder: (BuildContext context, double t, Widget? child) {
-                        return Opacity(
-                          opacity: t.clamp(0, 1),
-                          child: Transform.scale(
-                            // Parte da 0.82 e "assesta": un numero che nasce
-                            // fermo sembra un'etichetta, uno che si assesta
-                            // sembra il risultato di qualcosa che e' successo.
-                            scale: 0.82 + (0.18 * t),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Text(
-                            '${roll.total}',
-                            style: CprType.display.copyWith(fontSize: 72, color: accent),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            roll.detail.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            style: CprType.label.copyWith(color: CprPalette.inkMuted),
-                          ),
-                          if (roll.isCritical || roll.isFumble) ...<Widget>[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              color: CprPalette.veil(accent, 0.16),
-                              child: Text(
-                                roll.isCritical ? 'CRITICO' : 'FALLIMENTO CRITICO',
-                                style: CprType.label.copyWith(color: accent, fontSize: 10),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+      child: roll == null
+          ? Container(
+              height: 280,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A0E12),
+                border: Border.all(color: CprPalette.hairline),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    Icon(Icons.casino_outlined, size: 48, color: CprPalette.veil(CprPalette.cyan, 0.4)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'TAVOLO DA GIOCO PRONTO',
+                      style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 11, letterSpacing: 1.0),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Seleziona i dadi e premi Lancia per vederli rotolare sul tavolo',
+                      style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Dice3DTable(
+              die: roll.die,
+              results: roll.results.isEmpty ? <int>[roll.total] : roll.results,
+              total: roll.total,
+              label: roll.label,
+              modifier: roll.modifier,
+              isCritical: roll.isCritical,
+              isFumble: roll.isFumble,
+              revealKey: reveal,
+              tableHeight: 285.0,
             ),
-          ),
-        ],
-      ),
     );
   }
 }

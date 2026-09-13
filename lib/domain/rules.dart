@@ -238,10 +238,17 @@ class DiceRoll {
     required this.result,
     this.label = '',
     this.modifier = 0,
+    this.individualResults = const <int>[],
   });
 
   final DiceType die;
   final int result;
+
+  /// Risultato di ciascun dado lanciato (utile quando count > 1).
+  final List<int> individualResults;
+
+  List<int> get resultsList =>
+      individualResults.isNotEmpty ? individualResults : <int>[result];
 
   /// Cosa si stava tirando ("Pistole", "Iniziativa").
   final String label;
@@ -250,10 +257,12 @@ class DiceRoll {
   int get total => result + modifier;
 
   /// In CP RED un 10 naturale e' un critico: si tira di nuovo e si somma.
-  bool get isCritical => die == DiceType.d10 && result == 10;
+  bool get isCritical =>
+      die == DiceType.d10 && (individualResults.isNotEmpty ? individualResults.first == 10 : result == 10);
 
   /// Un 1 naturale con 1d10 e' un fallimento critico.
-  bool get isFumble => die == DiceType.d10 && result == 1;
+  bool get isFumble =>
+      die == DiceType.d10 && (individualResults.isNotEmpty ? individualResults.first == 1 : result == 1);
 }
 
 /// Tira un dado a N facce. `Random` e' iniettabile per rendere i test
@@ -261,11 +270,13 @@ class DiceRoll {
 /// tirare finche' non esce un 10.
 DiceRoll rollDie(DiceType die, {String label = '', int modifier = 0, math.Random? random}) {
   final math.Random rng = random ?? math.Random();
+  final int r = rng.nextInt(die.faces) + 1;
   return DiceRoll(
     die: die,
-    result: rng.nextInt(die.faces) + 1,
+    result: r,
     label: label,
     modifier: modifier,
+    individualResults: <int>[r],
   );
 }
 
@@ -288,9 +299,18 @@ DiceRoll rollSkillCheck(
 /// Tira piu' dadi e somma: `rollDice(DiceType.d6, 3)` equivale a 3d6.
 DiceRoll rollDice(DiceType die, int count, {String label = '', int modifier = 0, math.Random? random}) {
   final math.Random rng = random ?? math.Random();
+  final List<int> results = <int>[];
   int sum = 0;
   for (int i = 0; i < count; i++) {
-    sum += rng.nextInt(die.faces) + 1;
+    final int r = rng.nextInt(die.faces) + 1;
+    results.add(r);
+    sum += r;
   }
-  return DiceRoll(die: die, result: sum, label: label, modifier: modifier);
+  return DiceRoll(
+    die: die,
+    result: sum,
+    label: label,
+    modifier: modifier,
+    individualResults: results,
+  );
 }
