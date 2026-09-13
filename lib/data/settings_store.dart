@@ -13,7 +13,7 @@ class AppSettings {
     this.enableDiscordRichPresence = true,
     this.autosave = true,
     this.autoCheckUpdates = true,
-    this.discordClientId = '',
+    this.discordClientId = defaultDiscordClientId,
     this.updateFeedUrl = defaultUpdateFeedUrl,
     this.skippedUpdateVersion = '',
     this.pendingUpdateVersion = '',
@@ -22,22 +22,11 @@ class AppSettings {
     List<String>? recentFiles,
   }) : recentFiles = recentFiles ?? <String>[];
 
-  /// Il manifesto degli aggiornamenti pubblicato dal rilascio.
-  ///
-  /// E' un file statico, non una chiamata alle API di GitLab o GitHub: vedi
-  /// `UpdateManifest` per le ragioni. Si puo' cambiare dalle impostazioni sia
-  /// perche' chi ospita i propri build deve poterlo fare, sia perche' un URL
-  /// rotto deve essere correggibile senza ricompilare il programma.
-  ///
-  /// **Vuoto significa "non ancora configurato"**, e non e' la stessa cosa di un
-  /// indirizzo sbagliato: finche' il progetto non e' pubblicato non esiste un URL
-  /// da mettere qui, e un valore inventato produrrebbe un errore di rete a ogni
-  /// avvio — rumore che insegna a ignorare gli avvisi. Con il campo vuoto il
-  /// controllo e' semplicemente spento, e le impostazioni lo dicono.
-  ///
-  /// Va impostato con l'URL di Pages del progetto (`https://<namespace>.gitlab.io/<progetto>/latest.json`)
-  /// appena esiste il primo rilascio.
-  static const String defaultUpdateFeedUrl = '';
+  /// Indirizzo predefinito del manifesto degli aggiornamenti su GitLab Pages.
+  static const String defaultUpdateFeedUrl = 'https://tia004.gitlab.io/cpredux/latest.json';
+
+  /// Application ID Discord ufficiale di CPRED Visualizer.
+  static const String defaultDiscordClientId = '1541315898835472408';
 
   /// Tema scuro. Il progetto ha sempre avuto un tema chiaro alternativo, e
   /// vale la pena tenerlo: in una stanza illuminata una scheda chiara si legge
@@ -139,12 +128,12 @@ class AppSettings {
       enableLoad: json['enableLoad'] is bool ? json['enableLoad']! as bool : true,
       enableDiscordRichPresence:
           json['enableDiscordRichPresence'] is bool ? json['enableDiscordRichPresence']! as bool : true,
-      discordClientId: json['discordClientId'] is String ? json['discordClientId']! as String : '',
+      discordClientId: json['discordClientId'] is String && (json['discordClientId']! as String).trim().isNotEmpty
+          ? (json['discordClientId']! as String).trim()
+          : defaultDiscordClientId,
       autosave: json['autosave'] is bool ? json['autosave']! as bool : true,
       autoCheckUpdates: json['autoCheckUpdates'] is bool ? json['autoCheckUpdates']! as bool : true,
-      // Un indirizzo assente resta assente: si torna ai default, non a un URL
-      // che non esiste.
-      updateFeedUrl: json['updateFeedUrl'] is String
+      updateFeedUrl: json['updateFeedUrl'] is String && (json['updateFeedUrl']! as String).trim().isNotEmpty
           ? (json['updateFeedUrl']! as String).trim()
           : defaultUpdateFeedUrl,
       skippedUpdateVersion:

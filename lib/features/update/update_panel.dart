@@ -56,21 +56,12 @@ class UpdatePanel extends StatelessWidget {
         ],
         const SizedBox(height: 18),
         _UpdateToggle(
-          label: 'Controlla gli aggiornamenti all\'avvio',
+          label: 'Controllo automatico degli aggiornamenti',
           description:
-              'Chiede un file di poche centinaia di byte e non scarica niente da solo. '
-              'Se c\'e\' una versione nuova te lo chiede: non la installa.',
+              'Verifica automaticamente la presenza di nuove versioni all\'avvio in background. '
+              'Se e\' disponibile un aggiornamento, ti chiedera\' la conferma per installarlo senza interrompere il lavoro.',
           value: state.settings.autoCheckUpdates,
           onChanged: (bool v) => state.updateSettings((s) => s.autoCheckUpdates = v),
-        ),
-        const SizedBox(height: 18),
-        TechField(
-          label: 'Indirizzo del manifesto degli aggiornamenti',
-          value: state.settings.updateFeedUrl,
-          hint: 'https://…/latest.json',
-          accent: CprPalette.cyan,
-          enabled: state.settings.autoCheckUpdates,
-          onChanged: (String v) => state.updateSettings((s) => s.updateFeedUrl = v.trim()),
         ),
         const SizedBox(height: 14),
         _StatusLine(state: state),

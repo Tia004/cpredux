@@ -53,6 +53,10 @@ class DiscordRpc {
         'start': DateTime.tryParse(startTimeIso ?? '')?.millisecondsSinceEpoch ??
             DateTime.now().millisecondsSinceEpoch,
       },
+      'assets': const <String, Object?>{
+        'large_image': 'main',
+        'large_text': 'Cyberpunk RED Visualizer',
+      },
     };
 
     if (!isConnected || _clientId != id) {
@@ -68,6 +72,8 @@ class DiscordRpc {
     _sendActivity();
   }
 
+  void Function(bool connected)? onConnectionChanged;
+
   Future<void> _connect() async {
     if (_connecting) return;
     _connecting = true;
@@ -75,6 +81,10 @@ class DiscordRpc {
 
     try {
       final Socket socket = await _openSocket();
+      if (_clientId == null) {
+        socket.destroy();
+        return;
+      }
       _socket = socket;
       socket.listen(
         (_) {},
@@ -84,13 +94,16 @@ class DiscordRpc {
       );
       _send(<String, Object?>{'v': 1, 'client_id': _clientId ?? ''}, opcode: _opHandshake);
       _handshaken = true;
+      onConnectionChanged?.call(true);
       _sendActivity();
     } catch (_) {
       // Discord chiuso: si resta in silenzio e si riprovera' al prossimo
-      // aggiornamento. Nessun timer di riconnessione: sarebbe traffico inutile
-      // per un'app che l'utente ha aperto per giocare, non per il badge.
+      // aggiornamento.
       _handshaken = false;
       _socket = null;
+      if (_clientId != null) {
+        onConnectionChanged?.call(false);
+      }
     } finally {
       _connecting = false;
     }
@@ -100,8 +113,12 @@ class DiscordRpc {
     final Duration timeout = const Duration(milliseconds: 500);
 
     if (Platform.isWindows) {
-      // Dart accetta il nome del pipe come host su Windows.
-      return Socket.connect(r'\\.\pipe\discord-ipc-0', 0, timeout: timeout);
+      for (int i = 0; i < _maxClients; i++) {
+        try {
+          return await Socket.connect(r'\\.\pipe\discord-ipc-' '$i', 0, timeout: timeout);
+        } catch (_) {}
+      }
+      throw const SocketException('Nessun pipe Discord disponibile su Windows');
     }
 
     for (final String path in _unixSocketCandidates()) {
@@ -122,13 +139,14 @@ class DiscordRpc {
 
   /// Percorsi dei socket, dal piu' probabile al meno.
   ///
-  /// `XDG_RUNTIME_DIR` copre le installazioni Snap e Flatpak, che sono la fonte
-  /// numero uno di "la presenza non funziona solo sul mio Linux".
+  /// Include la cartella temporanea di sistema (fondamentale su macOS), le variabili
+  /// d'ambiente Unix standard e le sandbox Snap e Flatpak su Linux.
   static List<String> _unixSocketCandidates() {
     final Map<String, String> env = Platform.environment;
     final List<String> roots = <String>[
-      if (env['XDG_RUNTIME_DIR'] != null) env['XDG_RUNTIME_DIR']!,
+      Directory.systemTemp.path,
       if (env['TMPDIR'] != null) env['TMPDIR']!,
+      if (env['XDG_RUNTIME_DIR'] != null) env['XDG_RUNTIME_DIR']!,
       if (env['TMP'] != null) env['TMP']!,
       '/tmp',
       if (env['HOME'] != null) '${env['HOME']}/.cache/discord',
@@ -137,11 +155,17 @@ class DiscordRpc {
     ];
 
     final Set<String> seen = <String>{};
-    return <String>[
-      for (final String root in roots)
-        for (int i = 0; i < _maxClients; i++)
-          if (seen.add('$root/discord-ipc-$i')) '$root/discord-ipc-$i',
-    ];
+    final List<String> candidates = <String>[];
+    for (final String root in roots) {
+      final String cleanRoot = root.endsWith('/') ? root.substring(0, root.length - 1) : root;
+      for (int i = 0; i < _maxClients; i++) {
+        final String candidate = '$cleanRoot/discord-ipc-$i';
+        if (seen.add(candidate)) {
+          candidates.add(candidate);
+        }
+      }
+    }
+    return candidates;
   }
 
   void _sendActivity() {
@@ -192,6 +216,7 @@ class DiscordRpc {
   Future<void> shutdown() async {
     _activity = null;
     _clientId = null;
+    onConnectionChanged = null;
     _disposeSocket();
   }
 }

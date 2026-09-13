@@ -59,6 +59,7 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
   /// puo' iniziare a lavorare mentre la risposta arriva.
   Future<void> _afterStartup() async {
     _state.consumePendingUpdateOutcome();
+    _state.startDiscordPresenceLoop();
     await _state.refreshPresence();
 
     if (widget.startup.mode == StartupMode.justUpdated) {

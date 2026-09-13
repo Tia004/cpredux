@@ -111,7 +111,35 @@ class AppScope extends InheritedNotifier<AppState> {
 /// una modifica e' l'errore piu' facile in un'applicazione a schede, e questo
 /// lo rende impossibile.
 class AppState extends ChangeNotifier {
-  AppState({ItemCatalog? catalog}) : _catalog = catalog ?? ItemCatalog.empty();
+  AppState({ItemCatalog? catalog}) : _catalog = catalog ?? ItemCatalog.empty() {
+    _discord.onConnectionChanged = (_) {
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+    };
+  }
+
+  bool _isDisposed = false;
+  bool get isDisposed => _isDisposed;
+
+  @override
+  void notifyListeners() {
+    if (!_isDisposed) {
+      super.notifyListeners();
+    }
+  }
+
+  Timer? _discordRetryTimer;
+
+  /// Avvia il controllo periodico della presenza Discord durante l'esecuzione dell'app.
+  void startDiscordPresenceLoop() {
+    _discordRetryTimer?.cancel();
+    _discordRetryTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (settings.enableDiscordRichPresence && !_discord.isConnected) {
+        refreshPresence();
+      }
+    });
+  }
 
   /// Il catalogo oggetti spedito con l'app, in sola lettura.
   ///
@@ -631,11 +659,13 @@ class AppState extends ChangeNotifier {
   Future<void> refreshPresence() async {
     if (!settings.enableDiscordRichPresence) {
       await _discord.shutdown();
+      notifyListeners();
       return;
     }
 
-    final String? id = settings.discordClientId.trim().isEmpty ? null : settings.discordClientId.trim();
-    if (id == null) return;
+    final String id = settings.discordClientId.trim().isNotEmpty
+        ? settings.discordClientId.trim()
+        : AppSettings.defaultDiscordClientId;
 
     final String details;
     final String state;
@@ -659,13 +689,18 @@ class AppState extends ChangeNotifier {
       state: state,
       startTimeIso: _sessionStartedAt.toIso8601String(),
     );
+    notifyListeners();
   }
 
   // --- Aggiornamenti --------------------------------------------------------
 
   Updater? _updater;
 
-  Updater get updater => _updater ??= Updater(feedUrl: settings.updateFeedUrl);
+  Updater get updater => _updater ??= Updater(
+        feedUrl: settings.updateFeedUrl.trim().isNotEmpty
+            ? settings.updateFeedUrl.trim()
+            : AppSettings.defaultUpdateFeedUrl,
+      );
 
   UpdateStage _updateStage = UpdateStage.idle;
   UpdateStage get updateStage => _updateStage;
@@ -2281,7 +2316,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> updateSettings(void Function(AppSettings s) change) async {
+    final String oldFeed = settings.updateFeedUrl;
     change(settings);
+    if (settings.updateFeedUrl != oldFeed) {
+      _updater = null;
+    }
     SettingsStore.save(settings);
     notifyListeners();
     refreshPresence();
@@ -2300,8 +2339,11 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _autosaveTimer?.cancel();
     _snapshotTimer?.cancel();
+    _discordRetryTimer?.cancel();
+    _discord.onConnectionChanged = null;
     _discord.shutdown();
     _host?.stop();
     _client?.close();

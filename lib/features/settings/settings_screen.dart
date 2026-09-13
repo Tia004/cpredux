@@ -75,53 +75,55 @@ class SettingsScreen extends StatelessWidget {
                               label: 'Discord Rich Presence',
                               description:
                                   'Mostra su Discord che stai usando l\'app, e su quale personaggio. '
-                                  'Funziona su macOS, Windows e Linux, Apple Silicon incluso.',
+                                  'Funziona automaticamente su macOS, Windows e Linux quando Discord e\' aperto.',
                               value: state.settings.enableDiscordRichPresence,
                               onChanged: (bool v) =>
                                   state.updateSettings((s) => s.enableDiscordRichPresence = v),
                             ),
-                            const SizedBox(height: 16),
-                            TechField(
-                              label: 'Discord Application ID',
-                              value: state.settings.discordClientId,
-                              hint: 'Es. 1234567890123456789',
-                              accent: CprPalette.violet,
-                              enabled: state.settings.enableDiscordRichPresence,
-                              onChanged: (String v) =>
-                                  state.updateSettings((s) => s.discordClientId = v.trim()),
-                            ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: <Widget>[
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 3),
-                                  child: Icon(
-                                    state.discord.isConnected
-                                        ? Icons.check_circle_outline
-                                        : Icons.info_outline,
-                                    size: 13,
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
                                     color: state.discord.isConnected
                                         ? CprPalette.success
-                                        : CprPalette.inkFaint,
+                                        : (state.settings.enableDiscordRichPresence
+                                            ? CprPalette.warning
+                                            : CprPalette.inkFaint),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    state.discord.isConnected
-                                        ? 'Collegato a Discord: la presenza e\' attiva.'
-                                        : 'Non collegato. La presenza richiede un Application ID: si crea '
-                                            'gratuitamente su discord.com/developers → New Application → '
-                                            'copia l\'Application ID. Serve anche Discord aperto.',
+                                    !state.settings.enableDiscordRichPresence
+                                        ? 'Integrazione disattivata.'
+                                        : (state.discord.isConnected
+                                            ? 'Collegato a Discord: presenza attiva.'
+                                            : 'Ricerca client Discord in corso (assicurati che Discord sia aperto)...'),
                                     style: CprType.caption.copyWith(
                                       color: state.discord.isConnected
                                           ? CprPalette.success
-                                          : CprPalette.inkFaint,
+                                          : (state.settings.enableDiscordRichPresence
+                                              ? CprPalette.warning
+                                              : CprPalette.inkFaint),
                                       height: 1.45,
                                     ),
                                   ),
                                 ),
+                                if (state.settings.enableDiscordRichPresence && !state.discord.isConnected) ...<Widget>[
+                                  const SizedBox(width: 8),
+                                  TechButton(
+                                    label: 'Riprova',
+                                    icon: Icons.refresh,
+                                    variant: TechButtonVariant.ghost,
+                                    compact: true,
+                                    onPressed: () => state.refreshPresence(),
+                                  ),
+                                ],
                               ],
                             ),
                           ],

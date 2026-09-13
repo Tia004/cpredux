@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import '../data/app_paths.dart';
+import '../data/settings_store.dart';
 import '../version.dart';
 import 'update_manifest.dart';
 
@@ -175,7 +176,10 @@ class Updater {
       Directory(p.join(AppPaths.configDir().path, 'updates'));
 
   Future<UpdateCheck> check() async {
-    final Uri? uri = Uri.tryParse(feedUrl.trim());
+    final String urlStr = feedUrl.trim().isNotEmpty
+        ? feedUrl.trim()
+        : AppSettings.defaultUpdateFeedUrl;
+    final Uri? uri = Uri.tryParse(urlStr);
     if (uri == null || !uri.hasScheme) {
       return const UpdateCheck.failed('L\'indirizzo degli aggiornamenti non e\' valido.');
     }
