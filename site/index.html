@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPRED Visualizer — scarica</title>
+<meta name="description" content="Scheda del personaggio, campagna condivisa e mappa di Night City per Cyberpunk RED. Per macOS, Windows e Linux.">
+<style>
+  /* La pagina non ha un tema scuro "di servizio": e' la prima cosa che si vede
+     del programma, e deve somigliargli. Gli stessi accenti (ciano, magenta,
+     giallo) su un fondo quasi nero. */
+  :root {
+    --void: #08090c;
+    --surface: #101318;
+    --sunken: #0b0d11;
+    --hairline: #1d222b;
+    --ink: #e7ecf3;
+    --ink-muted: #8b95a5;
+    --ink-faint: #5b6472;
+    --cyan: #24d8e8;
+    --magenta: #ff2e88;
+    --yellow: #fcee0a;
+    --success: #3ddc84;
+    --danger: #ff4d4d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--void); color: var(--ink); }
+  body {
+    font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Griglia di fondo: la stessa dell'applicazione, tenue. */
+    background-image:
+      linear-gradient(rgba(36, 216, 232, .045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(36, 216, 232, .045) 1px, transparent 1px);
+    background-size: 48px 48px, 48px 48px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 56px 22px 80px; }
+  .label {
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .22em; text-transform: uppercase;
+  }
+  h1 { font-size: 34px; letter-spacing: -.5px; margin: 0 0 8px; }
+  h1 span { color: var(--yellow); }
+  .lede { color: var(--ink-muted); max-width: 60ch; margin: 0 0 36px; }
+  .rule { height: 1px; background: var(--hairline); margin: 34px 0; }
+  h2 { font-size: 19px; margin: 0 0 14px; letter-spacing: -.2px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--cyan);
+    padding: 20px 22px;
+  }
+  .card--magenta { border-left-color: var(--magenta); }
+  .card--yellow { border-left-color: var(--yellow); }
+
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+  .dl {
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--surface); border: 1px solid var(--hairline);
+    padding: 18px 20px; text-decoration: none; color: inherit;
+    transition: border-color .16s ease, transform .16s ease, background .16s ease;
+  }
+  .dl:hover { border-color: rgba(36,216,232,.55); transform: translateY(-2px); }
+  .dl[aria-disabled="true"] { opacity: .4; pointer-events: none; }
+  .dl .os { display: flex; align-items: center; gap: 9px; font-weight: 600; }
+  .dl .os i { width: 7px; height: 7px; background: var(--cyan); display: block; }
+  .dl .filename { font: 500 11px/1.5 ui-monospace, Menlo, Consolas, monospace; color: var(--ink-faint); word-break: break-all; }
+  .dl .meta { margin-top: 8px; display: flex; gap: 14px; color: var(--ink-muted); font-size: 12.5px; }
+  .dl .meta b { color: var(--ink); font-weight: 600; }
+
+  .pill {
+    display: inline-block; padding: 3px 8px; font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; background: rgba(252,238,10,.12); color: var(--yellow);
+  }
+  .notes { margin: 14px 0 0; padding: 0; list-style: none; }
+  .notes li { position: relative; padding-left: 18px; margin-bottom: 7px; color: var(--ink-muted); }
+  .notes li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 6px; background: var(--cyan); }
+
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  code { background: var(--sunken); padding: 1px 5px; border: 1px solid var(--hairline); }
+  .steps { counter-reset: s; margin: 0; padding: 0; list-style: none; }
+  .steps li { position: relative; padding-left: 34px; margin-bottom: 16px; }
+  .steps li::before {
+    counter-increment: s; content: counter(s, decimal-leading-zero);
+    position: absolute; left: 0; top: 1px;
+    font: 600 11px/1.5 ui-monospace, Menlo, monospace; color: var(--cyan);
+  }
+  footer { margin-top: 46px; color: var(--ink-faint); font-size: 12.5px; }
+  a { color: var(--cyan); }
+  .warn { color: var(--ink-muted); font-size: 12.5px; border-left: 2px solid var(--danger); padding-left: 12px; }
+  #state { color: var(--ink-faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="label" style="color: var(--cyan)">Cyberpunk RED · strumento da tavolo</p>
+  <h1>CPRED <span>Visualizer</span></h1>
+  <p class="lede">
+    Scheda del personaggio, campagna condivisa con il master come autorità e mappa di
+    Night City con waypoint condivisi. Un'applicazione desktop, non un sito: i tuoi
+    personaggi restano su disco, in un file che puoi copiare e mandare a chi vuoi.
+  </p>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap">
+      <div>
+        <p class="label" style="color: var(--ink-faint); margin:0 0 6px">Ultima versione</p>
+        <p style="margin:0; font-size:22px; font-weight:600" id="version">…</p>
+      </div>
+      <p class="pill" id="channel">stabile</p>
+    </div>
+    <ul class="notes" id="notes"></ul>
+    <p class="label" id="state">lettura del manifesto…</p>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2>Scarica</h2>
+  <div class="grid" id="downloads">
+    <a class="dl" id="macos" aria-disabled="true"><span class="os"><i></i>macOS</span><span class="filename">…</span></a>
+    <a class="dl" id="windows" aria-disabled="true"><span class="os"><i></i>Windows</span><span class="filename">…</span></a>
+    <a class="dl" id="linux" aria-disabled="true"><span class="os"><i></i>Linux</span><span class="filename">…</span></a>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2>Prima di installare, leggi qui</h2>
+  <div class="card card--yellow">
+    <p style="margin:0 0 12px">
+      <b>Sono la pagina che distribuisce l'applicazione, non i file.</b> Gli archivi qui sopra
+      sono gli stessi che il programma scarica quando si aggiorna da solo.
+    </p>
+    <p style="margin:0">
+      <b>Su macOS</b> l'applicazione non è firmata con un certificato Apple a pagamento, quindi al
+      primo avvio il sistema dirà che lo sviluppatore non è verificato. Si sblocca da
+      <i>Impostazioni di Sistema → Privacy e Sicurezza → Apri comunque</i>. È una seccatura
+      dovuta al costo del certificato, non un problema dell'archivio.
+    </p>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2>Come si aggiorna</h2>
+  <ol class="steps">
+    <li>
+      Il programma controlla all'avvio se c'è una versione nuova: chiede questo file
+      <code>latest.json</code>, poche centinaia di byte. Non scarica niente da solo.
+    </li>
+    <li>
+      Se c'è, te lo chiede con tre scelte: <b>aggiorna adesso</b>, <b>salta questa versione</b>,
+      oppure <b>alla chiusura</b>.
+    </li>
+    <li>
+      Con "alla chiusura" il pacchetto viene scaricato <b>subito</b> e verificato con il suo
+      SHA-256. Alla chiusura il programma si riapre da solo, installa e si richiude.
+    </li>
+  </ol>
+  <p class="warn">
+    Se hai installato Linux da un pacchetto della tua distribuzione, l'aggiornamento automatico
+    è disattivato: il file appartiene al gestore di pacchetti. Usa <code>AppImage</code> per
+    avere gli aggiornamenti automatici.
+  </p>
+
+  <div class="rule"></div>
+
+  <h2>Note legali</h2>
+  <div class="card card--magenta">
+    <p style="margin:0 0 10px">
+      Questa applicazione è <b>contenuto non ufficiale</b>, fornito secondo la
+      <a href="https://rtalsoriangames.com/homebrew-content-policy/" target="_blank" rel="noopener">Homebrew
+      Content Policy</a> di R. Talsorian Games, e non è approvata né sostenuta da RTG. Fa
+      riferimento a materiali di proprietà di R. Talsorian Games e dei suoi licenziatari.
+    </p>
+    <p style="margin:0">
+      Il programma <b>non riproduce testo, illustrazioni né marchi</b> dei manuali: le
+      statistiche sono riassunte e referenziate, e le mappe sono disegnate da zero.
+      L'uso è <b>gratuito</b>. Cyberpunk RED è un marchio di R. Talsorian Games.
+    </p>
+  </div>
+
+  <footer>
+    <p id="foot">CPRED Visualizer · scaricato l'ultima volta: —</p>
+  </footer>
+</div>
+
+<script>
+  // La pagina legge il manifesto a runtime invece di essere rigenerata a ogni
+  // rilascio: cosi' esiste **un solo** posto che sa qual e' la versione corrente,
+  // e non puo' succedere che la pagina annunci una versione e il manifesto ne
+  // pubblichi un'altra.
+  const LABELS = {
+    macos: { os: 'macOS', hint: 'Apple Silicon e Intel' },
+    windows: { os: 'Windows', hint: 'Windows 10 e 11' },
+    linux: { os: 'Linux', hint: 'AppImage, nessuna installazione' },
+  };
+
+  function human(bytes) {
+    if (!bytes) return null;
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function fill(platform, asset, version) {
+    const el = document.getElementById(platform);
+    const meta = LABELS[platform];
+    if (!el) return;
+
+    if (!asset) {
+      // Una piattaforma senza pacchetto resta visibile e disattivata: sparisce
+      // dalla pagina solo cio' che non esiste, e "non c'e' per il tuo sistema"
+      // e' un'informazione utile.
+      el.setAttribute('aria-disabled', 'true');
+      el.querySelector('.filename').textContent = 'nessun pacchetto per questa piattaforma';
+      return;
+    }
+
+    const url = asset.url + (asset.url.includes('?') ? '' : '?v=' + encodeURIComponent(version));
+    el.href = url;
+    el.removeAttribute('aria-disabled');
+    el.querySelector('.filename').textContent = asset.fileName || url.split('/').pop();
+
+    const parts = [];
+    if (meta.hint) parts.push(meta.hint);
+    const size = human(asset.size);
+    if (size) parts.push('<b>' + size + '</b>');
+    if (asset.sha256) parts.push('SHA-256 verificato');
+    if (parts.length) {
+      const m = document.createElement('span');
+      m.className = 'meta';
+      m.innerHTML = parts.map(p => '<span>' + p + '</span>').join('');
+      el.appendChild(m);
+    }
+  }
+
+  fetch('latest.json', { cache: 'no-store' })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(m => {
+      document.getElementById('version').textContent = 'v' + m.version;
+      const ul = document.getElementById('notes');
+      for (const note of (m.notes || [])) {
+        const li = document.createElement('li');
+        li.textContent = note;
+        ul.appendChild(li);
+      }
+      const when = m.releasedAt ? new Date(m.releasedAt).toLocaleDateString('it-IT') : null;
+      document.getElementById('state').textContent =
+        [when ? 'pubblicata il ' + when : null, (m.notes || []).length + ' voci di changelog']
+          .filter(Boolean).join(' · ');
+
+      for (const platform of Object.keys(LABELS)) fill(platform, m.assets && m.assets[platform], m.version);
+      document.getElementById('foot').textContent =
+        'CPRED Visualizer v' + m.version + ' · contenuto non ufficiale ai sensi della Homebrew Content Policy di R. Talsorian Games';
+    })
+    .catch(err => {
+      document.getElementById('state').textContent = 'manifesto non leggibile (' + err + ')';
+      // Nessun link inventato: se il manifesto non si legge, la pagina non deve
+      // far scaricare un file che non sa se esiste.
+    });
+</script>
+</body>
+</html>

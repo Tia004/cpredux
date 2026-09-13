@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Sandbox disattivata: vedi DebugProfile.entitlements per le tre ragioni.
+	  Qui e' ancora piu' importante, perche' e' la versione che l'utente
+	  installa: con la sandbox attiva e senza `network.server`, il master non
+	  avrebbe potuto aprire il tavolo, e il sintomo sarebbe stato "non funziona
+	  il multiplayer" — difficile da collegare a un file di permessi.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>

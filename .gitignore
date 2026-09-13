@@ -1,0 +1,64 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# --- CPRED Visualizer -------------------------------------------------------
+
+# Artefatti di rilascio: li produce la CI (`tool/publish.dart`) e li pubblica
+# Pages. Committarli significherebbe decine di MB nel repository per ogni
+# rilascio, e prima o poi un archivio vecchio committato per errore.
+/dist/
+/site/*.zip
+/site/*.AppImage
+/site/*.exe
+/site/latest.json
+/public/
+
+# Il catalogo oggetti invece **va committato**: e' un asset spedito con l'app, e
+# c'e' un test che verifica che sia presente e coerente con il seed.
+!assets/catalog/catalog.sqlite

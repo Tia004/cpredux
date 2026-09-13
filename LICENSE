@@ -1,0 +1,62 @@
+CPRED Visualizer
+Copyright (c) 2026 Tia Chinaglia. Tutti i diritti riservati.
+
+================================================================================
+1. QUESTO FILE E' UN SEGNAPOSTO, E VA SOSTITUITO CON LA SCELTA CHE VUOI FARE
+================================================================================
+
+Il codice di questa applicazione e' tuo, quindi la licenza la decidi tu. Questo
+file dichiara "tutti i diritti riservati", che e' la posizione piu' prudente:
+il codice resta privato e nessuno puo' ridistribuirlo o riusarlo finche' non
+decidi diversamente.
+
+Se invece vuoi che altri possano leggere, riusare o contribuire al codice, i
+candidati sensati sono, in ordine di quanto sono permissivi:
+
+  * MIT              — fai quello che vuoi, l'unico obbligo e' citare l'autore;
+  * Apache-2.0       — come MIT, con una concessione esplicita sui brevetti;
+  * GPL-3.0          — chi lo riusa deve pubblicare il proprio codice sorgente.
+
+Cambia questo file, non il resto del progetto: non c'e' niente nel codice che
+dipenda dalla licenza scelta.
+
+
+================================================================================
+2. CONTENUTO NON UFFICIALE — R. TALSORIAN GAMES
+================================================================================
+
+Questa applicazione e' contenuto non ufficiale, fornito secondo la Homebrew
+Content Policy di R. Talsorian Games, e non e' approvata ne' sostenuta da RTG.
+Questo contenuto fa riferimento a materiali di proprieta' di R. Talsorian Games
+e dei suoi licenziatari.
+
+Conseguenze concrete, che valgono anche per le versioni future:
+
+  * l'uso di questo programma e' **gratuito**: non si puo' mettere dietro un
+    pagamento, un abbonamento o un accesso riservato;
+  * non si possono riprodurre testo né illustrazioni dei manuali; le statistiche
+    degli oggetti sono **riassunti** con riferimento all'opera;
+  * non si possono distribuire l'artwork, i loghi né le mappe ufficiali;
+  * la pagina di download e la finestra "Informazioni" devono riportare
+    l'avvertenza di contenuto non ufficiale.
+
+Cyberpunk, Cyberpunk 2020, Cyberpunk RED e Night City sono marchi di
+R. Talsorian Games.
+
+Se un giorno decidessi di vendere questa applicazione, l'Homebrew Content Policy
+non la coprirebbe piu': servirebbe un accordo scritto con R. Talsorian Games,
+oppure rimuovere ogni riferimento al loro materiale (compresi i nomi degli
+oggetti e delle abilita' presenti nel catalogo).
+
+
+================================================================================
+3. CODICE DI TERZE PARTI
+================================================================================
+
+Il progetto usa pacchetti Dart open source (Flutter, sqlite3, path, crypto),
+ognuno con la propria licenza, elencata in `NOTICES.Z` dentro ogni build
+distribuita. La licenza di quei pacchetti non e' modificata da questo file.
+
+Le immagini degli oggetti **non** sono incluse: le voci di catalogo hanno lo
+slot immagine vuoto, riempibile dall'utente. L'icona dell'applicazione e'
+l'icona predefinita di Flutter e va sostituita con una tua prima di pubblicare.

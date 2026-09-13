@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Sandbox DISATTIVATA, deliberatamente.
+
+	  Il template di Flutter la attiva di serie, e con essa attiva si ottengono
+	  tre cose che rompono questa applicazione in modo silenzioso:
+
+	  1. le connessioni in uscita sono vietate senza
+	     `com.apple.security.network.client`. Il controllo degli aggiornamenti
+	     fallirebbe senza dire niente, il collegamento al tavolo del master
+	     fallirebbe, e Discord non sarebbe raggiungibile perche' il suo IPC e'
+	     un socket Unix, cioe' una connessione in uscita;
+	  2. le connessioni in ingresso sono vietate senza `network.server`: il
+	     master non potrebbe aprire il tavolo;
+	  3. l'accesso ai file e' limitato alla cartella dell'applicazione. Il
+	     browser dei file e' interno all'applicazione e non e' il pannello di
+	     sistema: il permesso "file scelti dall'utente" non si applica, quindi
+	     aprire una scheda da Documenti fallirebbe.
+
+	  Si potrebbe tenere la sandbox e passare al pannello di sistema, ma
+	  significherebbe rinunciare al browser interno — una scelta di interfaccia
+	  presa per altri motivi — per un vincolo che vale solo su macOS. Questa
+	  applicazione si distribuisce fuori dal Mac App Store, dove la sandbox non
+	  e' obbligatoria.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>

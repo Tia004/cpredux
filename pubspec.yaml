@@ -1,0 +1,27 @@
+name: cpredux
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.2.0+1
+
+environment:
+  sdk: ^3.13.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  crypto: ^3.0.6
+  path: ^1.9.1
+  sqlite3: ^3.5.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Catalogo oggetti in sola lettura, spedito con l'app.
+    # Si rigenera con: dart run tool/build_catalog.dart
+    - assets/catalog/catalog.sqlite
