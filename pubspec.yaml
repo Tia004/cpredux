@@ -39,3 +39,5 @@ flutter:
     - assets/catalog/catalog.sqlite
     # Mappa completa di Night City 2077 con rete NCART e distretti
     - assets/images/night_city_full.jpg
+    # Risorse grafiche e branding Cyberpunk
+    - assets/branding/

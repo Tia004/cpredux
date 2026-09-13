@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 54" fill="none">
+  <defs>
+    <linearGradient id="dice_grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#24d8e8" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#fcee0a" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <path d="M 0 0 L 400 0 L 420 20 L 420 54 L 20 54 L 0 34 Z" fill="#0c1017" stroke="#24d8e8" stroke-width="1.5"/>
+  <path d="M 0 0 L 120 0" stroke="#fcee0a" stroke-width="3"/>
+  <rect x="18" y="16" width="22" height="22" rx="3" fill="#141c26" stroke="#24d8e8" stroke-width="1.5"/>
+  <circle cx="24" cy="22" r="1.8" fill="#fcee0a"/>
+  <circle cx="29" cy="27" r="1.8" fill="#24d8e8"/>
+  <circle cx="34" cy="32" r="1.8" fill="#fcee0a"/>
+  <text x="52" y="27" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" letter-spacing="1">TAVOLO DADI 3D &amp; COMBATTIMENTO</text>
+  <text x="52" y="42" fill="#24d8e8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" font-weight="600" letter-spacing="0.5">FISICA POLIEDRICA · CRITICI · ABLAZIONE SP</text>
+</svg>

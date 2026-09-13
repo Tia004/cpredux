@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 24" fill="none">
+  <defs>
+    <linearGradient id="div_cyan" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#24d8e8" stop-opacity="0"/>
+      <stop offset="25%" stop-color="#24d8e8" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#fcee0a" stop-opacity="1"/>
+      <stop offset="75%" stop-color="#ff2e88" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ff2e88" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="node_glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fcee0a"/>
+      <stop offset="100%" stop-color="#ff2e88"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Linea centrale sfumata -->
+  <line x1="40" y1="12" x2="960" y2="12" stroke="url(#div_cyan)" stroke-width="2"/>
+
+  <!-- Tratti geometrici laterali -->
+  <path d="M 120 7 L 140 12 L 120 17" stroke="#24d8e8" stroke-width="1.5" fill="none"/>
+  <path d="M 880 7 L 860 12 L 880 17" stroke="#ff2e88" stroke-width="1.5" fill="none"/>
+
+  <!-- Diamanti e nodi centrali -->
+  <polygon points="500,4 508,12 500,20 492,12" fill="url(#node_glow)"/>
+  <polygon points="460,7 465,12 460,17 455,12" fill="#24d8e8"/>
+  <polygon points="540,7 545,12 540,17 535,12" fill="#ff2e88"/>
+
+  <circle cx="380" cy="12" r="2.5" fill="#24d8e8"/>
+  <circle cx="620" cy="12" r="2.5" fill="#ff2e88"/>
+  <circle cx="280" cy="12" r="1.5" fill="#24d8e8" opacity="0.6"/>
+  <circle cx="720" cy="12" r="1.5" fill="#ff2e88" opacity="0.6"/>
+</svg>
