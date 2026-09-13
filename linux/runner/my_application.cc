@@ -54,6 +54,16 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
+  GError* icon_err = nullptr;
+  gtk_window_set_icon_from_file(window, "cpredux.png", &icon_err);
+  if (icon_err) {
+    g_clear_error(&icon_err);
+    gtk_window_set_icon_from_file(window, "data/flutter_assets/assets/branding/app_icon.png", &icon_err);
+    if (icon_err) {
+      g_clear_error(&icon_err);
+    }
+  }
+
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);

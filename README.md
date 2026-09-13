@@ -1,16 +1,21 @@
 <p align="center">
+  <img src="assets/branding/CPReduxLogo.png" alt="CPRedux — Cyberpunk RED Visualizer" width="520">
+</p>
+
+<p align="center">
   <img src="assets/branding/banner.svg" alt="CPRED Visualizer" width="100%">
 </p>
 
 <p align="center">
   <b>Suite Gestionale, Scheda Personaggio, Tavolo Dadi 3D e Mappa Interattiva di Night City.</b><br>
-  Applicazione desktop moderna multipiattaforma per <b>macOS</b>, <b>Windows</b> e <b>Linux</b>.<br>
+  Applicazione desktop nativa e focalizzata per <b>macOS</b>, <b>Windows</b> e <b>Linux</b>.<br>
+  <i>(Software esclusivamente Desktop: nessun supporto né vincolo mobile per Android / iOS)</i><br>
   <sub>Progetto non ufficiale per Cyberpunk RED, sviluppato in conformità con la 
   <a href="https://rtalsoriangames.com/homebrew-content-policy/">Homebrew Content Policy</a> di R. Talsorian Games.</sub>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v0.2.0-24d8e8?style=for-the-badge&logo=gitlab&logoColor=white" alt="Release v0.2.0">
+  <img src="https://img.shields.io/badge/release-v0.2.1-24d8e8?style=for-the-badge&logo=gitlab&logoColor=white" alt="Release v0.2.1">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-fcee0a?style=for-the-badge&logo=apple&logoColor=black" alt="Piattaforme">
   <img src="https://img.shields.io/badge/flutter-3.x-ff2e88?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter 3">
   <img src="https://img.shields.io/badge/license-MIT%20%2F%20Homebrew-blueviolet?style=for-the-badge" alt="Licenza">
@@ -20,17 +25,20 @@
   <img src="assets/branding/divider.svg" width="100%">
 </p>
 
-## 🚀 Download & Release
+## 🚀 Download & Installer Release v0.2.1
 
-Tutte le versioni ufficiali e i sorgenti sono pubblicati e scaricabili nella sezione [**GitLab Releases**](https://gitlab.com/Tia004/cpredux/-/releases):
+Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [**GitLab Releases**](https://gitlab.com/Tia004/cpredux/-/releases):
 
-| Piattaforma | Architettura | Tipo Pacchetto | Download Diretto |
+| Piattaforma | Architettura | Formato & Installer | Download Diretto |
 | :--- | :--- | :--- | :--- |
-| **macOS** | Universal (Apple Silicon & Intel) | Applicazione Standalone `.app` (ZIP) | [🍎 **Scarica cpredux-macos-v0.2.0.zip**](https://gitlab.com/-/project/86426687/uploads/e843471991676efeae8cf77a828a390f/cpredux-macos-v0.2.0.zip) |
-| **Tutte le Piattaforme** | Windows / Linux / macOS | Pagina Ufficiale Releases & Changelog | [🌐 **Tutte le Release su GitLab**](https://gitlab.com/Tia004/cpredux/-/releases) |
-| **Scheda Release v0.2.0** | Multi-Platform | Note di rilascio, hash & asset | [📦 **Release v0.2.0 Notes**](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.0) |
-| **Codice Sorgente (ZIP)** | Tutti i sorgenti Flutter | Archivio `.zip` | [💾 Scarica cpredux-v0.2.0.zip](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.0/cpredux-v0.2.0.zip) |
-| **Codice Sorgente (Tar.gz)** | Tutti i sorgenti Flutter | Archivio `.tar.gz` | [💾 Scarica cpredux-v0.2.0.tar.gz](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.0/cpredux-v0.2.0.tar.gz) |
+| **macOS** | Apple Silicon (aarch64 / M1-M4) & Intel | Installer Disco Immagine (`.dmg`) | [🍎 **Scarica Installer macOS DMG**](https://gitlab.com/-/project/86426687/uploads/6fd0d4580c782277f48ec9c88fc58922/cpredux-v0.2.1-macos-arm64.dmg) |
+| **macOS** | Universal (Apple Silicon & Intel) | Applicazione Standalone `.app` (ZIP) | [🍎 **Scarica cpredux-macos-arm64.zip**](https://gitlab.com/-/project/86426687/uploads/c8a939fde4c3e252c42390acfaa5aafc/cpredux-v0.2.1-macos-arm64.zip) |
+| **Windows** | x64 (Windows 10 / 11) | Pacchetto Completo + Script Desktop (`.zip`) | [🪟 **Scarica Installer Windows ZIP**](https://gitlab.com/-/project/86426687/uploads/87b8886f6328794de0c6f705ac029fa8/cpredux-v0.2.1-windows-x64.zip) |
+| **Linux** | x86_64 / Desktop | Pacchetto Tarball + Launcher `.desktop` (`.tar.gz`) | [🐧 **Scarica Pacchetto Linux Tar.gz**](https://gitlab.com/-/project/86426687/uploads/98c683016645bf58758615edf0bf993e/cpredux-v0.2.1-linux-x64.tar.gz) |
+| **Tutte le Release** | Multi-Platform | Elenco completo versioni & changelog | [🌐 **Pagina Releases Ufficiale GitLab**](https://gitlab.com/Tia004/cpredux/-/releases) |
+| **Scheda Release v0.2.1** | Multi-Platform | Note di rilascio, novità & asset | [📦 **Release v0.2.1 Notes**](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.1) |
+| **Sorgenti (ZIP)** | Multi-Platform | Archivio completo sorgenti v0.2.1 | [💾 Scarica cpredux-v0.2.1.zip](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.1/cpredux-v0.2.1.zip) |
+| **Sorgenti (Tar.gz)** | Multi-Platform | Archivio compresso tarball v0.2.1 | [💾 Scarica cpredux-v0.2.1.tar.gz](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.1/cpredux-v0.2.1.tar.gz) |
 
 > 💡 **Aggiornamenti Automatici:** L'applicazione controlla autonomamente la presenza di nuove versioni all'avvio e notifica la disponibilità di update senza bisogno di inserire link manuali.
 
