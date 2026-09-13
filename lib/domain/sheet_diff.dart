@@ -657,3 +657,19 @@ class _Group {
     note: clipped == value ? null : '${value.length} caratteri',
   );
 }
+
+/// Una voce del registro delle differenze: un aggiornamento di stato applicato
+/// alla scheda (dal master durante la sessione), con data, ora, motivo e il diff.
+class StateDiffEntry {
+  const StateDiffEntry({
+    required this.id,
+    required this.timestamp,
+    required this.reason,
+    required this.diff,
+  });
+
+  final String id;
+  final DateTime timestamp;
+  final String reason;
+  final SheetDiff diff;
+}
