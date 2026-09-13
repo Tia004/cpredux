@@ -361,7 +361,7 @@ class TechSegmented<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color accentColor = accent ?? CprPalette.yellow;
 
-    return Row(
+    final Widget row = Row(
       children: <Widget>[
         for (final T item in items)
           Expanded(
@@ -393,6 +393,23 @@ class TechSegmented<T> extends StatelessWidget {
             ),
           ),
       ],
+    );
+
+    // `Expanded` significa "riempi lo spazio che avanza". In una Row un figlio
+    // non flessibile riceve larghezza **illimitata**, e una Row con figli
+    // flessibili sotto un vincolo illimitato non e' impaginabile: solleva
+    // un'eccezione invece di adattarsi. E' per questo che le impostazioni
+    // facevano cadere l'applicazione — il selettore Attivo/Spento sta accanto a
+    // un'etichetta, non dentro una colonna.
+    //
+    // Con la larghezza limitata il controllo la occupa, che e' l'aspetto voluto
+    // nelle colonne della scheda; senza, si stringe sul contenuto tenendo i
+    // segmenti **della stessa larghezza** (quella dell'etichetta piu' lunga),
+    // perche' segmenti di misure diverse non si leggono piu' come una scelta
+    // sola.
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) =>
+          constraints.hasBoundedWidth ? row : IntrinsicWidth(child: row),
     );
   }
 }
