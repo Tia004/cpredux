@@ -15,6 +15,7 @@ import '../domain/items.dart';
 import '../domain/enums.dart';
 import '../domain/rules.dart';
 import '../domain/sheet.dart';
+import '../domain/world_map.dart';
 import '../net/session.dart';
 import '../net/discord_rpc.dart';
 import '../net/update_installer.dart';
@@ -183,6 +184,330 @@ class AppState extends ChangeNotifier {
   int get sessionTick => _sessionTick;
 
   Timer? _snapshotTimer;
+
+  // --- Mappa ----------------------------------------------------------------
+
+  /// Waypoint visto dal giocatore: quelli che il master ha condiviso piu' i
+  /// propri, che il master non ha ancora accettato.
+  ///
+  /// Vive **fuori** dal documento, come il log della sessione: chi gioca non
+  /// possiede la mappa del tavolo. I waypoint che contano si salvano nella
+  /// campagna del master, che e' l'unico posto in cui una mappa preparata ha
+  /// senso di esistere.
+  final List<MapWaypoint> _tableWaypoints = <MapWaypoint>[];
+
+  /// L'aspetto scelto dal master, quando si e' al tavolo come giocatore.
+  MapStyle _remoteMapStyle = MapStyle.digital;
+
+  /// Waypoint il cui posizionamento e' in corso.
+  bool _placingWaypoint = false;
+  bool get isPlacingWaypoint => _placingWaypoint;
+
+  void beginPlacingWaypoint() {
+    if (_placingWaypoint) return;
+    _placingWaypoint = true;
+    notifyListeners();
+  }
+
+  void cancelPlacingWaypoint() {
+    if (!_placingWaypoint) return;
+    _placingWaypoint = false;
+    notifyListeners();
+  }
+
+  /// True se questa copia e' quella che decide la mappa del tavolo.
+  ///
+  /// Il criterio e' "c'e' una campagna aperta", non "il socket e' in
+  /// ascolto": il master prepara la mappa anche con il tavolo chiuso, ed e' lì
+  /// che la preparazione va fatta. Al contrario un giocatore ha una scheda
+  /// aperta e nessuna campagna.
+  bool get isMapMaster => _campaign != null;
+
+  MapStyle get mapStyle => _campaign?.mapStyle ?? _remoteMapStyle;
+
+  /// I waypoint da disegnare in questo momento.
+  List<MapWaypoint> get mapWaypoints {
+    final Campaign? campaign = _campaign;
+    return campaign != null ? campaign.waypoints : _tableWaypoints;
+  }
+
+  /// Le proposte ricevute dai giocatori, in attesa di una decisione.
+  ///
+  /// Sono separate dagli altri waypoint perche' chiedono un'azione: il master
+  /// deve poterle vedere tutte insieme invece di cercarle sulla mappa.
+  List<MapWaypoint> get mapProposals => <MapWaypoint>[
+        for (final MapWaypoint w in mapWaypoints)
+          if (w.status == WaypointStatus.proposed) w,
+      ];
+
+  /// Waypoint che il tavolo vede (o vedrebbe, se il tavolo fosse aperto).
+  List<MapWaypoint> get sharedWaypoints => <MapWaypoint>[
+        for (final MapWaypoint w in mapWaypoints)
+          if (w.isShareable) w,
+      ];
+
+  /// Quanti waypoint non stanno uscendo da questa macchina.
+  int get privateWaypointCount =>
+      mapWaypoints.where((MapWaypoint w) => w.visibility == WaypointVisibility.private).length;
+
+  void setMapStyle(MapStyle style) {
+    if (_campaign == null) {
+      _remoteMapStyle = style;
+      notifyListeners();
+      return;
+    }
+    if (_campaign!.mapStyle == style) return;
+    mutateCampaign((Campaign c) => c.mapStyle = style);
+    _host?.broadcast(<String, Object?>{
+      't': SessionMessage.mapStyle,
+      'style': style.name,
+    });
+  }
+
+  /// Mette un segno sulla mappa.
+  ///
+  /// Restituisce il waypoint creato. Se a chiedere e' un giocatore, nasce come
+  /// **proposta**: visibile subito a lui, in attesa che il master lo accetti.
+  MapWaypoint addWaypoint({
+    required String label,
+    required Offset position,
+    String note = '',
+    WaypointKind kind = WaypointKind.location,
+    WaypointVisibility visibility = WaypointVisibility.table,
+  }) {
+    final Campaign? campaign = _campaign;
+    if (campaign != null) {
+      final MapWaypoint w = MapWaypoint(
+        id: newWaypointId(campaign.waypoints.length + 1),
+        label: label.trim(),
+        note: note.trim(),
+        x: position.dx,
+        y: position.dy,
+        kind: kind,
+        visibility: visibility,
+        status: WaypointStatus.accepted,
+        authorId: 'master',
+        authorName: 'Master',
+        createdAt: _now(),
+      );
+      campaign.waypoints.add(w);
+      _placingWaypoint = false;
+      _publishWaypoint(w);
+      _appendSession(
+        description: visibility == WaypointVisibility.private
+            ? 'Waypoint privato: ${w.label}'
+            : 'Waypoint sulla mappa: ${w.label}',
+        delta: 'MAPPA',
+      );
+      _scheduleSave();
+      return w;
+    }
+
+    final CharacterSheet? sheet = _sheet;
+    final bool joined = _client != null;
+    final MapWaypoint w = MapWaypoint(
+      id: newWaypointId(_tableWaypoints.length + 1),
+      label: label.trim(),
+      note: note.trim(),
+      x: position.dx,
+      y: position.dy,
+      kind: kind,
+      // Una proposta puo' chiedere di essere privata, ma non puo' essere
+      // mandata come privata: il senso del campo e' l'opposto.
+      visibility: WaypointVisibility.table,
+      status: joined ? WaypointStatus.proposed : WaypointStatus.accepted,
+      authorId: sheet?.meta.id ?? 'locale',
+      authorName: sheet?.meta.name ?? 'Tu',
+      createdAt: _now(),
+    );
+    _tableWaypoints.add(w);
+    _placingWaypoint = false;
+
+    if (joined) {
+      _client?.sendMapProposal(w.toJson());
+      _appendSession(description: 'Waypoint proposto al master: ${w.label}', delta: 'MAPPA', persist: false);
+    } else {
+      _appendSession(
+        description: 'Waypoint locale: ${w.label}',
+        delta: 'MAPPA',
+        persist: false,
+      );
+    }
+    _sessionChanged();
+    return w;
+  }
+
+  /// Modifica un waypoint esistente.
+  ///
+  /// Un giocatore puo' toccare solo le **proprie** proposte: un waypoint gia'
+  /// accettato e' sulla mappa di tutti, e cambiarlo da li' significherebbe
+  /// modificare la mappa che il master sta descrivendo mentre la descrive.
+  void updateWaypoint(
+    String id, {
+    String? label,
+    String? note,
+    WaypointKind? kind,
+    WaypointVisibility? visibility,
+  }) {
+    final Campaign? campaign = _campaign;
+    if (campaign != null) {
+      final MapWaypoint? w = _findWaypoint(campaign.waypoints, id);
+      if (w == null) return;
+      final WaypointVisibility previous = w.visibility;
+      if (label != null) w.label = label.trim();
+      if (note != null) w.note = note.trim();
+      if (kind != null) w.kind = kind;
+      if (visibility != null) w.visibility = visibility;
+
+      if (previous == WaypointVisibility.table && w.visibility == WaypointVisibility.private) {
+        // Da condiviso a privato: sparisce dal tavolo. Non basta smettere di
+        // mandarlo aggiornato — chi lo sta gia' guardando se lo terrebbe.
+        _host?.broadcast(<String, Object?>{'t': SessionMessage.mapRemove, 'id': id});
+        _appendSession(description: 'Waypoint reso privato: ${w.label}', delta: 'MAPPA');
+      } else {
+        _publishWaypoint(w);
+      }
+      _scheduleSave();
+      return;
+    }
+
+    final int index = _tableWaypoints.indexWhere((MapWaypoint w) => w.id == id);
+    if (index < 0) return;
+    final MapWaypoint w = _tableWaypoints[index];
+    if (w.status != WaypointStatus.proposed) return;
+    _tableWaypoints[index] = w.copyWith(
+      label: label?.trim(),
+      note: note?.trim(),
+      kind: kind,
+    );
+    if (_client != null) _client?.sendMapProposal(_tableWaypoints[index].toJson());
+    _sessionChanged();
+  }
+
+  void deleteWaypoint(String id) {
+    final Campaign? campaign = _campaign;
+    if (campaign != null) {
+      final MapWaypoint? w = _findWaypoint(campaign.waypoints, id);
+      if (w == null) return;
+      campaign.waypoints.remove(w);
+      if (w.isShareable && w.status == WaypointStatus.accepted) {
+        _host?.broadcast(<String, Object?>{'t': SessionMessage.mapRemove, 'id': id});
+      }
+      _appendSession(description: 'Waypoint rimosso: ${w.label}', delta: 'MAPPA');
+      _scheduleSave();
+      return;
+    }
+
+    _tableWaypoints.removeWhere((MapWaypoint w) => w.id == id);
+    // Ritirare una proposta e' diverso da cancellare un waypoint del tavolo,
+    // ma per il master l'effetto e' lo stesso: quel segno non c'e' piu'.
+    _client?.channel.send(<String, Object?>{'t': SessionMessage.mapRemove, 'id': id});
+    _sessionChanged();
+  }
+
+  /// Il master accetta la proposta di un giocatore: il segno entra nella mappa
+  /// di tutti.
+  void masterAcceptWaypoint(String id) {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    final MapWaypoint? w = _findWaypoint(campaign.waypoints, id);
+    if (w == null) return;
+    w
+      ..status = WaypointStatus.accepted
+      ..visibility = WaypointVisibility.table;
+    _publishWaypoint(w);
+    _appendSession(description: 'Waypoint condiviso con il tavolo: ${w.label}', delta: 'MAPPA');
+    _scheduleSave();
+  }
+
+  /// Il master rifiuta la proposta: sparisce, e chi l'ha messa lo scopre.
+  void masterRejectWaypoint(String id) {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    final MapWaypoint? w = _findWaypoint(campaign.waypoints, id);
+    if (w == null) return;
+    campaign.waypoints.remove(w);
+    if (w.authorId.isNotEmpty && w.authorId != 'master') {
+      _host?.sendTo(w.authorId, <String, Object?>{'t': SessionMessage.mapRemove, 'id': id});
+    }
+    _appendSession(description: 'Waypoint rifiutato: ${w.label}', delta: 'MAPPA');
+    _scheduleSave();
+  }
+
+  /// Manda a un singolo giocatore la mappa condivisa e l'aspetto scelti.
+  ///
+  /// Si manda al collegamento e non solo alla modifica: un giocatore che
+  /// rientra a meta' serata deve ritrovare la mappa com'e' adesso, non com'era
+  /// quando e' caduta la connessione.
+  void _sendMapTo(String playerId) {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    _host?.sendTo(playerId, <String, Object?>{
+      't': SessionMessage.mapSync,
+      'style': campaign.mapStyle.name,
+      'waypoints': <Object?>[
+        for (final MapWaypoint w in campaign.waypoints)
+          if (w.isShareable && w.status == WaypointStatus.accepted) w.toJson(),
+      ],
+    });
+  }
+
+  /// Manda un waypoint al tavolo, se e' il caso.
+  void _publishWaypoint(MapWaypoint w) {
+    // Una posizione privata **non lascia questa macchina**. Non e' un filtro
+    // applicato dalla UI: non c'e' proprio nessun percorso che la mandi fuori,
+    // ed e' la differenza fra una promessa e una garanzia.
+    if (!w.isShareable || w.status != WaypointStatus.accepted) {
+      _sessionChanged();
+      return;
+    }
+    _host?.broadcast(<String, Object?>{'t': SessionMessage.mapWaypoint, 'waypoint': w.toJson()});
+    _sessionChanged();
+  }
+
+  static MapWaypoint? _findWaypoint(List<MapWaypoint> list, String id) {
+    for (final MapWaypoint w in list) {
+      if (w.id == id) return w;
+    }
+    return null;
+  }
+
+  /// Waypoint dello sfondo importato: e' del master e resta suo.
+  MapBackground get mapBackground =>
+      _campaign?.mapBackground ?? MapBackground();
+
+  void setMapImage(String path) {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    mutateCampaign((Campaign c) => c.mapBackground.imagePath = path);
+    _appendSession(description: 'Mappa importata: $path', delta: 'MAPPA');
+  }
+
+  void clearMapImage() {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    mutateCampaign((Campaign c) => c.mapBackground.imagePath = '');
+    _appendSession(description: 'Mappa importata rimossa', delta: 'MAPPA');
+  }
+
+  void setMapCorner(int index, Offset corner) {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    if (index < 0 || index > 3) return;
+    mutateCampaign((Campaign c) => c.mapBackground.corners[index] = corner);
+  }
+
+  void resetMapCorners() {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    mutateCampaign((Campaign c) => c.mapBackground.corners = MapBackground.defaultCorners);
+  }
+
+  void setMapImageOpacity(double value) {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    mutateCampaign((Campaign c) => c.mapBackground.opacity = value.clamp(0, 1).toDouble());
+  }
 
   // --- Presenza Discord -----------------------------------------------------
 
@@ -537,6 +862,7 @@ class AppState extends ChangeNotifier {
       'motd': campaign.description,
       'port': campaign.port,
     });
+    _sendMapTo(player.id);
     _broadcastPlayers();
     _appendSession(
       description: '${entry.characterName} si e\' collegato',
@@ -618,9 +944,77 @@ class AppState extends ChangeNotifier {
           _scheduleSave();
         }
 
+      case SessionMessage.mapProposal:
+        _onMapProposal(player, entry, message['waypoint']);
+
+      case SessionMessage.mapRemove:
+        // Un giocatore puo' ritirare solo le proprie proposte: senza questo
+        // controllo, chiunque al tavolo potrebbe cancellare la mappa.
+        final String id = '${message['id'] ?? ''}';
+        final MapWaypoint? w = _findWaypoint(campaign.waypoints, id);
+        if (w == null || w.authorId != player.id || w.status != WaypointStatus.proposed) return;
+        campaign.waypoints.remove(w);
+        _appendSession(description: 'Proposta ritirata: ${w.label}', delta: 'MAPPA', persist: false);
+        _scheduleSave();
+
       case SessionMessage.ping:
         _host?.sendTo(player.id, <String, Object?>{'t': SessionMessage.pong});
     }
+  }
+
+  /// Riceve la proposta di un waypoint da un giocatore.
+  ///
+  /// La proposta **non** viene trasmessa: resta sul tavolo del master finche'
+  /// lui non decide. E' l'unico modo perche' "condivido un punto" non diventi
+  /// "scrivo sulla mappa di tutti senza chiedere".
+  void _onMapProposal(HostedPlayer player, CampaignPlayer? entry, Object? raw) {
+    final Campaign? campaign = _campaign;
+    if (campaign == null) return;
+    if (raw is! Map<Object?, Object?>) return;
+
+    final MapWaypoint proposed = MapWaypoint.fromJson(
+      raw.map((Object? k, Object? v) => MapEntry(k.toString(), v)),
+    );
+    if (proposed.label.trim().isEmpty) return;
+
+    final MapWaypoint w = MapWaypoint(
+      id: proposed.id.isEmpty ? newWaypointId(campaign.waypoints.length + 1) : proposed.id,
+      label: proposed.label.trim(),
+      note: proposed.note.trim(),
+      x: proposed.x,
+      y: proposed.y,
+      kind: proposed.kind,
+      visibility: WaypointVisibility.table,
+      status: WaypointStatus.proposed,
+      authorId: player.id,
+      authorName: entry?.characterName.isNotEmpty == true
+          ? entry!.characterName
+          : (entry?.playerName ?? player.characterName),
+      createdAt: proposed.createdAt.isEmpty ? _now() : proposed.createdAt,
+    );
+
+    final MapWaypoint? existing = _findWaypoint(campaign.waypoints, w.id);
+    if (existing != null) {
+      // Un giocatore che modifica la propria proposta la rimanda con lo stesso
+      // id: e' un aggiornamento, non un doppione.
+      if (existing.authorId != player.id) return;
+      existing
+        ..label = w.label
+        ..note = w.note
+        ..x = w.x
+        ..y = w.y
+        ..kind = w.kind;
+    } else {
+      campaign.waypoints.add(w);
+    }
+
+    _appendSession(
+      description: '${w.authorName} propone un waypoint: ${w.label}'.trim(),
+      delta: 'MAPPA',
+      playerId: player.id,
+      persist: false,
+    );
+    _scheduleSave();
   }
 
   /// Applica l'intenzione di un giocatore.
@@ -808,6 +1202,10 @@ class AppState extends ChangeNotifier {
     if (sheet == null || totals == null) return;
     await leaveSession();
 
+    // La mappa del tavolo precedente non deve sopravvivere al collegamento
+    // nuovo: sarebbe la mappa di un'altra campagna disegnata sopra questa.
+    _tableWaypoints.clear();
+
     try {
       final CampaignClient client = await CampaignClient.connect(
         address: address,
@@ -823,17 +1221,23 @@ class AppState extends ChangeNotifier {
         ..onRejected = (String reason) {
           _sessionError = reason;
           _client = null;
+          _tableWaypoints.clear();
           _sessionChanged();
         }
         ..onKicked = (String reason) {
           _sessionError = reason;
           _client = null;
+          _tableWaypoints.clear();
           _sessionChanged();
         }
         ..onClosed = (String reason) {
           if (_client == client) {
             _client = null;
             _sessionError = reason;
+            // Restare attaccati alla mappa di un tavolo caduto farebbe
+            // credere di essere ancora collegati, che e' peggio di una mappa
+            // vuota: quella almeno dice la verita'.
+            _tableWaypoints.clear();
             _sessionChanged();
           }
         };
@@ -854,7 +1258,9 @@ class AppState extends ChangeNotifier {
     if (client == null) return;
     _client = null;
     await client.close();
+    _tableWaypoints.clear();
     _appendSession(description: 'Hai lasciato il tavolo', delta: 'SESSIONE', persist: false);
+    _sessionChanged();
   }
 
   void _onServerMessage(Map<String, Object?> message) {
@@ -901,8 +1307,51 @@ class AppState extends ChangeNotifier {
           playerId: '${message['playerId'] ?? ''}',
           persist: false,
         );
+
+      case SessionMessage.mapSync:
+        _remoteMapStyle = MapStyle.fromName(readString(message['style']));
+        _tableWaypoints
+          ..clear()
+          ..addAll(<MapWaypoint>[
+            for (final Map<String, Object?> raw in readObjectList(message['waypoints']))
+              MapWaypoint.fromJson(raw),
+          ]);
+
+      case SessionMessage.mapWaypoint:
+        _upsertTableWaypoint(message['waypoint']);
+
+      case SessionMessage.mapRemove:
+        final String id = '${message['id'] ?? ''}';
+        _tableWaypoints.removeWhere((MapWaypoint w) => w.id == id);
+
+      case SessionMessage.mapStyle:
+        _remoteMapStyle = MapStyle.fromName(readString(message['style']));
     }
     _sessionChanged();
+  }
+
+  /// Inserisce o aggiorna un waypoint arrivato dal master.
+  ///
+  /// La visibilita' viene **forzata** a `table`: un client che si fidasse del
+  /// campo ricevuto potrebbe disegnare come privato un waypoint che il master
+  /// ha mandato a tutti, o viceversa. Il master manda solo cio' che vuole
+  /// mostrare, quindi cio' che arriva e' per definizione condiviso.
+  void _upsertTableWaypoint(Object? raw) {
+    if (raw is! Map<Object?, Object?>) return;
+    final MapWaypoint w = MapWaypoint.fromJson(
+      raw.map((Object? k, Object? v) => MapEntry(k.toString(), v)),
+    );
+    if (w.id.isEmpty) return;
+    w
+      ..visibility = WaypointVisibility.table
+      ..status = WaypointStatus.accepted;
+
+    final int index = _tableWaypoints.indexWhere((MapWaypoint o) => o.id == w.id);
+    if (index >= 0) {
+      _tableWaypoints[index] = w;
+    } else {
+      _tableWaypoints.add(w);
+    }
   }
 
   /// Manda al master la proprio istantanea, con un ritardo di accorpamento.

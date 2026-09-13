@@ -15,10 +15,12 @@ import '../../widgets/dialogs.dart';
 import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import '../map/map_section.dart';
 
 /// Le sezioni del tavolo.
 enum CampaignSection {
   players('Giocatori', Icons.groups_2_outlined, CprPalette.cyan),
+  map('Mappa', Icons.map_outlined, CprPalette.info),
   table('Tavolo', Icons.forum_outlined, CprPalette.yellow),
   dice('Dadi', Icons.casino_outlined, CprPalette.yellow),
   notebook('Quaderno', Icons.menu_book_outlined, CprPalette.violet),
@@ -53,6 +55,8 @@ class _CampaignScreenState extends State<CampaignScreen> {
     switch (_section) {
       case CampaignSection.players:
         return const _PlayersSection();
+      case CampaignSection.map:
+        return const MapSection(asGameMaster: true);
       case CampaignSection.table:
         return const _TableSection();
       case CampaignSection.dice:

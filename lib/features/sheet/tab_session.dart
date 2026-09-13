@@ -174,18 +174,30 @@ class _StatusPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool joined = state.isJoined;
-    final Color accent = joined ? CprPalette.success : CprPalette.cyan;
+    // "In attesa" e "non collegato" si risolvono in modi diversi — il primo
+    // aspetta, il secondo ricontrolla indirizzo e password — quindi mostrarli
+    // uguali e' il motivo per cui si preme "Collega" tre volte di seguito.
+    final bool joining = state.isJoining;
+    final Color accent = joined
+        ? CprPalette.success
+        : joining
+            ? CprPalette.warning
+            : CprPalette.cyan;
 
     return ChamferPanel(
-      title: joined ? 'Collegato al tavolo' : 'Collegati a un tavolo',
+      title: joined
+          ? 'Collegato al tavolo'
+          : joining
+              ? 'Collegamento in corso'
+              : 'Collegati a un tavolo',
       accent: accent,
-      trailing: joined
+      trailing: joined || joining
           ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              color: CprPalette.veil(CprPalette.success, 0.14),
+              color: CprPalette.veil(accent, 0.14),
               child: Text(
-                'IN SESSIONE',
-                style: CprType.label.copyWith(color: CprPalette.success, fontSize: 8.5),
+                joined ? 'IN SESSIONE' : 'IN ATTESA',
+                style: CprType.label.copyWith(color: accent, fontSize: 8.5),
               ),
             )
           : null,
@@ -255,16 +267,20 @@ class _StatusPanel extends StatelessWidget {
             Row(
               children: <Widget>[
                 TechButton(
-                  label: connecting ? 'Collegamento…' : 'Collegati',
+                  label: connecting || joining ? 'Collegamento…' : 'Collegati',
                   icon: Icons.link,
                   variant: TechButtonVariant.primary,
-                  onPressed: connecting ? null : onConnect,
+                  onPressed: connecting || joining ? null : onConnect,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    'Indirizzo e porta li comunica il master: sono mostrati nella sua sezione '
-                    '"Giocatori" con il comando Copia.',
+                    joining
+                        ? 'Connessione aperta. Aspetto la risposta del master: solo quando '
+                            'risponde il tavolo e\' tuo, e da quel momento la chat e la mappa '
+                            'funzionano.'
+                        : 'Indirizzo e porta li comunica il master: sono mostrati nella sua sezione '
+                            '"Giocatori" con il comando Copia.',
                     style: CprType.caption.copyWith(color: CprPalette.inkFaint),
                   ),
                 ),

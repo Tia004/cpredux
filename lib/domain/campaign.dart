@@ -1,6 +1,7 @@
 import 'enums.dart';
 import 'json_support.dart';
 import 'sheet.dart';
+import 'world_map.dart';
 
 /// Un giocatore collegato alla campagna.
 ///
@@ -129,7 +130,8 @@ class SessionEvent {
       );
 }
 
-/// La campagna: un documento con i giocatori, il quaderno e il log di sessione.
+/// La campagna: un documento con i giocatori, il quaderno, il log di sessione e
+/// la mappa condivisa.
 class Campaign {
   Campaign({
     required this.meta,
@@ -138,14 +140,34 @@ class Campaign {
     this.port = 21099,
     this.password = '',
     this.advertisedAddress = '',
+    this.mapStyle = MapStyle.digital,
+    MapBackground? mapBackground,
     List<CampaignPlayer>? players,
     List<SessionEvent>? events,
+    List<MapWaypoint>? waypoints,
   })  : players = players ?? <CampaignPlayer>[],
-        events = events ?? <SessionEvent>[];
+        events = events ?? <SessionEvent>[],
+        waypoints = waypoints ?? <MapWaypoint>[],
+        mapBackground = mapBackground ?? MapBackground();
 
   final DocumentMeta meta;
   String gameDate;
   String description;
+
+  /// Aspetto della mappa scelto dal master: e' lui che disegna il tavolo, e
+  /// l'aspetto viaggia con la campagna quindi tutti vedono la stessa cosa.
+  MapStyle mapStyle;
+
+  /// Sfondo della mappa: geometria spedita, oppure un'immagine del master.
+  MapBackground mapBackground;
+
+  /// I waypoint della campagna.
+  ///
+  /// Vivono nel documento e non nella sessione perche' sono **preparazione**:
+  /// i waypoint di una serata si ritrovano in quella successiva, ed e' quello
+  /// che li distingue da una chat. Le posizioni private del master restano qui
+  /// dentro e non vengono trasmesse.
+  final List<MapWaypoint> waypoints;
 
   /// Porta di ascolto per la sessione condivisa.
   int port;
@@ -171,6 +193,9 @@ class Campaign {
         'port': port,
         'password': password,
         'advertisedAddress': advertisedAddress,
+        'mapStyle': mapStyle.name,
+        'mapBackground': mapBackground.toJson(),
+        'waypoints': waypoints.map((MapWaypoint w) => w.toJson()).toList(),
         'players': players.map((CampaignPlayer p) => p.toJson()).toList(),
         'events': events.map((SessionEvent e) => e.toJson()).toList(),
       };
@@ -187,7 +212,17 @@ class Campaign {
         port: readInt(json['port'], 21099),
         password: readString(json['password']),
         advertisedAddress: readString(json['advertisedAddress']),
+        mapStyle: MapStyle.fromName(readString(json['mapStyle'])),
+        mapBackground: MapBackground.fromJson(
+          json['mapBackground'] is Map
+              ? (json['mapBackground']! as Map<Object?, Object?>)
+                  .map((Object? k, Object? v) => MapEntry(k.toString(), v))
+              : const <String, Object?>{},
+        ),
         players: readObjectList(json['players']).map(CampaignPlayer.fromJson).toList(),
         events: readObjectList(json['events']).map(SessionEvent.fromJson).toList(),
+        // Una campagna salvata prima che la mappa esistesse apre senza problemi:
+        // `waypoints` assente vale elenco vuoto, non errore.
+        waypoints: readObjectList(json['waypoints']).map(MapWaypoint.fromJson).toList(),
       );
 }

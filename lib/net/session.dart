@@ -28,6 +28,12 @@ abstract final class SessionMessage {
   static const String snapshot = 'snapshot';
   static const String ping = 'ping';
 
+  /// Un waypoint che il giocatore propone al master. Il master decide: fino a
+  /// quando non lo accetta, quel segno esiste solo sulla mappa di chi l'ha
+  /// messo. Non e' burocrazia — e' cio' che impedisce a un giocatore di
+  /// scrivere sulla mappa che tutti stanno guardando mentre il master parla.
+  static const String mapProposal = 'mapProposal';
+
   // Master -> giocatore
   static const String welcome = 'welcome';
   static const String rejected = 'rejected';
@@ -35,6 +41,22 @@ abstract final class SessionMessage {
   static const String event = 'event';
   static const String kicked = 'kicked';
   static const String pong = 'pong';
+
+  /// La mappa condivisa, mandata al momento del collegamento: senza, un
+  /// giocatore che rientra a meta' serata vedrebbe una mappa vuota mentre al
+  /// tavolo ne stanno parlando.
+  static const String mapSync = 'mapSync';
+
+  /// Un waypoint che il master ha accettato: da questo momento e' sulla mappa
+  /// di tutti.
+  static const String mapWaypoint = 'mapWaypoint';
+
+  /// Un waypoint rimosso (o rifiutato).
+  static const String mapRemove = 'mapRemove';
+
+  /// L'aspetto della mappa scelto dal master. Viaggia con il resto dello stato
+  /// del tavolo: se il master passa alla mappa realistica, la passano tutti.
+  static const String mapStyle = 'mapStyle';
 }
 
 /// Una connessione in stile "un messaggio JSON per riga".
@@ -401,6 +423,14 @@ class CampaignClient {
   /// Aggiorna la propria istantanea (dopo che il master ha applicato qualcosa).
   void sendSnapshot(Map<String, Object?> state) =>
       channel.send(<String, Object?>{'t': SessionMessage.snapshot, ...state});
+
+  /// Propone un waypoint al master.
+  ///
+  /// Si manda il waypoint per intero e non solo la posizione: il master deve
+  /// poter vedere "pericolo, imboscata sotto il ponte" prima di decidere se
+  /// metterlo sulla mappa di tutti, e non solo un puntino da qualche parte.
+  void sendMapProposal(Map<String, Object?> waypoint) =>
+      channel.send(<String, Object?>{'t': SessionMessage.mapProposal, 'waypoint': waypoint});
 
   Future<void> close() => channel.close();
 }
