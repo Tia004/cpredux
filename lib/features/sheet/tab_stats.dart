@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../app/app_state.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../../domain/enums.dart';
 import '../../domain/modifiers.dart';
 import '../../domain/skills.dart';
 import '../../domain/stats.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/dice_roll_dialog.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 
@@ -318,14 +320,40 @@ class _SkillRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          SizedBox(
-            width: 46,
-            child: Tooltip(
-              message: '${skill.stat.short} $statValue + abilita $calculated',
-              child: Text(
-                '$checkTotal',
-                textAlign: TextAlign.right,
-                style: CprType.numeralSmall.copyWith(color: CprPalette.yellow, fontSize: 12),
+          Tooltip(
+            message: 'Tira 1d10 + ${skill.stat.short} ($statValue) + abilita ($calculated)',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(3),
+              onTap: () {
+                showCombatOrSkillRollDialog(
+                  context,
+                  title: 'Prova: ${skill.name}',
+                  die: DiceType.d10,
+                  count: 1,
+                  modifier: checkTotal,
+                  modifierLabel: '${skill.stat.short} + ${skill.name}',
+                  skill: skill,
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: CprPalette.veil(CprPalette.yellow, 0.08),
+                  border: Border.all(color: CprPalette.veil(CprPalette.yellow, 0.4)),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$checkTotal',
+                      textAlign: TextAlign.right,
+                      style: CprType.numeralSmall.copyWith(color: CprPalette.yellow, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

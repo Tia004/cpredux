@@ -11,10 +11,13 @@ import '../../domain/catalog_item.dart';
 import '../../domain/enums.dart';
 import '../../domain/items.dart';
 import '../../domain/rules.dart';
+import '../../domain/skills.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/dialogs.dart';
+import '../../widgets/dice_roll_dialog.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import '../../widgets/wallet_terminal.dart';
 import 'catalog_browser.dart';
 import 'editors.dart';
 
@@ -66,13 +69,20 @@ class _InventoryTabState extends State<InventoryTab> {
       return item.name.toLowerCase().contains(_query);
     }).toList();
 
+    final int equippedValue = inventory
+        .where((ResolvedItem i) => i.entry.isEquipped)
+        .fold<int>(0, (int a, ResolvedItem i) => a + (i.cost * i.entry.quantity));
+    final int backpackValue = inventory
+        .where((ResolvedItem i) => !i.entry.isEquipped)
+        .fold<int>(0, (int a, ResolvedItem i) => a + (i.cost * i.entry.quantity));
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           ChamferPanel(
-            title: 'Carico e disponibilita',
+            title: 'Carico e risorse',
             accent: totals.loadStatus == LoadStatus.overload
                 ? CprPalette.danger
                 : totals.loadStatus == LoadStatus.heavy
@@ -81,22 +91,19 @@ class _InventoryTabState extends State<InventoryTab> {
             child: Column(
               children: <Widget>[
                 _LoadBar(totals: totals),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
+                WalletTerminal(
+                  eurobucks: sheet.eurobucks,
+                  equippedValue: equippedValue,
+                  inventoryValue: backpackValue,
+                  onChanged: (int v) => state.mutate((s) => s.eurobucks = v),
+                ),
+                const SizedBox(height: 14),
                 Row(
                   children: <Widget>[
                     Expanded(
-                      child: TechNumberStepper(
-                        label: 'Eurobucks',
-                        value: sheet.eurobucks,
-                        max: 9999999,
-                        accent: CprPalette.yellow,
-                        onChanged: (int v) => state.mutate((s) => s.eurobucks = v),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
                       child: _SummaryTile(
-                        label: 'Oggetti',
+                        label: 'Oggetti Totali',
                         value: '${inventory.length}',
                         hint: '${inventory.fold<int>(0, (int a, ResolvedItem i) => a + i.entry.quantity)} pezzi',
                       ),
@@ -107,6 +114,14 @@ class _InventoryTabState extends State<InventoryTab> {
                         label: 'Equipaggiati',
                         value: '${inventory.where((ResolvedItem i) => i.entry.isEquipped).length}',
                         hint: 'armi, armature, vestiti',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _SummaryTile(
+                        label: 'Nello Zaino',
+                        value: '${inventory.where((ResolvedItem i) => !i.entry.isEquipped).length}',
+                        hint: 'scorte, materiali, attrezzi',
                       ),
                     ),
                   ],
@@ -499,6 +514,93 @@ class _ItemRowState extends State<_ItemRow> {
               ),
               _Cell(label: 'COSTO', value: '${item.cost}', width: 80),
               const SizedBox(width: 6),
+              if (item.weapon != null) ...<Widget>[
+                TechButton(
+                  label: 'Attacca',
+                  icon: Icons.sports_kabaddi,
+                  variant: TechButtonVariant.primary,
+                  compact: true,
+                  tooltip: 'Tira per colpire (1d10 + Stat + Abilità)',
+                  onPressed: () {
+                    final Skill weaponSkill = Skill.fromId(item.weapon!.skillId) ?? Skill.handgun;
+                    final int skillMod = state.totals?.skillCheck(weaponSkill) ?? 0;
+                    showCombatOrSkillRollDialog(
+                      context,
+                      title: 'Attacco: ${item.name}',
+                      die: DiceType.d10,
+                      count: 1,
+                      modifier: skillMod,
+                      modifierLabel: '${weaponSkill.stat.short} + ${weaponSkill.name}',
+                      skill: weaponSkill,
+                      weapon: item.weapon,
+                      item: item,
+                      onAmmoChanged: () => setState(() {}),
+                    );
+                  },
+                ),
+                const SizedBox(width: 4),
+                TechButton(
+                  label: 'Danno',
+                  icon: Icons.local_fire_department,
+                  variant: TechButtonVariant.ghost,
+                  compact: true,
+                  tooltip: 'Tira i dadi danno dell\'arma con calcolo ferita grave',
+                  onPressed: () {
+                    final String dmg = item.weapon!.damage.isNotEmpty ? item.weapon!.damage : '3d6';
+                    final RegExp match = RegExp(r'(\d+)d(\d+)', caseSensitive: false);
+                    final RegExpMatch? m = match.firstMatch(dmg);
+                    int count = 3;
+                    DiceType die = DiceType.d6;
+                    if (m != null) {
+                      count = int.tryParse(m.group(1) ?? '3') ?? 3;
+                      final int faces = int.tryParse(m.group(2) ?? '6') ?? 6;
+                      die = faces == 10 ? DiceType.d10 : DiceType.d6;
+                    }
+                    showCombatOrSkillRollDialog(
+                      context,
+                      title: 'Danno: ${item.name} ($dmg)',
+                      die: die,
+                      count: count,
+                      modifier: 0,
+                      modifierLabel: '',
+                      weapon: item.weapon,
+                      item: item,
+                      onAmmoChanged: () => setState(() {}),
+                    );
+                  },
+                ),
+                const SizedBox(width: 4),
+              ],
+              if (item.armor != null) ...<Widget>[
+                TechButton(
+                  label: '-1 SP',
+                  icon: Icons.shield_outlined,
+                  variant: TechButtonVariant.danger,
+                  compact: true,
+                  tooltip: 'Ablazione armatura: subisci penetrazione (-1 SP)',
+                  onPressed: () => state.mutate((s) {
+                    final InventoryEntry target = s.inventory.firstWhere((InventoryEntry e) => e.id == entry.id);
+                    final int currentSp = item.armor!.sp;
+                    final int newSp = (currentSp - 1).clamp(0, 99);
+                    target.overrides = target.overrides.copy()..sp = newSp;
+                  }),
+                ),
+                if (item.armor!.sp < (item.base?.armor?.sp ?? item.armor!.sp)) ...<Widget>[
+                  const SizedBox(width: 4),
+                  TechButton(
+                    label: 'Ripara',
+                    icon: Icons.build_circle_outlined,
+                    variant: TechButtonVariant.ghost,
+                    compact: true,
+                    tooltip: 'Ripristina SP originale (${item.base?.armor?.sp ?? item.armor!.sp})',
+                    onPressed: () => state.mutate((s) {
+                      final InventoryEntry target = s.inventory.firstWhere((InventoryEntry e) => e.id == entry.id);
+                      target.overrides = target.overrides.copy()..sp = item.base?.armor?.sp;
+                    }),
+                  ),
+                ],
+                const SizedBox(width: 4),
+              ],
               TechButton(
                 label: entry.isEquipped ? 'Equip.' : 'Zaino',
                 icon: entry.isEquipped ? Icons.check_circle_outline : Icons.backpack_outlined,
@@ -548,7 +650,11 @@ class _ItemRowState extends State<_ItemRow> {
     }
     final ArmorData? armor = item.armor;
     if (armor != null) {
-      parts.add('${armor.slot.label} · SP ${armor.sp}');
+      final int baseSp = item.base?.armor?.sp ?? armor.sp;
+      final String spDisplay = armor.sp < baseSp
+          ? 'SP ${armor.sp}/$baseSp (Ablata!)'
+          : 'SP ${armor.sp}';
+      parts.add('${armor.slot.label} · $spDisplay');
     }
     final ClothingData? clothing = item.clothing;
     if (clothing != null) {
