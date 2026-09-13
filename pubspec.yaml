@@ -37,3 +37,5 @@ flutter:
     # Catalogo oggetti in sola lettura, spedito con l'app.
     # Si rigenera con: dart run tool/build_catalog.dart
     - assets/catalog/catalog.sqlite
+    # Mappa completa di Night City 2077 con rete NCART e distretti
+    - assets/images/night_city_full.jpg

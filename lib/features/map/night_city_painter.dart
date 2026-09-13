@@ -136,6 +136,7 @@ class NightCityPainter extends CustomPainter {
     if (image != null) {
       _paintImportedImage(canvas, rect);
       _paintMarginLabels(canvas, rect, c);
+      _paintDistrictLabels(canvas, rect, c);
     } else {
       _paintWater(canvas, rect, c);
       if (style == MapStyle.digital) _paintGrid(canvas, rect, c.grid);
@@ -365,7 +366,22 @@ class NightCityPainter extends CustomPainter {
   /// posiziona i waypoint nel posto sbagliato.
   void _paintImportedImage(Canvas canvas, Rect rect) {
     final ui.Image? img = image;
-    if (img == null || corners.length != 4) return;
+    if (img == null) return;
+
+    if (corners.length != 4) {
+      final Rect src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+      final Paint p = Paint()
+        ..filterQuality = FilterQuality.medium
+        ..isAntiAlias = true;
+      if (imageOpacity < 1) {
+        canvas.saveLayer(rect, Paint()..color = Color.fromRGBO(255, 255, 255, imageOpacity));
+        canvas.drawImageRect(img, src, rect, p);
+        canvas.restore();
+      } else {
+        canvas.drawImageRect(img, src, rect, p);
+      }
+      return;
+    }
 
     final List<Offset> p = <Offset>[for (final Offset c in corners) mapToLocal(c, rect)];
     final double w = img.width.toDouble();

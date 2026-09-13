@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../../app/app_state.dart';
@@ -76,12 +77,29 @@ class _MapSectionState extends State<MapSection> {
     _imagePathLoaded = path;
 
     if (path.isEmpty) {
+      // Carica automaticamente la mappa completa di Night City 2077 inclusa nell'app
       setState(() {
-        _image?.dispose();
-        _image = null;
+        _loadingImage = true;
         _imageError = null;
-        _loadingImage = false;
       });
+      try {
+        final ByteData data = await rootBundle.load('assets/images/night_city_full.jpg');
+        final ui.Codec codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+        final ui.FrameInfo frame = await codec.getNextFrame();
+        if (!mounted) return;
+        setState(() {
+          _image?.dispose();
+          _image = frame.image;
+          _loadingImage = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _image?.dispose();
+          _image = null;
+          _loadingImage = false;
+        });
+      }
       return;
     }
 
