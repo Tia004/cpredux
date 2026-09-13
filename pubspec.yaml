@@ -12,11 +12,23 @@ dependencies:
   crypto: ^3.0.6
   path: ^1.9.1
   sqlite3: ^3.5.2
+  # Trascinare un file dal Finder (o da Esplora risorse) dentro la finestra.
+  #
+  # E' l'unico plugin nativo del progetto, e c'e' una ragione precisa: il
+  # trascinamento *dal sistema operativo* non esiste in Flutter — `DragTarget`
+  # funziona solo dentro l'applicazione — e non e' ottenibile da `dart:io`.
+  # L'alternativa sarebbe scrivere il codice nativo tre volte (Cocoa, Win32,
+  # GTK); questa libreria lo ha gia' fatto e dal 0.6 usa **Swift Package
+  # Manager**, quindi non serve CocoaPods e la build resta quella di sempre.
+  desktop_drop: ^0.8.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Lettura dei pacchetti YAML di un dataset esterno (tool/import_dataset_catalog.dart).
+  # Dipendenza di **sviluppo**: non entra nel pacchetto spedito con l'app.
+  yaml: ^3.1.3
 
 flutter:
   uses-material-design: true
