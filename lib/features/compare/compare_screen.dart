@@ -1,33 +1,26 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../../app/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/sheet_diff.dart';
+import '../../domain/sheet_diff_export.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/entrance.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import '../files/file_browser.dart';
 
-/// Confronto fianco a fianco fra due schede.
+/// Confronto fianco a fianco o in modalita' Chat Cyberpunk fra due schede.
 ///
-/// La forma della schermata e' la funzione: due colonne **allineate riga per
-/// riga**, cosi' l'occhio scorre in verticale e trova la differenza invece di
-/// cercarla. L'alternativa — due schede una sotto l'altra, o un elenco di
-/// "prima: X, dopo: Y" — costringe a ricostruire a mente il confronto, che e'
-/// esattamente il lavoro che il programma deve risparmiare.
-///
-/// Tre scelte che si vedono:
-///
-/// * **il codice colore dice cosa e' successo**, non quanto e' importante: un
-///   valore tolto e' rosso, uno aggiunto e' verde, e le due colonne di una riga
-///   che e' cambiata portano i due colori insieme;
-/// * **la vista parte dalle differenze**, perche' e' quello che si sta
-///   cercando; "tutto" e' a un clic, e serve a confermare che una cosa *non* e'
-///   cambiata — che e' una domanda legittima e diversa;
-/// * **le sezioni si chiudono**, perche' "Abilita" sono 68 righe e in mezzo a
-///   quelle la differenza che interessa si perde.
+/// Permette di visualizzare le differenze riga per riga oppure come un flusso
+/// di dialogo cyberpunk tra i due personaggi/agenti, ed esportare il risultato
+/// in testo per chat, file .html autonomo e file .json.
 class CompareScreen extends StatefulWidget {
   const CompareScreen({super.key});
 
@@ -40,6 +33,9 @@ class _CompareScreenState extends State<CompareScreen> {
   /// motivo per cui si apre un confronto.
   bool _onlyDifferences = true;
 
+  /// True attiva la vista chat cyberpunk con dialogo tra personaggi.
+  bool _chatView = false;
+
   /// Le sezioni chiuse a mano (o chiuse perche' non contengono differenze).
   final Set<String> _collapsed = <String>{};
 
@@ -48,9 +44,6 @@ class _CompareScreenState extends State<CompareScreen> {
       _onlyDifferences = value;
       _collapsed
         ..clear()
-        // In "tutto" le sezioni senza differenze partono chiuse: servono a
-        // confermare che li' non e' cambiato niente, e per dirlo basta il
-        // titolo con il suo conteggio.
         ..addAll(value
             ? const <String>[]
             : <String>[
@@ -87,45 +80,56 @@ class _CompareScreenState extends State<CompareScreen> {
     return Column(
       children: <Widget>[
         _TopBar(
+          chatView: _chatView,
+          onChatView: (bool v) => setState(() => _chatView = v),
           onlyDifferences: _onlyDifferences,
           onOnlyDifferences: (bool v) => _setOnlyDifferences(v, diff),
           onSwap: state.swapComparison,
           onBack: state.closeComparison,
+          diff: diff,
+          comparison: comparison,
         ),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1180),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Entrance(
-                      child: _Headers(
-                        before: comparison.before,
-                        after: comparison.after,
-                        onSwap: state.swapComparison,
+          child: _chatView
+              ? _CyberpunkChatView(
+                  diff: diff,
+                  before: comparison.before,
+                  after: comparison.after,
+                  onlyDifferences: _onlyDifferences,
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1180),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          Entrance(
+                            child: _Headers(
+                              before: comparison.before,
+                              after: comparison.after,
+                              onSwap: state.swapComparison,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _Summary(diff: diff, shown: groups.length),
+                          const SizedBox(height: 16),
+                          for (final DiffGroup group in groups) ...<Widget>[
+                            _GroupPanel(
+                              group: group,
+                              beforeLabel: comparison.before.label,
+                              afterLabel: comparison.after.label,
+                              collapsed: _collapsed.contains(group.title),
+                              onToggle: () => _toggleGroup(group.title),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    _Summary(diff: diff, shown: groups.length),
-                    const SizedBox(height: 16),
-                    for (final DiffGroup group in groups) ...<Widget>[
-                      _GroupPanel(
-                        group: group,
-                        beforeLabel: comparison.before.label,
-                        afterLabel: comparison.after.label,
-                        collapsed: _collapsed.contains(group.title),
-                        onToggle: () => _toggleGroup(group.title),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
         ),
       ],
     );
@@ -134,59 +138,225 @@ class _CompareScreenState extends State<CompareScreen> {
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
+    required this.chatView,
+    required this.onChatView,
     required this.onlyDifferences,
     required this.onOnlyDifferences,
     required this.onSwap,
     required this.onBack,
+    required this.diff,
+    required this.comparison,
   });
 
+  final bool chatView;
+  final ValueChanged<bool> onChatView;
   final bool onlyDifferences;
   final ValueChanged<bool> onOnlyDifferences;
   final VoidCallback onSwap;
   final VoidCallback onBack;
+  final SheetDiff diff;
+  final Comparison comparison;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
-      child: Row(
-        children: <Widget>[
-          Container(width: 4, height: 20, color: CprPalette.info),
-          const SizedBox(width: 10),
-          Text(
-            'CONFRONTO',
-            style: CprType.label.copyWith(fontSize: 13, letterSpacing: 2.4, color: CprPalette.ink),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            Container(width: 4, height: 20, color: CprPalette.info),
+            const SizedBox(width: 10),
+            Text(
+              'CONFRONTO',
+              style: CprType.label.copyWith(fontSize: 13, letterSpacing: 2.4, color: CprPalette.ink),
+            ),
+            const SizedBox(width: 20),
+            TechSegmented<bool>(
+              value: chatView,
+              items: const <bool>[false, true],
+              labelOf: (bool v) => v ? 'Chat Cyberpunk' : 'Fianco a fianco',
+              accent: CprPalette.info,
+              onChanged: onChatView,
+            ),
+            const SizedBox(width: 10),
+            TechSegmented<bool>(
+              value: onlyDifferences,
+              items: const <bool>[true, false],
+              labelOf: (bool v) => v ? 'Solo diff' : 'Tutto',
+              accent: CprPalette.info,
+              onChanged: onOnlyDifferences,
+            ),
+            const SizedBox(width: 10),
+            _ExportMenu(
+              diff: diff,
+              beforeLabel: comparison.before.label,
+              afterLabel: comparison.after.label,
+            ),
+            const SizedBox(width: 8),
+            TechButton(
+              label: 'Inverti',
+              icon: Icons.swap_horiz,
+              variant: TechButtonVariant.ghost,
+              compact: true,
+              tooltip: 'Scambia le due schede',
+              onPressed: onSwap,
+            ),
+            const SizedBox(width: 8),
+            TechButton(
+              label: 'Torna al menu',
+              icon: Icons.arrow_back,
+              variant: TechButtonVariant.secondary,
+              compact: true,
+              onPressed: onBack,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExportMenu extends StatelessWidget {
+  const _ExportMenu({
+    required this.diff,
+    required this.beforeLabel,
+    required this.afterLabel,
+  });
+
+  final SheetDiff diff;
+  final String beforeLabel;
+  final String afterLabel;
+
+  static String _sanitize(String name) {
+    return name.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_').toLowerCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      color: CprPalette.surfaceRaised,
+      tooltip: 'Esporta confronto (Chat, HTML, JSON)',
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'chat',
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.chat_bubble_outline, size: 16, color: CprPalette.info),
+              const SizedBox(width: 8),
+              Text(
+                'Copia riepilogo chat',
+                style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 12),
+              ),
+            ],
           ),
-          const Spacer(),
-          TechSegmented<bool>(
-            value: onlyDifferences,
-            items: const <bool>[true, false],
-            labelOf: (bool v) => v ? 'Solo differenze' : 'Tutto',
-            accent: CprPalette.info,
-            onChanged: onOnlyDifferences,
+        ),
+        PopupMenuItem<String>(
+          value: 'html',
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.html, size: 16, color: CprPalette.success),
+              const SizedBox(width: 8),
+              Text(
+                'Esporta file .html autonomo',
+                style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 12),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          TechButton(
-            label: 'Inverti',
-            icon: Icons.swap_horiz,
-            variant: TechButtonVariant.ghost,
-            compact: true,
-            tooltip: 'Scambia le due schede',
-            onPressed: onSwap,
+        ),
+        PopupMenuItem<String>(
+          value: 'json',
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.data_object, size: 16, color: CprPalette.warning),
+              const SizedBox(width: 8),
+              Text(
+                'Esporta file .json',
+                style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 12),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          TechButton(
-            label: 'Torna al menu',
-            icon: Icons.arrow_back,
-            variant: TechButtonVariant.secondary,
-            compact: true,
-            onPressed: onBack,
-          ),
-        ],
+        ),
+      ],
+      onSelected: (String action) async {
+        if (action == 'chat') {
+          final String summary = SheetDiffExport.toChatSummary(diff);
+          await Clipboard.setData(ClipboardData(text: summary));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Riepilogo per chat copiato negli appunti.'),
+                backgroundColor: CprPalette.success,
+              ),
+            );
+          }
+        } else if (action == 'html') {
+          final String html = SheetDiffExport.toStandaloneHtml(diff);
+          final String suggested = 'confronto_${_sanitize(beforeLabel)}_vs_${_sanitize(afterLabel)}.html';
+          final String? path = await showFileBrowser(
+            context,
+            mode: FileBrowserMode.save,
+            title: 'Salva confronto HTML autonomo',
+            suggestedName: suggested,
+            extensions: const <String>['.html', '.htm'],
+          );
+          if (path != null) {
+            File(path).writeAsStringSync(html);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('File HTML salvato: ${p.basename(path)}'),
+                  backgroundColor: CprPalette.success,
+                ),
+              );
+            }
+          }
+        } else if (action == 'json') {
+          final String jsonStr = SheetDiffExport.toJsonString(diff);
+          final String suggested = 'confronto_${_sanitize(beforeLabel)}_vs_${_sanitize(afterLabel)}.json';
+          final String? path = await showFileBrowser(
+            context,
+            mode: FileBrowserMode.save,
+            title: 'Salva confronto JSON',
+            suggestedName: suggested,
+            extensions: const <String>['.json'],
+          );
+          if (path != null) {
+            File(path).writeAsStringSync(jsonStr);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('File JSON salvato: ${p.basename(path)}'),
+                  backgroundColor: CprPalette.success,
+                ),
+              );
+            }
+          }
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: CprPalette.veil(CprPalette.info, 0.1),
+          border: Border.all(color: CprPalette.info),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.file_download_outlined, size: 14, color: CprPalette.info),
+            const SizedBox(width: 6),
+            Text(
+              'ESPORTA',
+              style: CprType.label.copyWith(color: CprPalette.info, fontSize: 11),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_drop_down, size: 14, color: CprPalette.info),
+          ],
+        ),
       ),
     );
   }
@@ -654,3 +824,465 @@ String _prettyDate(String iso) {
   String two(int v) => v.toString().padLeft(2, '0');
   return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
 }
+
+/// Visualizzazione del confronto strutturata come una chat cyberpunk con intercettazione
+/// tra i due personaggi/agenti sulla rete (Netwatch / Sub-Net feed).
+class _CyberpunkChatView extends StatelessWidget {
+  const _CyberpunkChatView({
+    required this.diff,
+    required this.before,
+    required this.after,
+    required this.onlyDifferences,
+  });
+
+  final SheetDiff diff;
+  final ComparisonSide before;
+  final ComparisonSide after;
+  final bool onlyDifferences;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<DiffGroup> groups = diff.groupsWith(onlyDifferences: onlyDifferences);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 920),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              // Terminal intercept header
+              _ChatTerminalHeader(
+                beforeName: before.label,
+                afterName: after.label,
+                changesCount: diff.changes,
+                groupsCount: diff.changedGroups,
+              ),
+              const SizedBox(height: 16),
+              if (groups.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: CprPalette.surfaceRaised,
+                    border: Border.all(color: CprPalette.success),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'NESSUNA DIFFERENZA RILEVATA TRA I DUE PERSONAGGI.',
+                      style: CprType.label.copyWith(color: CprPalette.success, letterSpacing: 1.5),
+                    ),
+                  ),
+                )
+              else
+                for (final DiffGroup group in groups) ...<Widget>[
+                  _ChatGroupHeader(title: group.title, changes: group.changes),
+                  const SizedBox(height: 10),
+                  for (final DiffRow row in group.rows) ...<Widget>[
+                    _buildRowChat(row),
+                    const SizedBox(height: 8),
+                  ],
+                  const SizedBox(height: 14),
+                ],
+              // Terminal footer
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: const BoxDecoration(
+                  color: CprPalette.surfaceSunken,
+                  border: Border(top: BorderSide(color: CprPalette.hairline)),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: CprPalette.success,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'STREAM DIALOGO COMPLETATO // PACCHETTI SINCRONIZZATI AL 100%',
+                      style: CprType.label.copyWith(
+                        color: CprPalette.inkMuted,
+                        fontSize: 10,
+                        letterSpacing: 1.2,
+                        fontFamilyFallback: CprType.monoFamily,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRowChat(DiffRow row) {
+    switch (row.state) {
+      case DiffState.changed:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _ChatBubble(
+              sender: before.label,
+              role: 'ORIGINE [PRIMA]',
+              message: '«${row.label}» registrato a: «${row.before ?? 'non presente'}».',
+              accent: CprPalette.danger,
+              isLeft: true,
+            ),
+            const SizedBox(height: 6),
+            _ChatBubble(
+              sender: after.label,
+              role: 'DESTINAZIONE [DOPO]',
+              message: 'Override confermato: «${row.label}» aggiornato a «${row.after ?? 'non presente'}».'
+                  '${row.detail != null ? '\n[Parametri]: ${row.detail}' : ''}'
+                  '${row.note != null ? '\n[Nota]: ${row.note}' : ''}',
+              accent: CprPalette.success,
+              isLeft: false,
+            ),
+            const SizedBox(height: 4),
+            _DeltaPill(
+              label: row.label,
+              before: row.before,
+              after: row.after,
+              state: DiffState.changed,
+            ),
+          ],
+        );
+      case DiffState.added:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _ChatBubble(
+              sender: after.label,
+              role: 'DESTINAZIONE [DOPO]',
+              message: 'Nuovo modulo acquisito: «${row.label}» = «${row.after ?? ''}».'
+                  '${row.detail != null ? '\n[Parametri]: ${row.detail}' : ''}',
+              accent: CprPalette.success,
+              isLeft: false,
+            ),
+            const SizedBox(height: 4),
+            _DeltaPill(
+              label: row.label,
+              before: null,
+              after: row.after,
+              state: DiffState.added,
+            ),
+          ],
+        );
+      case DiffState.removed:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _ChatBubble(
+              sender: before.label,
+              role: 'ORIGINE [PRIMA]',
+              message: 'Componente rimosso o disconnesso: «${row.label}» (era «${row.before ?? ''}»). Assente nel profilo bersaglio.',
+              accent: CprPalette.danger,
+              isLeft: true,
+            ),
+            const SizedBox(height: 4),
+            _DeltaPill(
+              label: row.label,
+              before: row.before,
+              after: null,
+              state: DiffState.removed,
+            ),
+          ],
+        );
+      case DiffState.unchanged:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: CprPalette.veil(CprPalette.inkMuted, 0.05),
+            border: const Border(left: BorderSide(color: CprPalette.hairline, width: 2)),
+          ),
+          child: Row(
+            children: <Widget>[
+              Text(
+                '[SYNC] ${row.label}:',
+                style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 11),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                row.before ?? '—',
+                style: CprType.caption.copyWith(
+                  color: CprPalette.ink,
+                  fontSize: 11,
+                  fontFamilyFallback: CprType.monoFamily,
+                ),
+              ),
+            ],
+          ),
+        );
+    }
+  }
+}
+
+class _ChatTerminalHeader extends StatelessWidget {
+  const _ChatTerminalHeader({
+    required this.beforeName,
+    required this.afterName,
+    required this.changesCount,
+    required this.groupsCount,
+  });
+
+  final String beforeName;
+  final String afterName;
+  final int changesCount;
+  final int groupsCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChamferPanel(
+      title: 'NETRUNNER INTERCEPT // FEED DIALOGO',
+      accent: CprPalette.info,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.hub_outlined, size: 16, color: CprPalette.info),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'CANALE INTERCETTAZIONE: 2045-DELTA // CRITTOGRAFIA QUANTISTICA',
+                  style: CprType.label.copyWith(
+                    color: CprPalette.info,
+                    fontSize: 11,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: CprPalette.veil(CprPalette.danger, 0.08),
+                    border: const Border(left: BorderSide(color: CprPalette.danger, width: 3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text('AGENTE ALPHA [PRIMA]', style: CprType.label.copyWith(color: CprPalette.danger, fontSize: 9)),
+                      Text(beforeName, style: CprType.title.copyWith(color: CprPalette.ink, fontSize: 14)),
+                    ],
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(Icons.sync_alt, color: CprPalette.warning, size: 20),
+              ),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: CprPalette.veil(CprPalette.success, 0.08),
+                    border: const Border(left: BorderSide(color: CprPalette.success, width: 3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text('AGENTE BETA [DOPO]', style: CprType.label.copyWith(color: CprPalette.success, fontSize: 9)),
+                      Text(afterName, style: CprType.title.copyWith(color: CprPalette.ink, fontSize: 14)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'ANOMALIE DI STATO: $changesCount variazioni distribuite su $groupsCount settori.',
+            style: CprType.caption.copyWith(color: CprPalette.warning, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatGroupHeader extends StatelessWidget {
+  const _ChatGroupHeader({required this.title, required this.changes});
+
+  final String title;
+  final int changes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: CprPalette.veil(CprPalette.info, 0.08),
+        border: const Border(
+          bottom: BorderSide(color: CprPalette.info, width: 1.5),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.dns_outlined, size: 14, color: CprPalette.info),
+          const SizedBox(width: 8),
+          Text(
+            '// SETTORE DATATERM: ${title.toUpperCase()}',
+            style: CprType.label.copyWith(
+              color: CprPalette.ink,
+              fontSize: 11,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            color: changes > 0 ? CprPalette.veil(CprPalette.warning, 0.2) : CprPalette.veil(CprPalette.hairline, 0.4),
+            child: Text(
+              '$changes delta',
+              style: CprType.label.copyWith(
+                color: changes > 0 ? CprPalette.warning : CprPalette.inkFaint,
+                fontSize: 9,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatBubble extends StatelessWidget {
+  const _ChatBubble({
+    required this.sender,
+    required this.role,
+    required this.message,
+    required this.accent,
+    required this.isLeft,
+  });
+
+  final String sender;
+  final String role;
+  final String message;
+  final Color accent;
+  final bool isLeft;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 620),
+        margin: EdgeInsets.only(
+          left: isLeft ? 0 : 40,
+          right: isLeft ? 40 : 0,
+        ),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: CprPalette.surfaceRaised,
+          border: Border(
+            left: isLeft ? BorderSide(color: accent, width: 3) : const BorderSide(color: CprPalette.hairline),
+            right: !isLeft ? BorderSide(color: accent, width: 3) : const BorderSide(color: CprPalette.hairline),
+            top: const BorderSide(color: CprPalette.hairline),
+            bottom: const BorderSide(color: CprPalette.hairline),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: isLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+          children: <Widget>[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (isLeft) ...<Widget>[
+                  Icon(Icons.radio_button_checked, size: 10, color: accent),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  '$sender · $role',
+                  style: CprType.label.copyWith(
+                    color: accent,
+                    fontSize: 9.5,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                if (!isLeft) ...<Widget>[
+                  const SizedBox(width: 6),
+                  Icon(Icons.radio_button_checked, size: 10, color: accent),
+                ],
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              message,
+              textAlign: isLeft ? TextAlign.left : TextAlign.right,
+              style: CprType.body.copyWith(
+                color: CprPalette.ink,
+                fontSize: 12.5,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeltaPill extends StatelessWidget {
+  const _DeltaPill({
+    required this.label,
+    required this.before,
+    required this.after,
+    required this.state,
+  });
+
+  final String label;
+  final String? before;
+  final String? after;
+  final DiffState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = switch (state) {
+      DiffState.changed => CprPalette.warning,
+      DiffState.added => CprPalette.success,
+      DiffState.removed => CprPalette.danger,
+      DiffState.unchanged => CprPalette.inkMuted,
+    };
+
+    final String text = switch (state) {
+      DiffState.changed => 'DELTA // $label: «${before ?? '—'}» ➔ «${after ?? '—'}»',
+      DiffState.added => '+ ACQUISIZIONE // $label = «${after ?? ''}»',
+      DiffState.removed => '- RIMOZIONE // $label (precedente: «${before ?? ''}»)',
+      DiffState.unchanged => 'SYNC // $label',
+    };
+
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: CprPalette.veil(color, 0.12),
+          border: Border.all(color: color.withValues(alpha: 0.4), width: 0.8),
+        ),
+        child: Text(
+          text,
+          style: CprType.caption.copyWith(
+            color: color,
+            fontSize: 10,
+            fontFamilyFallback: CprType.monoFamily,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
