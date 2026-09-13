@@ -22,9 +22,7 @@
   <p align="center"><img src="assets/branding/logo.svg" alt="Cyberpunk RED" height="70"></p>
 -->
 
-Riscrittura di `CPRED_Visualizer` (JavaFX, ~17.100 righe di Java + 5.800 di FXML)
-in **Flutter**, in un progetto parallelo. Il progetto Java resta intatto accanto
-come riferimento e come specifica del comportamento da preservare.
+Riscrittura completa e indipendente di `CPRED_Visualizer` in **Flutter**. Il progetto originale in Java non è incluso all'interno di questo repository, che contiene esclusivamente la nuova codebase moderna.
 
 Stato: **applicazione funzionante end-to-end** e **rilasciabile**. Il dominio e'
 portato, il catalogo oggetti e' separato dalla scheda, il formato `.cpredux` e'

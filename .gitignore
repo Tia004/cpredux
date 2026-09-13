@@ -62,3 +62,13 @@ app.*.map.json
 # Il catalogo oggetti invece **va committato**: e' un asset spedito con l'app, e
 # c'e' un test che verifica che sia presente e coerente con il seed.
 !assets/catalog/catalog.sqlite
+
+# Progetto Java originale di riferimento (non deve essere incluso nel repository)
+lol/
+legacy/
+CPRED_Visualizer/
+*.cpred_sheet
+*.cpredux
+*.cpredux.backup
+*.assets/
+
