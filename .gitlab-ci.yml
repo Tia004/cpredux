@@ -1,16 +1,44 @@
-# Pipeline GitLab: verifica, costruisce le tre versioni desktop, pubblica il
+# Pipeline GitLab: verifica, costruisce i quattro pacchetti desktop, pubblica il
 # manifesto degli aggiornamenti e la pagina di download su Pages.
 #
-# Nota sui runner: i tag indicano *dove* deve girare il lavoro. `saas-linux-*`
-# sono i runner Linux condivisi e funzionano subito; i runner macOS e Windows di
-# GitLab.com vanno abilitati (dipendono dal piano e dalla verifica dell'account).
-# Fino ad allora la pipeline si ferma sui due job con `when: manual`, e il resto
-# continua a girare: meglio un rilascio parziale con un avviso che una pipeline
-# rossa che blocca tutto.
+# I pacchetti sono tre — macOS, Windows, Linux — e il primo vale per entrambe le
+# architetture dei Mac: il bundle che Flutter costruisce e' **universale** (ogni
+# eseguibile dentro di esso ha le slice x86_64 e arm64). Non e' un'ipotesi: e'
+# verificato dal job qui sotto con `lipo -archs`, che e' anche il modo di
+# accorgersi se un giorno la build diventasse a architettura singola.
 #
-# La pipeline GitHub equivalente sta in `.github/workflows/release.yml`. Il
-# formato dell'aggiornamento e' identico perche' il manifesto lo genera
-# `tool/publish.dart` in entrambi i casi.
+# Due archivi macOS separati sarebbero lo stesso contenuto due volte, e
+# ottenerli richiederebbe di assottigliare e ri-firmare ogni file del bundle.
+#
+# --- I runner, e perche' i job di costruzione sono manuali -------------------
+#
+# Ogni job dichiara i tag del runner su cui deve girare. Su gitlab.com esistono
+# subito:
+#
+#   saas-linux-*           Linux   (immagine Docker, nessun runner da installare)
+#   saas-windows-medium    Windows
+#   saas-macos-medium-m1   macOS (Apple Silicon: costruisce il bundle universale)
+#
+# I job sono `when: manual` con `allow_failure: true`: un
+# runner che non esiste lascerebbe altrimenti un job in attesa per sempre, e una
+# pipeline che aspetta per sempre e' peggio di una pipeline che pubblica tre
+# pacchetti su quattro — a patto che il manifesto **dica** quale manca, cosa che
+# `tool/publish.dart` fa.
+#
+# La sequenza di un rilascio e' quindi:
+#
+#   1. tag annotato in cui la descrizione e' il changelog:  git tag -a v0.3.0 -m "..."
+#   2. nella pipeline del tag, avviare le costruzioni che ti servono
+#   3. avviare "pagine" (manifesto + pagina) e poi "rilascio"
+#
+# Se i tuoi runner ci sono tutti e vuoi un rilascio in un clic solo, l'unica
+# modifica e' `when: manual` -> `when: on_success` sui job di costruzione e su
+# "pagine" e "rilascio".
+#
+# La pipeline GitHub equivalente sta in `.github/workflows/release.yml`: quella
+# costruisce tutte e quattro le piattaforme senza configurazione, perche' GitHub
+# ospita anche i runner macOS Intel. Il formato dell'aggiornamento e' identico,
+# perche' il manifesto lo genera `tool/publish.dart` in entrambi i casi.
 
 stages:
   - verifica
@@ -19,6 +47,8 @@ stages:
 
 variables:
   FLUTTER_CHANNEL: stable
+  # Il changelog serve per intero: `git describe` sul tag precedente non
+  # funziona su un clone superficiale.
   GIT_DEPTH: '0'
 
 default:
@@ -33,29 +63,53 @@ analisi-e-test:
     - flutter pub get
     - flutter analyze
     - flutter test --reporter expanded
-  # Il catalogue e' un asset generato: se qualcuno modifica il seed e dimentica
+  # Il catalogo e' un asset generato: se qualcuno modifica il seed e dimentica
   # di rigenerare il database, il test sul catalogo spedito lo intercetta qui.
   artifacts:
     when: always
     expire_in: 1 week
-    reports:
-      junit: build/test-results/*.xml
 
 # --- costruzione -----------------------------------------------------------
 
+# macOS: un pacchetto solo, universale.
+#
+# La verifica controlla che ci siano **entrambe** le architetture e non una
+# sola: e' il modo di accorgersi subito se una futura modifica alla
+# configurazione Xcode rendesse la build a architettura singola, perche' in quel
+# caso meta' dei Mac riceverebbe un'applicazione che non parte — e non c'e' modo
+# di vederlo senza guardare, dato che l'archivio si chiama allo stesso modo.
 macos:
   stage: costruzione
   tags: [saas-macos-medium-m1]
   rules:
     - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
     - when: manual
+      allow_failure: true
   script:
     - flutter pub get
     - flutter build macos --release
-    - cd build/macos/Build/Products/Release
+    - |
+      set -euo pipefail
+      APP=build/macos/Build/Products/Release/cpredux.app
+      # Ogni eseguibile del bundle, non solo quello principale: un framework
+      # lasciato a architettura singola fa fallire l'avvio allo stesso modo.
+      MISSING=0
+      while IFS= read -r bin; do
+        ARCHS=$(lipo -archs "$bin")
+        echo "$ARCHS   $bin"
+        case "$ARCHS" in
+          *arm64*x86_64*|*x86_64*arm64*) ;;
+          *) echo "ERRORE: $bin non e' universale ($ARCHS)"; MISSING=1 ;;
+        esac
+      done < <(find "$APP" -type f -print0 | xargs -0 -I{} sh -c 'lipo -archs "{}" >/dev/null 2>&1 && echo "{}"')
+      [ "$MISSING" = 0 ] || exit 1
+    - mkdir -p dist
     # `ditto` e non `zip`: e' l'unico strumento che conserva i permessi e i
     # symlink interni di un bundle macOS. Un archivio fatto con `zip` lo rompe e
     # l'applicazione non si apre piu' dopo l'aggiornamento.
+    - cd build/macos/Build/Products/Release
     - ditto -c -k --keepParent cpredux.app "$CI_PROJECT_DIR/dist/cpredux-macos.zip"
   artifacts:
     expire_in: 1 month
@@ -67,7 +121,10 @@ windows:
   tags: [saas-windows-medium-amd64]
   rules:
     - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
     - when: manual
+      allow_failure: true
   script:
     - flutter pub get
     - flutter build windows --release
@@ -81,8 +138,12 @@ windows:
 linux:
   stage: costruzione
   image: ghcr.io/cirruslabs/flutter:stable
-  dependencies:
-    - analisi-e-test
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
+    - when: manual
+      allow_failure: true
   script:
     - apt-get update && apt-get install -y --no-install-recommends ninja-build libgtk-3-dev libblkid-dev liblzma-dev wget file
     - flutter pub get
@@ -120,56 +181,118 @@ linux:
 
 # --- pubblicazione ---------------------------------------------------------
 
-# Il manifesto e la pagina di download. Girano anche se una delle tre
-# costruzioni non e' disponibile: un rilascio per due piattaforme su tre e'
-# meglio di nessun rilascio, a patto che il manifesto dica quali ci sono.
+# Il manifesto e la pagina di download.
+#
+# `needs` con `optional: true` e' quello che rende possibile un rilascio
+# parziale: i pacchetti presenti finiscono nel manifesto, quelli assenti vengono
+# elencati come mancanti e la pagina li mostra disattivati. Le note del rilascio
+# si prendono dai messaggi dei commit fra il tag precedente e questo, cosi' il
+# changelog e' quello che c'e' davvero.
 pagine:
   stage: pubblicazione
   image: ghcr.io/cirruslabs/flutter:stable
-  dependencies:
-    - macos
-    - windows
-    - linux
+  needs:
+    - job: linux
+      artifacts: true
+      optional: true
+    - job: windows
+      artifacts: true
+      optional: true
+    - job: macos
+      artifacts: true
+      optional: true
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+    - when: manual
   script:
     - flutter pub get
     - |
+      set -euo pipefail
       VERSION="${CI_COMMIT_TAG#v}"
       [ -n "$VERSION" ] || VERSION="0.0.0-sviluppo"
+
+      # L'indirizzo pubblico del sito. `CI_PAGES_URL` c'e' quando Pages e'
+      # attivo; il ripiego copre il caso normale (progetto in un namespace
+      # radice). Se il progetto sta in un sottogruppo o su un dominio tuo,
+      # imposta la variabile di progetto CPREDUX_PAGES_BASE e vince quella.
+      BASE="${CPREDUX_PAGES_BASE:-${CI_PAGES_URL:-https://${CI_PROJECT_ROOT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME}}}"
+      BASE="${BASE%/}"
+      echo "il sito pubblichera' su $BASE"
+
+      # Il changelog: una riga per commit, dal tag precedente. Se non c'e' un
+      # tag precedente (primo rilascio) si prende tutto.
+      PREV=$(git describe --tags --abbrev=0 "${CI_COMMIT_TAG}^" 2>/dev/null || true)
+      RANGE="${PREV:+$PREV..}$CI_COMMIT_TAG"
+      NOTES=()
+      while IFS= read -r line; do
+        [ -n "$line" ] && NOTES+=(--notes "$line")
+      done < <(git log --pretty=format:'%s' "$RANGE" 2>/dev/null || true)
+      echo "${#NOTES[@]} righe di changelog (da ${PREV:-inizio})"
+
+      mkdir -p dist
       dart run tool/publish.dart \
         --dist dist \
         --site public \
+        --page site/index.html \
         --version "$VERSION" \
-        --base-url "$CI_PAGES_URL"
+        --base-url "$BASE" \
+        "${NOTES[@]}"
+
+      # Passata al job di rilascio: quel container non ha git, quindi il calcolo
+      # dell'indirizzo si fa qui e viaggia come variabile.
+      echo "PAGES_BASE=$BASE" > pages.env
   artifacts:
     paths:
       - public
+      - pages.env
+    reports:
+      dotenv: pages.env
   pages:
-    # Pages e' un CDN statico: `latest.json` non va messa in cache, altrimenti
-    # un utente potrebbe restare mesi su una versione vecchia.
+    # Pages e' un CDN statico: `latest.json` non va messo in cache, altrimenti un
+    # utente potrebbe restare mesi su una versione vecchia.
     publish: public
-  rules:
-    - if: $CI_COMMIT_TAG
-    - when: manual
 
+# Il rilascio con i quattro installer come link.
+#
+# La descrizione e' l'annotazione del tag: si scrive una volta con `git tag -a`
+# e non si duplica qui. Il job non ha bisogno degli archivi — linka il sito —
+# quindi non scarica un byte.
 rilascio:
   stage: pubblicazione
   image: registry.gitlab.com/gitlab-org/release-cli:latest
-  needs: [macos, windows, linux]
+  needs:
+    - job: pagine
+      artifacts: true
   rules:
     - if: $CI_COMMIT_TAG
+      when: manual
   script:
-    - echo "Creo il rilascio $CI_COMMIT_TAG"
+    - |
+      cat > description.md <<EOF
+      ${CI_COMMIT_TAG_MESSAGE:-Nessuna nota: il tag non e' annotato. `git tag -a` con un messaggio lo popola.}
+
+      ## Scarica
+
+      La pagina di download, che elenca i pacchetti effettivamente pubblicati e
+      ne mostra dimensione e impronta: ${PAGES_BASE}/
+
+      ## Aggiornamento automatico
+
+      Le applicazioni installate leggono il manifesto degli aggiornamenti:
+      ${PAGES_BASE}/latest.json
+      EOF
   release:
     tag_name: $CI_COMMIT_TAG
     name: "CPRED Visualizer $CI_COMMIT_TAG"
-    description: 'Note di rilascio: vedi site/latest.json, che viene generato dalla stessa esecuzione che costruisce gli archivi.'
+    description: './description.md'
     assets:
       links:
-        - name: macOS
-          url: "$CI_PAGES_URL/cpredux-macos.zip"
+        - name: macOS · Apple Silicon e Intel
+          url: "${PAGES_BASE}/cpredux-macos.zip"
         - name: Windows
-          url: "$CI_PAGES_URL/cpredux-windows.zip"
-        - name: Linux
-          url: "$CI_PAGES_URL/cpredux-linux.AppImage"
-        - name: Manifesto aggiornamenti
-          url: "$CI_PAGES_URL/latest.json"
+          url: "${PAGES_BASE}/cpredux-windows.zip"
+        - name: Linux (AppImage)
+          url: "${PAGES_BASE}/cpredux-linux.AppImage"
+        - name: Manifesto degli aggiornamenti
+          url: "${PAGES_BASE}/latest.json"

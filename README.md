@@ -1,14 +1,41 @@
+<p align="center">
+  <img src="assets/branding/banner.svg" alt="CPRED Visualizer" width="820">
+</p>
+
+<p align="center">
+  <b>Scheda del personaggio, campagna condivisa e mappa di Night City.</b><br>
+  Applicazione desktop per macOS, Windows e Linux.<br>
+  <sub>Strumento <b>non ufficiale</b> per Cyberpunk RED, ai sensi della
+  <a href="https://rtalsoriangames.com/homebrew-content-policy/">Homebrew Content Policy</a>
+  di R. Talsorian Games. Non approvato né sostenuto da RTG.</sub>
+</p>
+
+---
+
 # CPRED Visualizer — riscrittura (cpredux)
+
+<!--
+  Il marchio di Cyberpunk RED non e' qui, ed e' una scelta: la Homebrew Content
+  Policy vieta di usare il marchio e di imitare la veste grafica dei manuali.
+  Se hai un permesso scritto di RTG, metti il file qui sotto e togli i commenti:
+
+  <p align="center"><img src="assets/branding/logo.svg" alt="Cyberpunk RED" height="70"></p>
+-->
 
 Riscrittura di `CPRED_Visualizer` (JavaFX, ~17.100 righe di Java + 5.800 di FXML)
 in **Flutter**, in un progetto parallelo. Il progetto Java resta intatto accanto
 come riferimento e come specifica del comportamento da preservare.
 
-Stato: **applicazione funzionante end-to-end**. Il dominio e' portato, il
-catalogo oggetti e' separato dalla scheda, il formato `.cpredux` e' definito con
-il suo migratore e con l'aggiornamento automatico dal formato precedente, la
-scheda ha tutte le sezioni, la campagna ha la sessione condivisa con autorita'
-del master, Discord Rich Presence funziona senza dipendenze native.
+Stato: **applicazione funzionante end-to-end** e **rilasciabile**. Il dominio e'
+portato, il catalogo oggetti e' separato dalla scheda, il formato `.cpredux` e'
+definito con il suo migratore e con l'aggiornamento automatico dal formato
+precedente, la scheda ha tutte le sezioni, la campagna ha la sessione condivisa
+con autorita' del master, Discord Rich Presence funziona senza dipendenze native,
+e la pipeline costruisce i tre pacchetti (macOS universale, Windows, Linux) con
+la pagina di download e il manifesto degli aggiornamenti.
+
+**Scarica:** `<URL pubblicato da Pages>` — vedi *Il rilascio, passo per passo* per
+com'e' composta la pagina e come si pubblica.
 
 ## Perche' Flutter
 
@@ -481,6 +508,21 @@ vera i fotogrammi arrivano uno dopo l'altro e l'animazione si vede; in un test
 un `pump` solo non e' un'applicazione vera. I test adesso avanzano a fotogrammi,
 come il programma.
 
+### Una cosa che va saputa sui test
+
+I test che aprono **socket veri** (la sessione della campagna, la mappa condivisa)
+e quelli che aspettano un'animazione hanno scadenze di tempo. Su una macchina
+sotto carico — mentre gira una `flutter build`, o con la suite in parallelo a
+altro — possono fallire **a caso**, e il fallimento non dice "c'e' un bug", dice
+"questa macchina era occupata". Osservato piu' volte: gli stessi test passano
+sempre da soli, e in tre giri consecutivi della suite intera non hanno mai
+fallito due volte lo stesso.
+
+Non e' una scusa per ignorare un rosso: e' il motivo per cui, davanti a un
+fallimento in uno di quei file, la prima cosa da fare e' rieseguire quel file da
+solo prima di cercare un difetto. Nella pipeline la verifica gira in un job suo,
+che non costruisce nello stesso momento, e questo riduce molto il problema.
+
 ## Struttura
 
 ```
@@ -620,9 +662,43 @@ solo li' dentro non lo vedrebbe nessuno.
 
 | | Archivio | Come si applica |
 |---|---|---|
-| macOS | `.zip` con il bundle | `ditto -x -k` in un'area di lavoro, poi sostituzione del `.app` |
-| Windows | `.zip` portable | scompattato sopra la cartella di installazione |
-| Linux | `.AppImage` | copia accanto e `mv`, poi `chmod 755` |
+| macOS | `cpredux-macos.zip` | `ditto -x -k` in un'area di lavoro, poi sostituzione del `.app` |
+| Windows | `cpredux-windows.zip` (portable) | scompattato sopra la cartella di installazione |
+| Linux | `cpredux-linux.AppImage` | copia accanto e `mv`, poi `chmod 755` |
+
+Il pacchetto macOS **vale per entrambe le architetture dei Mac**, e non per
+fortuna: `flutter build macos` produce un bundle universale, e ogni eseguibile
+che ci sta dentro ha le due slice. Verificato sulla build vera:
+
+```
+$ find cpredux.app -type f -exec lipo -archs {} \;
+       x86_64 arm64   Contents/MacOS/cpredux
+       x86_64 arm64   Contents/Frameworks/FlutterMacOS.framework/.../FlutterMacOS
+       x86_64 arm64   Contents/Frameworks/App.framework/.../App
+       x86_64 arm64   Contents/Frameworks/sqlite3.framework/.../sqlite3
+```
+
+Lo zip universale pesa **20 MB**: due archivi separati non sarebbero la meta'
+ciascuno, sarebbero lo stesso contenuto due volte, e per ottenerli davvero
+bisognerebbe assottigliare e ri-firmare **ogni** file del bundle. E' per questo
+che la pipeline controlla con `lipo` che le due slice ci siano, invece di
+costruire due volte: e' il controllo che serve davvero — accorgersi se un giorno
+il bundle diventasse a architettura singola, cosa che nessuno vedrebbe, perche'
+l'archivio continuerebbe a chiamarsi allo stesso modo.
+
+Nonostante questo il manifesto distingue **`macos-arm64`** e **`macos-x64`**, e
+non e' un residuo: il programma chiede il pacchetto della propria architettura, e
+l'architettura che conta e' quella del *processo in esecuzione* (`Abi.current()`),
+non quella della macchina. Un processo x64 su un Mac Apple Silicon — cioe' sotto
+Rosetta — **e'** x64, e deve ricevere il pacchetto Intel. Oggi le due chiavi
+puntano allo stesso file universale; se un giorno si volessero due build separate
+per risparmiare qualche megabyte, il manifesto, l'aggiornatore e la pagina sono
+gia' quelli giusti e non va cambiato niente.
+
+Su Windows si pubblica un pacchetto x64 per tutte le macchine: su quelle ARM gira
+per emulazione. Su Linux un sistema ARM **non** riceve l'AppImage x64, che non
+partirebbe: il programma dice che non c'e' un pacchetto per la sua macchina e
+manda alla pagina dei rilasci, invece di scaricare ottanta megabyte inutili.
 
 Su Linux l'aggiornamento funziona **solo** con l'AppImage: per un pacchetto della
 distribuzione il file appartiene al gestore di pacchetti, e sostituirsi da soli
@@ -634,13 +710,14 @@ una compilazione, o un bundle aperto a meta'.
 
 ## Il repository e la CI
 
-Il "repository" a cui punta l'aggiornatore e' un **dominio**, non un'API:
+Il "repository" a cui punta l'aggiornatore e' un **dominio**, non un'API. Quello
+che la pipeline pubblica su quel dominio:
 
 ```
-https://cpredux.tiadesigns.it/
-├── index.html            la pagina di download (legge latest.json a runtime)
-├── latest.json           il manifesto degli aggiornamenti
-├── cpredux-macos.zip     nomi stabili: il link che hai mandato resta valido
+https://<namespace>.gitlab.io/cpredux/
+├── index.html              la pagina di download (legge latest.json a runtime)
+├── latest.json             il manifesto degli aggiornamenti
+├── cpredux-macos.zip       nomi stabili: il link che hai mandato resta valido
 ├── cpredux-windows.zip
 └── cpredux-linux.AppImage
 ```
@@ -648,31 +725,143 @@ https://cpredux.tiadesigns.it/
 La pagina di download **non** viene rigenerata a ogni rilascio: legge il
 manifesto a runtime. Cosi' esiste un solo posto che sa qual e' la versione
 corrente, e non puo' succedere che la pagina annunci una versione e il manifesto
-ne pubblichi un'altra.
+ne pubblichi un'altra. I riquadri si riempiono dal manifesto, e una piattaforma
+senza pacchetto resta **visibile e disattivata** invece di sparire: "non c'e' per
+il tuo sistema" e' un'informazione, un riquadro mancante e' un dubbio. La pagina
+sa due cose in piu': se le due voci macOS puntano allo
+stesso archivio le mostra come **una** (universale, "Apple Silicon e Intel"), e
+se invece fossero due file diversi **evidenzia quello giusto per il computer dal
+cui la si guarda** — perche' in quel caso scaricare l'archivio dell'altra
+architettura significa un'applicazione che non parte, dopo aver sostituito quella
+che funzionava.
 
-Due pipeline, lo stesso risultato, perche' non si sa dove vivra' il repository:
+Entrambe le pipeline chiamano `dart run tool/publish.dart`, che calcola le
+impronte, copia gli archivi con nome stabile, copia la pagina e scrive il
+manifesto **con la stessa classe che lo legge l'applicazione**. Un generatore
+scritto in un altro linguaggio puo' divergere in silenzio — un campo rinominato,
+un numero scritto come stringa — e il sintomo sarebbe "gli aggiornamenti non
+arrivano piu'", che nessuno collega a una modifica di mesi prima.
 
-- **`.github/workflows/release.yml`** — funziona subito, senza attivare niente;
-- **`.gitlab-ci.yml`** — l'equivalente GitLab, con i runner macOS/Windows di
-  GitLab.com (da abilitare) in `when: manual` e il resto che gira comunque.
+C'e' anche un test che tiene allineate le due liste: per ogni piattaforma che si
+pubblica deve esistere un riquadro nella pagina. La pagina puo' non avere un
+riquadro, e allora il pacchetto esisterebbe senza che nessuno sappia dove
+prenderlo.
 
-Entrambe chiamano `dart run tool/publish.dart`, che calcola le impronte, copia
-gli archivi con nome stabile e scrive il manifesto **con la stessa classe che lo
-legge l'applicazione**. Un generatore scritto in un altro linguaggio puo'
-divergere in silenzio — un campo rinominato, un numero scritto come stringa — e
-il sintomo sarebbe "gli aggiornamenti non arrivano piu'", che nessuno collega a
-una modifica di mesi prima.
+### Le due pipeline
+
+| | GitHub (`.github/workflows/release.yml`) | GitLab (`.gitlab-ci.yml`) |
+|---|---|---|
+| Linux | `ubuntu-latest`, funziona subito | immagine Docker, funziona subito |
+| Windows | `windows-latest`, funziona subito | runner `saas-windows-medium-amd64` |
+| macOS | `macos-14` | runner `saas-macos-medium-m1` |
+
+Tre pacchetti, tre costruzioni, un runner macOS solo: il bundle e' universale,
+quindi non serve nessuna macchina Intel — nemmeno `macos-15-intel`, che era
+l'ultima immagine Intel di GitHub e sara' ritirata nel 2027. Questa e' la ragione
+per cui la separazione macOS ARM/Intel non e' finita nella pipeline: c'era, ed e'
+stata tolta dopo aver guardato il bundle invece di presumere che fosse a
+architettura singola.
+
+Se un pacchetto manca — un runner assente, una build fallita — il rilascio si fa
+lo stesso con quelli che ci sono: il manifesto elenca le piattaforme presenti,
+quelle assenti compaiono nella pagina disattivate, e quel sistema vede che per la
+sua macchina non c'e' niente invece di scaricare l'archivio di un altro.
 
 ### Il dominio
 
-`tiadesigns.it` e' gia' tuo, quindi il candidato naturale e' un sottodominio
-`cpredux.tiadesigns.it`. Serve una cosa sola che non posso fare io: il CNAME nel
-DNS, che richiede l'accesso al registrar.
+Non serve comprarne uno: Pages da' un URL pubblico (`https://<namespace>.gitlab.io/cpredux/`),
+e basta incollarlo in **Impostazioni → Aggiornamenti** perche' l'aggiornamento
+automatico funzioni. Il campo e' modificabile proprio per questo.
 
-In alternativa **non serve nessun dominio**: sia GitLab Pages sia GitHub Pages
-danno un URL pubblico (`https://<account>.gitlab.io/cpredux/`, `https://<account>.github.io/cpredux/`),
-e basta incollarlo in Impostazioni → Aggiornamenti perche' tutto funzioni. Il
-campo e' modificabile proprio per questo.
+Se preferisci un dominio tuo (`tiadesigns.it` e' gia' tuo, quindi il candidato e'
+`cpredux.tiadesigns.it`), serve il CNAME nel DNS — quello richiede l'accesso al
+registrar — e poi la variabile di progetto `CPREDUX_PAGES_BASE` con l'indirizzo
+definitivo: la pipeline la usa al posto di quello di GitLab, e il manifesto e i
+link del rilascio seguono.
+
+## Il rilascio, passo a passo
+
+Quello che serve **una volta sola**, prima del primo rilascio:
+
+1. **il progetto** su GitLab (o su GitHub: la pipeline c'e' per entrambi);
+2. **i runner**. Linux gira subito. Windows e macOS girano sui runner di
+   GitLab.com se il piano li include — il runner macOS basta uno, perche' il
+   bundle e' universale;
+3. **Pages** attivo (lo e' di default quando esiste un job `pages`) e
+   l'indirizzo pubblicato incollato in Impostazioni → Aggiornamenti.
+
+Poi, per **ogni** rilascio:
+
+```bash
+# 1. la versione, in due posti che un test tiene allineati
+dart run tool/bump_version.dart 0.3.0     # oppure a mano: lib/version.dart + pubspec.yaml
+
+# 2. il changelog e' l'annotazione del tag: la pagina del rilascio la usa come descrizione
+git commit -am "..."
+git tag -a v0.3.0 -m "Mappa condivisa al tavolo, confronto fra schede"
+git push && git push --tags
+
+# 3. nella pipeline del tag: avvia le costruzioni che ti servono, poi "pagine"
+#    (manifesto + pagina) e infine "rilascio" (i link agli archivi)
+```
+
+I quattro job di costruzione sono `when: manual` con `allow_failure: true`: un
+runner che non esiste lascerebbe altrimenti un job in attesa **per sempre**, e
+una pipeline che aspetta per sempre e' peggio di una che pubblica tre pacchetti
+su quattro — a patto che il manifesto dica quale manca, cosa che fa.
+Se i tuoi runner ci sono tutti, si ottiene un rilascio in un clic solo
+cambiando `when: manual` in `when: on_success` su costruzioni, `pagine` e
+`rilascio`.
+
+### Provare la pagina e il manifesto senza pubblicare
+
+```bash
+dart run tool/publish.dart --dist dist --site site --version 0.3.0 \
+    --base-url https://esempio.test && open site/index.html
+```
+
+La pagina legge `latest.json` con una richiesta **relativa**, quindi funziona
+anche aperta da disco: si vede esattamente quello che vedra' un utente, impronte
+comprese.
+
+### Rilasciare senza CI
+
+Se un pacchetto manca — un runner assente, o una piattaforma che non hai — si
+costruisce dove c'e' quella macchina, si mette l'archivio in `dist/` e si
+rigenera il sito. `tool/publish.dart` prende **qualunque** archivio in `dist/` e
+lo riconosce dal nome:
+
+```bash
+flutter build macos --release
+cd build/macos/Build/Products/Release
+ditto -c -k --keepParent cpredux.app ../../../../../dist/cpredux-macos.zip
+
+# con gli altri archivi scaricati dagli artefatti della pipeline, sempre in dist/
+dart run tool/publish.dart --dist dist --site public --version 0.3.0
+```
+
+E' anche il motivo per cui il nome del file conta. Un archivio che **non**
+dichiara l'architettura viene trattato come universale e pubblicato col nome
+stabile, valido per entrambi i Mac. Uno che la dichiara (`...-arm64.zip`,
+`...-x64.zip`) tiene il proprio nome: sono due build separate, e rinominarle
+entrambe `cpredux-macos.zip` farebbe sovrascrivere l'una con l'altra — cioe'
+pubblicare il pacchetto Intel sotto il nome che il Mac Apple Silicon sta per
+scaricare. E' l'unico errore di questa procedura che l'utente non si
+accorgerebbe di stare subendo.
+
+## Grafica e marchio
+
+Il banner in testa a questo README e' in `assets/branding/banner.svg`: disegnato
+qui, e' geometria come la mappa — griglia, neon, spigoli tagliati. Non riproduce
+materiale di R. Talsorian Games, ed e' la stessa ragione per cui non c'e' il
+marchio di Cyberpunk RED: la loro Homebrew Content Policy vieta di usare il
+marchio **e** di imitare la veste grafica dei manuali ("no homebrew can mimic
+our trade dress, from layout to font"). Il nome del progetto — `CPRED
+Visualizer` — e' pensato per stare dentro quelle regole: il richiamo al gioco sta
+nel sottotitolo descrittivo, che la policy permette, non nel titolo.
+
+Se hai un permesso scritto di RTG, il posto per il logo e' gia' pronto:
+`assets/branding/logo.svg` e la riga commentata in cima a questo file.
 
 ## Dove l'app scrive
 

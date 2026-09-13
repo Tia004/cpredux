@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -141,7 +142,23 @@ class Updater {
     UpdatePlatform? platform,
   })  : transport = transport ?? HttpUpdateTransport(),
         currentVersion = currentVersion ?? appVersion,
-        platform = platform ?? UpdatePlatform.current(Platform.operatingSystem);
+        platform = platform ?? platformOfThisMachine();
+
+  /// La piattaforma di questa macchina, con l'architettura.
+  ///
+  /// L'architettura non e' un dettaglio: su macOS un archivio costruito per
+  /// Apple Silicon non si apre su Intel, quindi indovinare il sistema operativo
+  /// non basta piu' — servono entrambe le informazioni, e `Abi.current()`
+  /// riporta l'architettura del **processo in esecuzione**, cioe' esattamente
+  /// quella del pacchetto che deve sostituirlo.
+  ///
+  /// Si passa la stringa (`macos_arm64`) e non l'oggetto `Abi` per non
+  /// trascinare `dart:ffi` dentro il formato del manifesto: li' la decisione si
+  /// prende su due stringhe, e cosi' si puo' verificare.
+  static UpdatePlatform platformOfThisMachine() => UpdatePlatform.forSystem(
+        operatingSystem: Platform.operatingSystem,
+        abi: '${Abi.current()}',
+      );
 
   /// L'URL del manifesto degli aggiornamenti.
   ///

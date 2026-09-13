@@ -117,10 +117,15 @@
   <div class="rule"></div>
 
   <h2>Scarica</h2>
+  <!-- Un riquadro per *pacchetto*, non per sistema operativo: macOS ne ha due,
+       perche' un'applicazione costruita per Apple Silicon non si apre su un Mac
+       Intel. La scheda giusta per il computer che sta guardando la pagina viene
+       evidenziata dallo script qui sotto. -->
   <div class="grid" id="downloads">
-    <a class="dl" id="macos" aria-disabled="true"><span class="os"><i></i>macOS</span><span class="filename">…</span></a>
-    <a class="dl" id="windows" aria-disabled="true"><span class="os"><i></i>Windows</span><span class="filename">…</span></a>
-    <a class="dl" id="linux" aria-disabled="true"><span class="os"><i></i>Linux</span><span class="filename">…</span></a>
+    <a class="dl" id="macos-arm64" aria-disabled="true"><span class="os"><i></i><span class="osname">macOS · Apple Silicon</span></span><span class="filename">…</span></a>
+    <a class="dl" id="macos-x64" aria-disabled="true"><span class="os"><i></i><span class="osname">macOS · Intel</span></span><span class="filename">…</span></a>
+    <a class="dl" id="windows" aria-disabled="true"><span class="os"><i></i><span class="osname">Windows</span></span><span class="filename">…</span></a>
+    <a class="dl" id="linux" aria-disabled="true"><span class="os"><i></i><span class="osname">Linux</span></span><span class="filename">…</span></a>
   </div>
 
   <div class="rule"></div>
@@ -131,11 +136,18 @@
       <b>Sono la pagina che distribuisce l'applicazione, non i file.</b> Gli archivi qui sopra
       sono gli stessi che il programma scarica quando si aggiorna da solo.
     </p>
-    <p style="margin:0">
+    <p style="margin:0 0 12px">
       <b>Su macOS</b> l'applicazione non è firmata con un certificato Apple a pagamento, quindi al
       primo avvio il sistema dirà che lo sviluppatore non è verificato. Si sblocca da
       <i>Impostazioni di Sistema → Privacy e Sicurezza → Apri comunque</i>. È una seccatura
       dovuta al costo del certificato, non un problema dell'archivio.
+    </p>
+    <p style="margin:0">
+      <b>Quale dei due macOS?</b> Nessuno dei due: l'archivio macOS contiene <b>entrambe le
+      architetture</b> nello stesso bundle, quindi va bene sul tuo Mac qualunque processore abbia.
+      Se un giorno venissero pubblicati due archivi separati, la pagina li mostrerebbe e
+      evidenzierebbe quello giusto per il computer da cui la stai guardando: l'applicazione
+      compilata per una sola architettura non parte sull'altra.
     </p>
   </div>
 
@@ -190,10 +202,38 @@
   // e non puo' succedere che la pagina annunci una versione e il manifesto ne
   // pubblichi un'altra.
   const LABELS = {
-    macos: { os: 'macOS', hint: 'Apple Silicon e Intel' },
-    windows: { os: 'Windows', hint: 'Windows 10 e 11' },
-    linux: { os: 'Linux', hint: 'AppImage, nessuna installazione' },
+    'macos-arm64': { os: 'macOS · Apple Silicon', hint: 'Mac con chip M' },
+    'macos-x64': { os: 'macOS · Intel', hint: 'Mac con processore Intel' },
+    'windows': { os: 'Windows', hint: 'Windows 10 e 11' },
+    'linux': { os: 'Linux', hint: 'AppImage, nessuna installazione' },
   };
+
+  // Il pacchetto giusto per **questo** computer. Un Mac Intel che scarica
+  // l'archivio Apple Silicon ottiene un'applicazione che non parte, e se lo sta
+  // aggiornando ha gia' sovrascritto quella che funzionava: la pagina lo dice
+  // prima del clic, invece di lasciarlo scoprire dopo.
+  function suggested() {
+    const ua = navigator.userAgent || '';
+    const isMac = /Mac OS X|Macintosh/.test(ua);
+    if (!isMac) return null;
+    // `userAgentData.architecture` e' la fonte buona ma non c'e' ovunque: il
+    // ripiego e' il testo dell'User-Agent, che sui Mac Intel dice `Intel` e su
+    // quelli Apple Silicon non lo dice.
+    const arch = (navigator.userAgentData && navigator.userAgentData.architecture) || '';
+    if (arch) return arch === 'arm' ? 'macos-arm64' : 'macos-x64';
+    return /Intel/.test(ua) ? 'macos-x64' : 'macos-arm64';
+  }
+
+  function markSuggestion(platform) {
+    if (!platform) return;
+    const el = document.getElementById(platform);
+    if (!el) return;
+    const tag = document.createElement('span');
+    tag.className = 'pill';
+    tag.style.marginTop = '10px';
+    tag.textContent = 'per questo computer';
+    el.appendChild(tag);
+  }
 
   function human(bytes) {
     if (!bytes) return null;
@@ -248,7 +288,25 @@
         [when ? 'pubblicata il ' + when : null, (m.notes || []).length + ' voci di changelog']
           .filter(Boolean).join(' · ');
 
-      for (const platform of Object.keys(LABELS)) fill(platform, m.assets && m.assets[platform], m.version);
+      const assets = m.assets || {};
+      for (const platform of Object.keys(LABELS)) fill(platform, assets[platform], m.version);
+
+      // Due build macOS che sono lo **stesso** file (bundle universale, il caso
+      // normale) in pagina diventano un riquadro solo: due riquadri identici
+      // farebbero scegliere fra due cose che non sono diverse. La scelta torna a
+      // esistere da sola se un giorno i due archivi saranno davvero due, e in
+      // quel caso la pagina evidenzia quello giusto qui sotto.
+      const arm = assets['macos-arm64'];
+      const intel = assets['macos-x64'];
+      const universale = arm && intel && arm.fileName === intel.fileName;
+      if (universale) {
+        const x64 = document.getElementById('macos-x64');
+        if (x64) x64.style.display = 'none';
+        const nome = document.querySelector('#macos-arm64 .osname');
+        if (nome) nome.textContent = 'macOS · Apple Silicon e Intel';
+      } else {
+        markSuggestion(suggested());
+      }
       document.getElementById('foot').textContent =
         'CPRED Visualizer v' + m.version + ' · contenuto non ufficiale ai sensi della Homebrew Content Policy di R. Talsorian Games';
     })

@@ -1,9 +1,13 @@
-# Costruisce, verifica e pubblica le tre versioni desktop.
+# Costruisce, verifica e pubblica i tre pacchetti desktop (macOS, Windows, Linux).
 #
-# Perche' GitHub e non solo GitLab: questo file funziona oggi, senza dover
-# attivare niente. La pipeline GitLab equivalente sta in `.gitlab-ci.yml` e fa le
-# stesse cose; quella che gira davvero dipende da dove vive il repository. Il
-# formato dell'aggiornamento non cambia, perche' il manifesto lo genera
+# Il pacchetto macOS vale per entrambe le architetture dei Mac: il bundle che
+# Flutter costruisce e' universale, e il job lo verifica con `lipo -archs` su
+# **ogni** eseguibile del bundle. Un solo runner macOS basta, e non serve nessuna
+# macchina Intel — nemmeno quella che GitHub ospitava e che e' stata ritirata a
+# dicembre 2025.
+#
+# La pipeline GitLab equivalente sta in `.gitlab-ci.yml`. Il formato
+# dell'aggiornamento e' identico, perche' il manifesto lo genera
 # `tool/publish.dart` in entrambi i casi.
 
 name: release
@@ -31,8 +35,12 @@ jobs:
       - name: Test
         run: flutter test --reporter expanded
 
+  # macOS: un pacchetto solo, universale. La verifica controlla che ci siano
+  # entrambe le architetture **in ogni eseguibile del bundle**: un framework
+  # lasciato a architettura singola fa fallire l'avvio allo stesso modo del
+  # binario principale, e l'archivio si chiamerebbe uguale.
   macos:
-    name: macOS
+    name: macOS (universale)
     needs: verify
     runs-on: macos-14
     steps:
@@ -42,13 +50,28 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter build macos --release
+      - name: Verifica l'architettura
+        run: |
+          set -euo pipefail
+          APP=build/macos/Build/Products/Release/cpredux.app
+          MISSING=0
+          while IFS= read -r bin; do
+            ARCHS=$(lipo -archs "$bin")
+            echo "$ARCHS   $bin"
+            case "$ARCHS" in
+              *arm64*x86_64*|*x86_64*arm64*) ;;
+              *) echo "ERRORE: $bin non e' universale ($ARCHS)"; MISSING=1 ;;
+            esac
+          done < <(find "$APP" -type f -print0 | xargs -0 -I{} sh -c 'lipo -archs "{}" >/dev/null 2>&1 && echo "{}"')
+          [ "$MISSING" = 0 ] || exit 1
       - name: Archivia il bundle
         run: |
           cd build/macos/Build/Products/Release
           # `ditto` e non `zip`: e' l'unico strumento che conserva i permessi e i
           # symlink interni di un bundle macOS. Un `zip` normale lo rompe e
           # l'applicazione non si apre piu' dopo l'aggiornamento.
-          ditto -c -k --keepParent cpredux.app ../../../../../dist/cpredux-macos.zip
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          ditto -c -k --keepParent cpredux.app "$GITHUB_WORKSPACE/dist/cpredux-macos.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -168,11 +191,12 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
 
-      - name: Genera manifesto e cartella del sito
+      - name: Genera manifesto, pagina e cartella del sito
         run: |
           dart run tool/publish.dart \
             --dist dist \
             --site site \
+            --page site/index.html \
             --version "${{ steps.v.outputs.version }}" \
             --base-url "${{ steps.pages.outputs.base_url }}"
 
@@ -193,5 +217,3 @@ jobs:
             site/cpredux-macos.zip
             site/cpredux-windows.zip
             site/cpredux-linux.AppImage
-            site/latest.json
-          generate_release_notes: true

@@ -67,7 +67,7 @@ String manifestJson({
       'releasedAt': '2026-09-13T10:00:00Z',
       'notes': notes,
       'assets': <String, Object?>{
-        'macos': <String, Object?>{
+        'macos-arm64': <String, Object?>{
           'url': url,
           'sha256': ?sha256,
           'size': ?size,
@@ -114,6 +114,51 @@ void main() {
     });
   });
 
+  group('architettura', () {
+    test('un Mac Intel e un Mac Apple Silicon non sono la stessa macchina', () {
+      expect(
+        UpdatePlatform.forSystem(operatingSystem: 'macos', abi: 'macosArm64'),
+        UpdatePlatform.macosArm,
+      );
+      expect(
+        UpdatePlatform.forSystem(operatingSystem: 'macos', abi: 'macosX64'),
+        UpdatePlatform.macosIntel,
+      );
+    });
+
+    test('un processo x64 su un Mac Apple Silicon e Intel, e giusto cosi', () {
+      // E' il caso di Rosetta: quel processo **e'** x64, quindi il pacchetto che
+      // puo' sostituirlo e' quello Intel. Trattarlo come Apple Silicon
+      // significherebbe consegnargli un archivio che non sa aprire.
+      expect(
+        UpdatePlatform.forSystem(operatingSystem: 'macos', abi: 'macosX64'),
+        isNot(UpdatePlatform.macosArm),
+      );
+    });
+
+    test('Windows riceve il pacchetto x64 anche su ARM, per emulazione', () {
+      expect(UpdatePlatform.forSystem(operatingSystem: 'windows', abi: 'windowsX64'),
+          UpdatePlatform.windows);
+      expect(UpdatePlatform.forSystem(operatingSystem: 'windows', abi: 'windowsArm64'),
+          UpdatePlatform.windows);
+    });
+
+    test('Linux su ARM non riceve un AppImage x64', () {
+      // Sarebbe un archivio che non parte, e l'aggiornamento automatico non
+      // lascerebbe una copia funzionante da riaprire. Meglio dirlo.
+      expect(UpdatePlatform.forSystem(operatingSystem: 'linux', abi: 'linuxX64'),
+          UpdatePlatform.linux);
+      expect(UpdatePlatform.forSystem(operatingSystem: 'linux', abi: 'linuxArm64'),
+          UpdatePlatform.unsupported);
+      expect(publish.publishedNames.containsKey(UpdatePlatform.unsupported), isFalse);
+    });
+
+    test('un sistema sconosciuto non prende il pacchetto di un altro', () {
+      expect(UpdatePlatform.forSystem(operatingSystem: 'fuchsia', abi: 'fuchsiaArm64'),
+          UpdatePlatform.unsupported);
+    });
+  });
+
   group('manifesto', () {
     test('si legge, con note e pacchetti per piattaforma', () {
       final UpdateManifest? manifest = UpdateManifest.tryParse(manifestJson());
@@ -121,7 +166,8 @@ void main() {
       expect(manifest, isNotNull);
       expect(manifest!.version, '0.3.0');
       expect(manifest.notes, <String>['Correzioni varie']);
-      expect(manifest.assetFor(UpdatePlatform.macos), isNotNull);
+      expect(manifest.assetFor(UpdatePlatform.macosArm), isNotNull);
+      expect(manifest.assetFor(UpdatePlatform.macosIntel), isNull);
       expect(manifest.assetFor(UpdatePlatform.windows), isNull);
       expect(manifest.releasedAt, isNotNull);
     });
@@ -133,7 +179,7 @@ void main() {
       );
 
       expect(
-        manifest!.assetFor(UpdatePlatform.macos)!.url,
+        manifest!.assetFor(UpdatePlatform.macosArm)!.url,
         'https://tiadesigns.it/cpredux/pacchetti/cpredux-0.3.0.zip',
       );
     });
@@ -158,7 +204,7 @@ void main() {
         UpdateManifest.versionKey: 1,
         'version': '0.3.0',
         'assets': <String, Object?>{
-          'macos': <String, Object?>{'url': 'https://example.test/a.zip'},
+          'windows': <String, Object?>{'url': 'https://example.test/a.zip'},
           'haiku': <String, Object?>{'url': 'https://example.test/b.zip'},
         },
       });
@@ -166,9 +212,49 @@ void main() {
       expect(manifest!.assets, hasLength(1));
     });
 
+    test('un pacchetto macOS universale vale per tutte e due le architetture', () {
+      // La chiave `macos` e' quella di un build unico (arm64 + x86_64). Accettarla
+      // in lettura significa che una pipeline che pubblica un archivio solo
+      // continua ad aggiornare anche i Mac Intel, invece di lasciarli indietro
+      // senza che nessuno se ne accorga.
+      final UpdateManifest? manifest = UpdateManifest.tryParse(
+        jsonEncode(<String, Object?>{
+          UpdateManifest.versionKey: 1,
+          'version': '0.3.0',
+          'assets': <String, Object?>{
+            'macos': <String, Object?>{'url': 'https://example.test/universale.zip'},
+          },
+        }),
+      );
+      expect(manifest!.assetFor(UpdatePlatform.macosArm), isNotNull);
+      expect(manifest.assetFor(UpdatePlatform.macosIntel), isNotNull);
+      expect(
+        manifest.assetFor(UpdatePlatform.macosIntel)!.url,
+        manifest.assetFor(UpdatePlatform.macosArm)!.url,
+      );
+    });
+
+    test('la chiave specifica vince su quella universale', () {
+      // Un manifesto che pubblica sia il build unico sia quello Intel: chi ha un
+      // Mac Intel deve ricevere il secondo, che e' quello costruito per la sua
+      // macchina, e non il primo — che comunque partirebbe, perche' e'
+      // universale, ma e' piu' grande del necessario.
+      final String body = jsonEncode(<String, Object?>{
+        UpdateManifest.versionKey: 1,
+        'version': '0.3.0',
+        'assets': <String, Object?>{
+          'macos': <String, Object?>{'url': 'https://example.test/universale.zip'},
+          'macos-x64': <String, Object?>{'url': 'https://example.test/intel.zip'},
+        },
+      });
+      final UpdateManifest? manifest = UpdateManifest.tryParse(body);
+      expect(manifest!.assetFor(UpdatePlatform.macosIntel)!.url, 'https://example.test/intel.zip');
+      expect(manifest.assetFor(UpdatePlatform.macosArm)!.url, 'https://example.test/universale.zip');
+    });
+
     test('il nome del file si ricava dall URL', () {
       final UpdateManifest manifest = UpdateManifest.tryParse(manifestJson())!;
-      expect(manifest.assetFor(UpdatePlatform.macos)!.resolvedFileName, 'cpredux-0.3.0.zip');
+      expect(manifest.assetFor(UpdatePlatform.macosArm)!.resolvedFileName, 'cpredux-0.3.0.zip');
 
       final UpdateManifest named = UpdateManifest.tryParse(
         jsonEncode(<String, Object?>{
@@ -182,7 +268,7 @@ void main() {
           },
         }),
       )!;
-      expect(named.assetFor(UpdatePlatform.macos)!.resolvedFileName, 'cpredux.zip');
+      expect(named.assetFor(UpdatePlatform.macosArm)!.resolvedFileName, 'cpredux.zip');
     });
   });
 
@@ -192,7 +278,7 @@ void main() {
         feedUrl: 'https://example.test/latest.json',
         transport: FakeTransport(body: manifestJson()),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       final UpdateCheck check = await updater.check();
@@ -206,7 +292,7 @@ void main() {
           feedUrl: 'https://example.test/latest.json',
           transport: FakeTransport(body: manifestJson(version: published)),
           currentVersion: '0.2.0',
-          platform: UpdatePlatform.macos,
+          platform: UpdatePlatform.macosArm,
         );
         expect((await updater.check()).stage, UpdateStage.upToDate, reason: published);
       }
@@ -217,7 +303,7 @@ void main() {
         feedUrl: 'https://example.test/latest.json',
         transport: FakeTransport(failure: const SocketException('rete assente')),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       final UpdateCheck check = await updater.check();
@@ -230,7 +316,7 @@ void main() {
         feedUrl: 'non un url',
         transport: FakeTransport(),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       final UpdateCheck check = await updater.check();
@@ -246,7 +332,7 @@ void main() {
         feedUrl: 'https://example.test/latest.json',
         transport: FakeTransport(downloadBytes: utf8.encode('pacchetto')),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       final UpdateDownload result = await updater.download(manifest);
@@ -265,7 +351,7 @@ void main() {
         feedUrl: 'https://example.test/latest.json',
         transport: FakeTransport(downloadBytes: bytes),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       final UpdateDownload result = await updater.download(manifest);
@@ -283,7 +369,7 @@ void main() {
         feedUrl: 'https://example.test/latest.json',
         transport: FakeTransport(downloadBytes: utf8.encode('pacchetto manomesso')),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       final UpdateDownload result = await updater.download(manifest);
@@ -303,7 +389,7 @@ void main() {
         feedUrl: 'https://example.test/latest.json',
         transport: FakeTransport(downloadBytes: utf8.encode('corto')),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       final UpdateDownload result = await updater.download(manifest);
@@ -509,6 +595,8 @@ void main() {
       final Directory dist = Directory(p.join(temp.path, 'dist'))..createSync(recursive: true);
       final List<int> macos = utf8.encode('bundle macOS finto, abbastanza lungo');
       final List<int> windows = utf8.encode('portable Windows finto');
+      // Senza architettura nel nome: e' il bundle universale, cioe' quello che
+      // la pipeline pubblica davvero.
       File(p.join(dist.path, 'cpredux-macos.zip')).writeAsBytesSync(macos);
       File(p.join(dist.path, 'cpredux-windows.zip')).writeAsBytesSync(windows);
 
@@ -519,10 +607,17 @@ void main() {
         version: '0.4.0',
         baseUrl: 'https://cpredux.tiadesigns.it/',
         notes: <String>['Mappa di Night City'],
+        page: File(p.join(temp.path, 'pagina.html'))..writeAsStringSync('<html>pagina</html>'),
       );
 
       expect(result.ok, isTrue);
+      // Le mancanti si dicono una per una: con quattro piattaforme sono tre, e
+      // un avviso generico ("qualche pacchetto manca") obbligherebbe a dedurre
+      // quale — cioe' esattamente il lavoro che il messaggio deve risparmiare.
       expect(result.messages.join('\n'), contains('nessun pacchetto per Linux'));
+      // Un solo archivio macOS serve entrambe le architetture: la nota lo dice,
+      // cosi' chi legge il registro del rilascio non crede che Intel manchi.
+      expect(result.messages.join('\n'), contains('stesso archivio'));
 
       // La proprieta' che conta: generatore e lettore sono la stessa classe, e
       // il file scritto si rilegge senza perdere niente.
@@ -536,7 +631,7 @@ void main() {
       expect(manifest!.version, '0.4.0');
       expect(manifest.notes, <String>['Mappa di Night City']);
 
-      final UpdateAsset asset = manifest.assetFor(UpdatePlatform.macos)!;
+      final UpdateAsset asset = manifest.assetFor(UpdatePlatform.macosArm)!;
       expect(
         asset.url,
         'https://cpredux.tiadesigns.it/cpredux-macos.zip?v=0.4.0',
@@ -545,11 +640,33 @@ void main() {
       expect(asset.sha256, sha256.convert(macos).toString());
       expect(manifest.assetFor(UpdatePlatform.linux), isNull);
 
+      // Lo stesso file per le due architetture dei Mac: chi ha un Mac Intel
+      // trova una voce nel manifesto e non "nessun pacchetto pubblicato".
+      expect(
+        manifest.assetFor(UpdatePlatform.macosIntel)!.url,
+        manifest.assetFor(UpdatePlatform.macosArm)!.url,
+      );
+
+      // E nel sito c'e' **un** archivio macOS, non due copie identiche.
+      final List<String> zips = site
+          .listSync()
+          .whereType<File>()
+          .map((File f) => p.basename(f.path))
+          .where((String n) => n.endsWith('.zip'))
+          .toList()
+        ..sort();
+      expect(zips, <String>['cpredux-macos.zip', 'cpredux-windows.zip']);
+
       // Le linee guida del progetto dicono che il pacchetto si verifica: se un
       // giorno il generatore smettesse di scrivere l'impronta, l'aggiornatore
       // accetterebbe archivi non verificati senza dire niente.
       expect(asset.sha256, isNotNull);
-      expect(manifest.assetFor(UpdatePlatform.macos)!.url, contains('?v='));
+      expect(manifest.assetFor(UpdatePlatform.macosArm)!.url, contains('?v='));
+
+      // La pagina di download finisce accanto al manifesto. Senza questa copia
+      // il sito pubblicato conterrebbe gli archivi ma nessuna pagina da mandare
+      // a qualcuno, e il link da condividere sarebbe l'URL di uno zip.
+      expect(File(p.join(site.path, 'index.html')).existsSync(), isTrue);
     });
 
     test('il pacchetto macOS non finisce nel posto di Windows', () {
@@ -559,9 +676,91 @@ void main() {
       final File mac = File(p.join(dist.path, 'cpredux-darwin-arm64.zip'))
         ..writeAsBytesSync(<int>[1, 2, 3]);
 
-      expect(publish.findArtifact(<File>[mac], UpdatePlatform.macos), mac);
+      expect(publish.findArtifact(<File>[mac], UpdatePlatform.macosArm), mac);
       expect(publish.findArtifact(<File>[mac], UpdatePlatform.windows), isNull);
       expect(publish.findArtifact(<File>[mac], UpdatePlatform.linux), isNull);
+    });
+
+    test('un Mac Intel non riceve l archivio Apple Silicon, ne il contrario', () {
+      // L'errore simmetrico di quello qui sopra, e il piu' grave dei due: un
+      // aggiornamento che consegna l'archivio dell'altra architettura lascia
+      // l'utente con un'applicazione che non parte e quella vecchia sostituita.
+      final Directory dist = Directory(p.join(temp.path, 'dist-arch'))..createSync(recursive: true);
+      final File arm = File(p.join(dist.path, 'cpredux-macos-arm64.zip'))
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final File intel = File(p.join(dist.path, 'cpredux-macos-x64.zip'))
+        ..writeAsBytesSync(<int>[4, 5, 6]);
+      final File universal = File(p.join(dist.path, 'cpredux-macos-universal.zip'))
+        ..writeAsBytesSync(<int>[7, 8, 9]);
+
+      final List<File> both = <File>[arm, intel];
+      expect(publish.findArtifact(both, UpdatePlatform.macosArm), arm);
+      expect(publish.findArtifact(both, UpdatePlatform.macosIntel), intel);
+
+      // Un archivio che non dichiara l'architettura e' un build universale: va
+      // bene per tutte e due le macchine.
+      expect(publish.findArtifact(<File>[universal], UpdatePlatform.macosArm), universal);
+      expect(publish.findArtifact(<File>[universal], UpdatePlatform.macosIntel), universal);
+
+      // E i nomi con `x86_64` invece di `x64`, che l'estensione spezza in due
+      // token: se il riconoscimento si fermasse ai token, l'archivio verrebbe
+      // assegnato anche ad Apple Silicon.
+      final File underscore = File(p.join(dist.path, 'cpredux-macos-x86_64.zip'))
+        ..writeAsBytesSync(<int>[1]);
+      expect(publish.findArtifact(<File>[underscore], UpdatePlatform.macosIntel), underscore);
+      expect(publish.findArtifact(<File>[underscore], UpdatePlatform.macosArm), isNull);
+    });
+
+    test('un archivio che dichiara l architettura tiene il suo nome', () {
+      // Se un giorno si pubblicassero due build macOS separate, rinominarle
+      // entrambe `cpredux-macos.zip` farebbe sovrascrivere l'una con l'altra:
+      // pubblicare il pacchetto Intel sotto il nome che il Mac Apple Silicon sta
+      // per scaricare. Meglio due link stabili distinti che un link sbagliato.
+      expect(
+        publish.publishedNameFor(
+            UpdatePlatform.macosArm, File('dist/cpredux-macos-arm64.zip')),
+        'cpredux-macos-arm64.zip',
+      );
+      expect(
+        publish.publishedNameFor(
+            UpdatePlatform.macosIntel, File('dist/cpredux-macos-x86_64.zip')),
+        'cpredux-macos-x86_64.zip',
+      );
+      // E senza architettura nel nome si usa il nome stabile del progetto.
+      expect(
+        publish.publishedNameFor(UpdatePlatform.macosArm, File('dist/cpredux-macos.zip')),
+        'cpredux-macos.zip',
+      );
+      // Windows e Linux non hanno un nome che dipende dall'artefatto.
+      expect(
+        publish.publishedNameFor(UpdatePlatform.windows, File('dist/qualsiasi.zip')),
+        'cpredux-windows.zip',
+      );
+    });
+
+    test('la pagina di download ha un riquadro per ogni pacchetto pubblicato', () {
+      // La pagina si riempie leggendo il manifesto a runtime, quindi non puo'
+      // annunciare una versione diversa. Puo' invece **non avere** il riquadro
+      // di una piattaforma: il pacchetto esisterebbe e nessuno saprebbe dove
+      // prenderlo. Questo test tiene allineate le due liste.
+      final String page = File(publish.defaultPagePath).readAsStringSync();
+      for (final UpdatePlatform platform in publish.publishedPlatforms) {
+        expect(
+          page,
+          contains('id="${platform.id}"'),
+          reason: '${platform.label} viene pubblicato ma la pagina non lo mostra.',
+        );
+        expect(
+          page,
+          contains("'${platform.id}':"),
+          reason: '${platform.label} non ha un\'etichetta nella pagina.',
+        );
+      }
+      expect(
+        RegExp(r'\{\{').hasMatch(page),
+        isFalse,
+        reason: 'La pagina contiene un segnaposto mai sostituito.',
+      );
     });
 
     test('senza artefatti la pubblicazione fallisce invece di scrivere un manifesto vuoto', () async {
@@ -639,7 +838,7 @@ void main() {
         feedUrl: 'https://example.test/latest.json',
         transport: FakeTransport(body: manifestJson(version: '9.9.9')),
         currentVersion: '0.2.0',
-        platform: UpdatePlatform.macos,
+        platform: UpdatePlatform.macosArm,
       );
 
       // Il controllo vero passa dal feed di rete: qui si verifica la regola che
