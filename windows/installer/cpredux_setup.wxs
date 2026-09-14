@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="CPRedux Desktop"
+           Language="1040"
+           Version="0.2.1"
+           Manufacturer="CPRedux Team"
+           UpgradeCode="7E58F0C3-F078-4EA2-97EC-6B2DC266E851">
+    
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perUser"
+             Description="CPRedux Desktop v0.2.1 - Cyberpunk RED Suite Installer"
+             Comments="Installer ufficiale MSI per CPRedux Desktop" />
+
+    <MajorUpgrade DowngradeErrorMessage="Una versione più recente di CPRedux Desktop è già installata." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon.ico" SourceFile="/Users/tia/Downloads/Siti/CPRedVisualizer/cpredux/windows/runner/resources/app_icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPHELPLINK" Value="https://gitlab.com/Tia004/cpredux" />
+    <Property Id="ARPURLINFOABOUT" Value="https://gitlab.com/Tia004/cpredux" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <!-- Programs in LocalAppData (per-user install, no admin required) -->
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsFolder" Name="Programs">
+          <Directory Id="INSTALLFOLDER" Name="CPRedux Desktop">
+            <Directory Id="AssetsFolder" Name="assets" />
+          </Directory>
+        </Directory>
+      </Directory>
+
+      <!-- Start Menu Shortcuts -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="CPRedux Desktop" />
+      </Directory>
+
+      <!-- Desktop Shortcut -->
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="MainExecutable" Guid="98765432-1234-4567-8901-123456789012">
+        <File Id="cpredux.exe" Source="/tmp/cpredux.exe" KeyPath="yes">
+          <!-- Start Menu Shortcut -->
+          <Shortcut Id="ApplicationStartMenuShortcut"
+                    Directory="ApplicationProgramsFolder"
+                    Name="CPRedux Desktop"
+                    Description="CPRedux Desktop - Cyberpunk RED Suite"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon.ico"
+                    Advertise="yes" />
+          <!-- Desktop Shortcut -->
+          <Shortcut Id="ApplicationDesktopShortcut"
+                    Directory="DesktopFolder"
+                    Name="CPRedux Desktop"
+                    Description="CPRedux Desktop - Cyberpunk RED Suite"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon.ico"
+                    Advertise="yes" />
+        </File>
+        <File Id="AppIconIco" Source="/Users/tia/Downloads/Siti/CPRedVisualizer/cpredux/windows/runner/resources/app_icon.ico" />
+        <File Id="ReadmeTxt" Source="/tmp/README.txt" />
+        <RemoveFolder Id="CleanUpInstallFolder" On="uninstall" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="AssetsFolder">
+      <Component Id="BrandingAssets" Guid="98765432-1234-4567-8901-123456789013">
+        <File Id="LogoPng" Source="/Users/tia/Downloads/Siti/CPRedVisualizer/cpredux/assets/branding/CPReduxLogo.png" KeyPath="yes" />
+        <RemoveFolder Id="CleanUpAssetsFolder" On="uninstall" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="98765432-1234-4567-8901-123456789014">
+        <RemoveFolder Id="CleanUpShortCut" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\CPRedux" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainApplication" Title="CPRedux Desktop" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="BrandingAssets" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+  </Product>
+</Wix>

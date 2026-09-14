@@ -35,7 +35,8 @@ Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [Gi
 | :--- | :--- | :--- | :--- |
 | macOS | Apple Silicon (aarch64 / M1-M4) & Intel | Installer Disco Immagine (.dmg) | [Scarica Installer macOS DMG](https://gitlab.com/-/project/86426687/uploads/6fd0d4580c782277f48ec9c88fc58922/cpredux-v0.2.1-macos-arm64.dmg) |
 | macOS | Universal (Apple Silicon & Intel) | Applicazione Standalone .app (ZIP) | [Scarica cpredux-macos-arm64.zip](https://gitlab.com/-/project/86426687/uploads/c8a939fde4c3e252c42390acfaa5aafc/cpredux-v0.2.1-macos-arm64.zip) |
-| Windows | x64 (Windows 10 / 11) | Pacchetto Completo + Script Desktop (.zip) | [Scarica Installer Windows ZIP](https://gitlab.com/-/project/86426687/uploads/87b8886f6328794de0c6f705ac029fa8/cpredux-v0.2.1-windows-x64.zip) |
+| Windows | x64 (Windows 10 / 11) | Installer Setup Diretto (.exe) | [Scarica Installer Windows EXE](https://gitlab.com/-/project/86426687/uploads/ad6ccc2dd882980349ef2a0bdb14d023/cpredux-v0.2.1-setup.exe) |
+| Windows | x64 (Windows 10 / 11) | Pacchetto di Installazione Windows (.msi) | [Scarica Pacchetto Windows MSI](https://gitlab.com/-/project/86426687/uploads/0156cbe85cd903c83068a68b4203b748/cpredux-v0.2.1-setup.msi) |
 | Linux | x86_64 / Desktop | Pacchetto Tarball + Launcher .desktop (.tar.gz) | [Scarica Pacchetto Linux Tar.gz](https://gitlab.com/-/project/86426687/uploads/98c683016645bf58758615edf0bf993e/cpredux-v0.2.1-linux-x64.tar.gz) |
 | Tutte le Release | Multi-Platform | Elenco completo versioni e archivio | [Pagina Releases Ufficiale GitLab](https://gitlab.com/Tia004/cpredux/-/releases) |
 | Scheda Release v0.2.1 | Multi-Platform | Note di rilascio, novità e asset | [Release v0.2.1 Notes](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.1) |
@@ -44,6 +45,7 @@ Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [Gi
 
 ### Novità introdotte
 
+- **Installer Windows Nativo (.exe / .msi)**: Rilasciato il programma di installazione guidata nativo per Windows (.exe con procedura guidata NSIS e pacchetto .msi) con creazione automatica dei collegamenti sul Desktop e nel Menu Start, registrazione in App e Funzionalità di Windows e procedura di disinstallazione pulita, eliminando qualsiasi script .bat.
 - **Dadi 3D poliedrici realistici**: Geometrie tridimensionali corrette per tutti i tipi di dadi:
   - D4: tetraedro regolare a 4 facce triangolari equilatere.
   - D6: cubo regolare a 6 facce quadrate.
