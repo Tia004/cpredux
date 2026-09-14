@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v0.2.3-24d8e8?style=for-the-badge&logo=gitlab&logoColor=white" alt="Release v0.2.3">
+  <img src="https://img.shields.io/github/v/release/Tia004/cpredux?style=for-the-badge&logo=github&color=24d8e8&label=Release" alt="Ultima Release">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-fcee0a?style=for-the-badge&logo=apple&logoColor=black" alt="Piattaforme">
   <img src="https://img.shields.io/badge/flutter-3.x-ff2e88?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter 3">
   <img src="https://img.shields.io/badge/license-MIT%20%2F%20Homebrew-blueviolet?style=for-the-badge" alt="Licenza">
@@ -25,22 +25,22 @@
   <img src="assets/branding/divider.svg" width="100%">
 </p>
 
-## Release v0.2.3
+## Ultima Release & Download Automatici
 
-Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [GitHub Releases](https://github.com/Tia004/cpredux/releases/tag/v0.2.3) e da [GitLab Releases](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.3).
+I link di download sottostanti puntano **sempre all'ultima versione stabile disponibile** (`/releases/latest`), aggiornandosi in automatico ad ogni nuova pubblicazione sia su GitHub che su GitLab.
 
-### File di Rilascio
+### Download Ufficiali
 
-| Piattaforma | Architettura | Formato & Descrizione | Download Diretto |
+| Piattaforma | Architettura | Formato & Descrizione | Download Diretto Ultima Versione |
 | :--- | :--- | :--- | :--- |
-| Windows | x64 (Windows 10 / 11) | Installer Setup Diretto (.exe) | [Scarica Installer Windows (.exe)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-windows-setup.exe) |
-| Windows | x64 (Windows 10 / 11) | Pacchetto Portatile (.zip) | [Scarica Windows Portable (.zip)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-windows.zip) |
-| macOS | Universal (Apple Silicon & Intel) | Applicazione Standalone .app (ZIP) | [Scarica macOS Universal (.zip)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-macos.zip) |
-| Linux | x86_64 / Desktop | Pacchetto Standalone AppImage | [Scarica Linux AppImage (.AppImage)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-linux.AppImage) |
-| Scheda Release GitHub | Multi-Platform | Asset compilati, binari e installer | [GitHub Release v0.2.3](https://github.com/Tia004/cpredux/releases/tag/v0.2.3) |
-| Scheda Release GitLab | Multi-Platform | Note di rilascio e collegamenti agli asset | [GitLab Release v0.2.3](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.3) |
-| Sorgenti (ZIP) | Multi-Platform | Archivio completo sorgenti v0.2.3 | [Scarica cpredux-v0.2.3.zip](https://github.com/Tia004/cpredux/archive/refs/tags/v0.2.3.zip) |
-| Sorgenti (Tar.gz) | Multi-Platform | Archivio compresso tarball v0.2.3 | [Scarica cpredux-v0.2.3.tar.gz](https://github.com/Tia004/cpredux/archive/refs/tags/v0.2.3.tar.gz) |
+| Windows | x64 (Windows 10 / 11) | Installer Setup Diretto (.exe) | [Scarica Installer Windows (.exe)](https://github.com/Tia004/cpredux/releases/latest/download/cpredux-windows-setup.exe) |
+| Windows | x64 (Windows 10 / 11) | Pacchetto Portatile (.zip) | [Scarica Windows Portable (.zip)](https://github.com/Tia004/cpredux/releases/latest/download/cpredux-windows.zip) |
+| macOS | Universal (Apple Silicon & Intel) | Applicazione Standalone .app (ZIP) | [Scarica macOS Universal (.zip)](https://github.com/Tia004/cpredux/releases/latest/download/cpredux-macos.zip) |
+| Linux | x86_64 / Desktop | Pacchetto Standalone AppImage | [Scarica Linux AppImage (.AppImage)](https://github.com/Tia004/cpredux/releases/latest/download/cpredux-linux.AppImage) |
+| Scheda Release GitHub | Multi-Platform | Hub release, log e file compilati | [GitHub Releases (Ultima Versione)](https://github.com/Tia004/cpredux/releases/latest) |
+| Scheda Release GitLab | Multi-Platform | Note di rilascio e archivio su GitLab | [GitLab Releases (Ultima Versione)](https://gitlab.com/Tia004/cpredux/-/releases/permalink/latest) |
+| Sorgenti (ZIP) | Multi-Platform | Codice sorgente dell'ultimo rilascio | [Scarica Sorgenti (ZIP)](https://github.com/Tia004/cpredux/archive/refs/heads/main.zip) |
+| Sorgenti (Tar.gz) | Multi-Platform | Archivio tarball compresso | [Scarica Sorgenti (Tar.gz)](https://github.com/Tia004/cpredux/archive/refs/heads/main.tar.gz) |
 
 ### Novità introdotte in v0.2.3
 

@@ -97,7 +97,16 @@ jobs:
       - name: Compila Setup Installer NSIS (.exe)
         shell: pwsh
         run: |
-          makensis -DBUILD_DIR="build\windows\x64\runner\Release" -DOUTPUT_EXE="dist\cpredux-windows-setup.exe" windows\installer\cpredux_setup.nsi
+          $makensis = (Get-Command makensis -ErrorAction SilentlyContinue)?.Source
+          if (-not $makensis -and (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe")) {
+            $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          }
+          if (-not $makensis) {
+            choco install nsis -y --no-progress
+            $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          }
+          $root = (Get-Location).Path
+          & $makensis -DPRODUCT_VERSION="0.2.3" -DBUILD_DIR="$root\build\windows\x64\runner\Release" -DOUTPUT_EXE="$root\dist\cpredux-windows-setup.exe" -DAPP_ICON="$root\windows\runner\resources\app_icon.ico" -DLOGO_IMAGE="$root\assets\branding\CPReduxLogo.png" "$root\windows\installer\cpredux_setup.nsi"
 
       - uses: actions/upload-artifact@v4
         with:
