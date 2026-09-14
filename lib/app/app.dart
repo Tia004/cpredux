@@ -160,7 +160,7 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
       state: _state,
       child: MaterialApp(
         navigatorKey: _navigatorKey,
-        title: 'CPRED Visualizer',
+        title: 'CPRedux Desktop',
         debugShowCheckedModeBanner: false,
         theme: CprTheme.dark(),
         home: const _Root(),

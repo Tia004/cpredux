@@ -11,6 +11,7 @@ class MainFlutterWindow: NSWindow {
     self.titlebarAppearsTransparent = true
     self.styleMask.insert(.fullSizeContentView)
     self.isOpaque = false
+    self.title = "CPRedux Desktop"
     self.backgroundColor = NSColor(red: 13.0 / 255.0, green: 14.0 / 255.0, blue: 18.0 / 255.0, alpha: 1.0)
     self.isMovableByWindowBackground = true
 

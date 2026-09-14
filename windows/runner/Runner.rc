@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "it.tiadesigns" "\0"
-            VALUE "FileDescription", "cpredux" "\0"
+            VALUE "FileDescription", "CPRedux Desktop" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "cpredux" "\0"
+            VALUE "InternalName", "CPRedux Desktop" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 it.tiadesigns. All rights reserved." "\0"
             VALUE "OriginalFilename", "cpredux.exe" "\0"
-            VALUE "ProductName", "cpredux" "\0"
+            VALUE "ProductName", "CPRedux Desktop" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

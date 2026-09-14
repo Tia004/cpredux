@@ -89,7 +89,7 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                   children: <TextSpan>[
                     const TextSpan(
-                      text: 'cpredux',
+                      text: 'CPRedux Desktop',
                       style: TextStyle(
                         color: CprPalette.inkMuted,
                         fontWeight: FontWeight.w500,
