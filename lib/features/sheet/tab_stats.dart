@@ -43,51 +43,75 @@ class _StatsTabState extends State<StatsTab> {
     final sheet = state.sheet!;
     final totals = state.totals!;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+    final Widget statsCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        ChamferPanel(
+          title: 'Caratteristiche',
+          trailing: _PointTracker(sheet: sheet),
+          child: Column(
+            children: <Widget>[
+              for (final Stat stat in Stat.values)
+                _StatRow(
+                  stat: stat,
+                  base: sheet.statBase[stat] ?? 1,
+                  calculated: totals.statValue(stat),
+                  onChanged: (int v) => state.mutate((s) => s.statBase[stat] = v),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _ManualModifiersPanel(state: state),
+        const SizedBox(height: 16),
+        _ProficienciesPanel(state: state),
+      ],
+    );
+
+    final Widget skillsCol = ChamferPanel(
+      title: 'Abilita',
+      trailing: SizedBox(
+        width: 220,
+        child: TechField(
+          label: '',
+          value: _query,
+          hint: 'Cerca fra le abilita…',
+          onChanged: (String v) => setState(() => _query = v.toLowerCase()),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          ChamferPanel(
-            title: 'Caratteristiche',
-            trailing: _PointTracker(sheet: sheet),
-            child: Column(
-              children: <Widget>[
-                for (final Stat stat in Stat.values)
-                  _StatRow(
-                    stat: stat,
-                    base: sheet.statBase[stat] ?? 1,
-                    calculated: totals.statValue(stat),
-                    onChanged: (int v) => state.mutate((s) => s.statBase[stat] = v),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _ManualModifiersPanel(state: state),
-          const SizedBox(height: 16),
-          _ProficienciesPanel(state: state),
-          const SizedBox(height: 16),
-          ChamferPanel(
-            title: 'Abilita',
-            trailing: SizedBox(
-              width: 220,
-              child: TechField(
-                label: '',
-                value: _query,
-                hint: 'Cerca fra le abilita…',
-                onChanged: (String v) => setState(() => _query = v.toLowerCase()),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                for (final SkillCategory category in SkillCategory.values)
-                  ..._categorySection(category, state),
-              ],
-            ),
-          ),
+          for (final SkillCategory category in SkillCategory.values)
+            ..._categorySection(category, state),
         ],
+      ),
+    );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints c) {
+          final bool twoColumns = c.maxWidth >= 980;
+          if (!twoColumns) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                statsCol,
+                const SizedBox(height: 16),
+                skillsCol,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(flex: 5, child: statsCol),
+              const SizedBox(width: 16),
+              Expanded(flex: 6, child: skillsCol),
+            ],
+          );
+        },
       ),
     );
   }

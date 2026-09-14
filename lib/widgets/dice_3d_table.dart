@@ -81,6 +81,32 @@ class _DieModel {
   final List<_Vec3> vertices;
   final List<_PolyFace> faces;
 
+  /// Generatore di un tetraedro regolare D4 (4 facce triangolari).
+  static _DieModel createD4(double radius) {
+    final double a = radius * 1.35 / math.sqrt(3.0);
+    final List<_Vec3> v = <_Vec3>[
+      _Vec3(a, a, a), // 0
+      _Vec3(a, -a, -a), // 1
+      _Vec3(-a, a, -a), // 2
+      _Vec3(-a, -a, a), // 3
+    ];
+
+    const List<List<int>> faceIndices = <List<int>>[
+      <int>[0, 2, 1], // Faccia 1
+      <int>[0, 1, 3], // Faccia 2
+      <int>[0, 3, 2], // Faccia 3
+      <int>[1, 2, 3], // Faccia 4
+    ];
+
+    final List<_PolyFace> f = <_PolyFace>[];
+    for (int i = 0; i < faceIndices.length; i++) {
+      final List<int> idx = faceIndices[i];
+      final _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      f.add(_PolyFace(indices: idx, value: i + 1, normal: n));
+    }
+    return _DieModel(vertices: v, faces: f);
+  }
+
   /// Generatore di un cubo D6 con le facce opposte che sommano a 7:
   /// 1 opposto a 6, 2 opposto a 5, 3 opposto a 4.
   static _DieModel createD6(double size) {
@@ -111,6 +137,39 @@ class _DieModel {
       _PolyFace(indices: <int>[4, 7, 3, 0], value: 2, normal: const _Vec3(-1, 0, 0)),
     ];
 
+    return _DieModel(vertices: v, faces: f);
+  }
+
+  /// Generatore di un ottaedro regolare D8 (8 facce triangolari equilatere).
+  static _DieModel createD8(double radius) {
+    final double r = radius * 1.18;
+    final List<_Vec3> v = <_Vec3>[
+      _Vec3(0, 0, r), // 0: apice sup
+      _Vec3(r, 0, 0), // 1
+      _Vec3(0, r, 0), // 2
+      _Vec3(-r, 0, 0), // 3
+      _Vec3(0, -r, 0), // 4
+      _Vec3(0, 0, -r), // 5: apice inf
+    ];
+
+    const List<List<int>> faceIndices = <List<int>>[
+      <int>[0, 1, 2], // 1
+      <int>[0, 2, 3], // 3
+      <int>[0, 3, 4], // 5
+      <int>[0, 4, 1], // 7
+      <int>[5, 2, 1], // 8 (opposta a 1)
+      <int>[5, 3, 2], // 6 (opposta a 3)
+      <int>[5, 4, 3], // 4 (opposta a 5)
+      <int>[5, 1, 4], // 2 (opposta a 7)
+    ];
+    const List<int> values = <int>[1, 3, 5, 7, 8, 6, 4, 2];
+
+    final List<_PolyFace> f = <_PolyFace>[];
+    for (int i = 0; i < faceIndices.length; i++) {
+      final List<int> idx = faceIndices[i];
+      final _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      f.add(_PolyFace(indices: idx, value: values[i], normal: n));
+    }
     return _DieModel(vertices: v, faces: f);
   }
 
@@ -157,7 +216,67 @@ class _DieModel {
     return _DieModel(vertices: v, faces: f);
   }
 
-  /// Generatore di un icosaedro regolare D20.
+  /// Generatore di un dodecaedro regolare D12 (12 facce pentagonali regolari).
+  static _DieModel createD12(double radius) {
+    final double phi = (1.0 + math.sqrt(5.0)) / 2.0;
+    final double invPhi = 1.0 / phi;
+    final double scale = radius / math.sqrt(3.0);
+
+    // 20 vertici del dodecaedro regolare
+    final List<_Vec3> v = <_Vec3>[
+      // (±1, ±1, ±1) [0..7]
+      _Vec3(1, 1, 1) * scale,
+      _Vec3(1, 1, -1) * scale,
+      _Vec3(1, -1, 1) * scale,
+      _Vec3(1, -1, -1) * scale,
+      _Vec3(-1, 1, 1) * scale,
+      _Vec3(-1, 1, -1) * scale,
+      _Vec3(-1, -1, 1) * scale,
+      _Vec3(-1, -1, -1) * scale,
+      // (0, ±1/phi, ±phi) [8..11]
+      _Vec3(0, invPhi, phi) * scale,
+      _Vec3(0, invPhi, -phi) * scale,
+      _Vec3(0, -invPhi, phi) * scale,
+      _Vec3(0, -invPhi, -phi) * scale,
+      // (±1/phi, ±phi, 0) [12..15]
+      _Vec3(invPhi, phi, 0) * scale,
+      _Vec3(invPhi, -phi, 0) * scale,
+      _Vec3(-invPhi, phi, 0) * scale,
+      _Vec3(-invPhi, -phi, 0) * scale,
+      // (±phi, 0, ±1/phi) [16..19]
+      _Vec3(phi, 0, invPhi) * scale,
+      _Vec3(phi, 0, -invPhi) * scale,
+      _Vec3(-phi, 0, invPhi) * scale,
+      _Vec3(-phi, 0, -invPhi) * scale,
+    ];
+
+    // Le 12 facce pentagonali del dodecaedro con indici coerenti e normali verso l'esterno
+    const List<List<int>> faceIndices = <List<int>>[
+      <int>[0, 8, 10, 2, 16], // 1
+      <int>[0, 16, 17, 1, 12], // 2
+      <int>[0, 12, 14, 4, 8], // 3
+      <int>[8, 4, 18, 6, 10], // 4
+      <int>[10, 6, 15, 13, 2], // 5
+      <int>[2, 13, 3, 17, 16], // 6
+      <int>[1, 9, 11, 3, 17], // 7 (opposta a 6)
+      <int>[3, 11, 7, 15, 13], // 8 (opposta a 5)
+      <int>[7, 19, 18, 6, 15], // 9 (opposta a 4)
+      <int>[5, 14, 4, 18, 19], // 10 (opposta a 3)
+      <int>[5, 9, 1, 12, 14], // 11 (opposta a 2)
+      <int>[7, 11, 9, 5, 19], // 12 (opposta a 1)
+    ];
+
+    final List<_PolyFace> f = <_PolyFace>[];
+    for (int i = 0; i < faceIndices.length; i++) {
+      final List<int> idx = faceIndices[i];
+      // Calcolo normale con cross product
+      final _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      f.add(_PolyFace(indices: idx, value: i + 1, normal: n));
+    }
+    return _DieModel(vertices: v, faces: f);
+  }
+
+  /// Generatore di un icosaedro regolare D20 (20 facce triangolari equilatere).
   static _DieModel createD20(double radius) {
     final double phi = (1.0 + math.sqrt(5.0)) / 2.0;
     final double scale = radius / math.sqrt(1.0 + phi * phi);
@@ -193,10 +312,91 @@ class _DieModel {
     return _DieModel(vertices: v, faces: f);
   }
 
-  /// Generatore di una moneta cilindrica (Testa / Croce).
+  /// Generatore di un Zocchihedron D100 a 100 facce poligonali distribuite uniformemente.
+  static _DieModel createD100(double radius) {
+    // Generazione di una sfera geodetica / Zocchihedron a 100 facce numerate 1..100
+    // 5 bande di latitudine: 10 al polo nord + 25 subnord + 30 equatore + 25 subsud + 10 polo sud = 100 facce esatte!
+    final List<_Vec3> v = <_Vec3>[
+      _Vec3(0, 0, radius), // 0: Polo Nord
+      _Vec3(0, 0, -radius), // 1: Polo Sud
+    ];
+
+    // Anelli di latitudine (lat1: 60°, lat2: 20°, lat3: -20°, lat4: -60°)
+    final List<int> ringCounts = <int>[10, 25, 25, 10];
+    final List<double> latitudes = <double>[
+      math.pi / 3.0,
+      math.pi / 9.0,
+      -math.pi / 9.0,
+      -math.pi / 3.0,
+    ];
+
+    final List<int> ringStarts = <int>[];
+    for (int r = 0; r < ringCounts.length; r++) {
+      ringStarts.add(v.length);
+      final int count = ringCounts[r];
+      final double phi = latitudes[r];
+      final double z = radius * math.sin(phi);
+      final double rProj = radius * math.cos(phi);
+      for (int i = 0; i < count; i++) {
+        final double theta = (i * 2.0 * math.pi) / count;
+        v.add(_Vec3(rProj * math.cos(theta), rProj * math.sin(theta), z));
+      }
+    }
+
+    final List<_PolyFace> f = <_PolyFace>[];
+    int faceCounter = 1;
+
+    // 1. Polo Nord: 10 triangoli collegati al vertice 0
+    final int r0 = ringStarts[0];
+    for (int i = 0; i < 10; i++) {
+      final int iNext = r0 + ((i + 1) % 10);
+      final _Vec3 n = (v[r0 + i] - v[0]).cross(v[iNext] - v[0]).normalized();
+      f.add(_PolyFace(indices: <int>[0, r0 + i, iNext], value: faceCounter++, normal: n));
+    }
+
+    // 2. Banda 1 (25 triangoli/trapezi interpolati tra anello 0 e anello 1)
+    final int r1 = ringStarts[1];
+    for (int i = 0; i < 25; i++) {
+      final int iNext = r1 + ((i + 1) % 25);
+      final int topIdx = r0 + ((i * 10) ~/ 25);
+      final _Vec3 n = (v[r1 + i] - v[topIdx]).cross(v[iNext] - v[topIdx]).normalized();
+      f.add(_PolyFace(indices: <int>[topIdx, r1 + i, iNext], value: faceCounter++, normal: n));
+    }
+
+    // 3. Banda Equatoriale: 30 facce (tra anello 1 e anello 2)
+    final int r2 = ringStarts[2];
+    for (int i = 0; i < 30; i++) {
+      final int top = r1 + ((i * 25) ~/ 30);
+      final int bot = r2 + ((i * 25) ~/ 30);
+      final int topNext = r1 + (((i + 1) * 25) ~/ 30 % 25);
+      final _Vec3 n = (v[bot] - v[top]).cross(v[topNext] - v[top]).normalized();
+      f.add(_PolyFace(indices: <int>[top, bot, topNext], value: faceCounter++, normal: n));
+    }
+
+    // 4. Banda 3 (25 triangoli tra anello 2 e anello 3)
+    final int r3 = ringStarts[3];
+    for (int i = 0; i < 25; i++) {
+      final int top = r2 + i;
+      final int topNext = r2 + ((i + 1) % 25);
+      final int bot = r3 + ((i * 10) ~/ 25);
+      final _Vec3 n = (v[topNext] - v[top]).cross(v[bot] - v[top]).normalized();
+      f.add(_PolyFace(indices: <int>[top, topNext, bot], value: faceCounter++, normal: n));
+    }
+
+    // 5. Polo Sud: 10 triangoli collegati al vertice 1
+    for (int i = 0; i < 10; i++) {
+      final int iNext = r3 + ((i + 1) % 10);
+      final _Vec3 n = (v[iNext] - v[1]).cross(v[r3 + i] - v[1]).normalized();
+      f.add(_PolyFace(indices: <int>[1, iNext, r3 + i], value: faceCounter++, normal: n));
+    }
+
+    return _DieModel(vertices: v, faces: f);
+  }
+
+  /// Generatore di una moneta cilindrica 3D con bordo poligonale spesso (Testa / Croce).
   static _DieModel createCoin(double radius) {
     const int segments = 16;
-    const double thickness = 5.0;
+    const double thickness = 6.0;
     final List<_Vec3> v = <_Vec3>[];
 
     // Cerchio superiore (+Z)
@@ -224,6 +424,27 @@ class _DieModel {
         normal: const _Vec3(0, 0, -1),
       ),
     ];
+
+    // Spessore 3D perimetrale (bordo cilindrico scanalato a 16 facce quadrate)
+    for (int i = 0; i < segments; i++) {
+      final int nextI = (i + 1) % segments;
+      final int top1 = i;
+      final int top2 = nextI;
+      final int bot1 = segments + i;
+      final int bot2 = segments + nextI;
+
+      final double midAngle = (i + 0.5) * 2 * math.pi / segments;
+      final _Vec3 rimNormal = _Vec3(math.cos(midAngle), math.sin(midAngle), 0.0);
+
+      f.add(
+        _PolyFace(
+          indices: <int>[top1, top2, bot2, bot1],
+          value: 0, // 0 = bordo perimetrale (senza numero)
+          normal: rimNormal,
+        ),
+      );
+    }
+
     return _DieModel(vertices: v, faces: f);
   }
 }
@@ -339,11 +560,24 @@ class _Dice3DTableState extends State<Dice3DTable>
     final double spacing = 52.0;
     final double startOffset = -((count - 1) * spacing) / 2.0;
 
+    final bool isCoin = widget.die == DiceType.coin;
+
     for (int i = 0; i < count; i++) {
       final double endX = startOffset + (i * spacing) + (_rng.nextDouble() * 12 - 6);
       final double endY = (_rng.nextDouble() * 24 - 12);
       final double startX = (_rng.nextDouble() > 0.5 ? -180.0 : 180.0) + (_rng.nextDouble() * 40 - 20);
       final double startY = 120.0 + (_rng.nextDouble() * 60);
+
+      // Per la moneta: flip verticale velocissimo attorno all'asse orizzontale X
+      final double spinX = isCoin
+          ? (_rng.nextDouble() * 4.0 + 16.0) * math.pi
+          : (_rng.nextDouble() * 12.0 + 8.0) * math.pi;
+      final double spinY = isCoin
+          ? (_rng.nextDouble() * 0.4 - 0.2) * math.pi
+          : (_rng.nextDouble() * 14.0 + 8.0) * math.pi;
+      final double spinZ = isCoin
+          ? (_rng.nextDouble() * 0.4 - 0.2) * math.pi
+          : (_rng.nextDouble() * 10.0 + 6.0) * math.pi;
 
       list.add(
         _ActiveDie(
@@ -353,9 +587,9 @@ class _Dice3DTableState extends State<Dice3DTable>
           startY: startY,
           endX: endX,
           endY: endY,
-          spinX: (_rng.nextDouble() * 12.0 + 8.0) * math.pi,
-          spinY: (_rng.nextDouble() * 14.0 + 8.0) * math.pi,
-          spinZ: (_rng.nextDouble() * 10.0 + 6.0) * math.pi,
+          spinX: spinX,
+          spinY: spinY,
+          spinZ: spinZ,
         ),
       );
     }
@@ -647,27 +881,28 @@ class _Dice3DRenderer extends CustomPainter {
 
     final Offset center = Offset(size.width / 2, size.height * 0.44);
 
-    // Crea modello geometrico in base al tipo di dado
-    final _DieModel model;
-    final double dieSize = dieType == DiceType.d10 ? 32.0 : (dieType == DiceType.d6 ? 38.0 : 34.0);
+    // Crea modello geometrico reale in base al tipo di dado
+    final double dieSize = switch (dieType) {
+      DiceType.d4 => 38.0,
+      DiceType.d6 => 38.0,
+      DiceType.d8 => 36.0,
+      DiceType.d10 => 33.0,
+      DiceType.d12 => 34.0,
+      DiceType.d20 => 35.0,
+      DiceType.d100 => 38.0,
+      DiceType.coin => 34.0,
+    };
 
-    switch (dieType) {
-      case DiceType.d6:
-        model = _DieModel.createD6(dieSize);
-        break;
-      case DiceType.d10:
-      case DiceType.d100:
-        model = _DieModel.createD10(dieSize * 0.72);
-        break;
-      case DiceType.d20:
-        model = _DieModel.createD20(dieSize * 0.78);
-        break;
-      case DiceType.coin:
-        model = _DieModel.createCoin(dieSize * 0.85);
-        break;
-      default:
-        model = _DieModel.createD6(dieSize);
-    }
+    final _DieModel model = switch (dieType) {
+      DiceType.d4 => _DieModel.createD4(dieSize * 0.85),
+      DiceType.d6 => _DieModel.createD6(dieSize),
+      DiceType.d8 => _DieModel.createD8(dieSize * 0.82),
+      DiceType.d10 => _DieModel.createD10(dieSize * 0.72),
+      DiceType.d12 => _DieModel.createD12(dieSize * 0.75),
+      DiceType.d20 => _DieModel.createD20(dieSize * 0.78),
+      DiceType.d100 => _DieModel.createD100(dieSize * 0.82),
+      DiceType.coin => _DieModel.createCoin(dieSize * 0.88),
+    };
 
     // Direzione luce: da in alto a sinistra verso il tavolo
     final _Vec3 lightDir = const _Vec3(-0.45, -0.65, 0.75).normalized();
@@ -838,13 +1073,30 @@ class _Dice3DRenderer extends CustomPainter {
   }
 
   void _paintFaceNumber(Canvas canvas, Offset pos, int value, double tilt) {
-    final String text = '$value';
+    if (value <= 0) return; // Non dipinge numero sul bordo cilindrico della moneta
+
+    final String text;
+    final double baseFontSize;
+    if (dieType == DiceType.coin) {
+      text = value == 1 ? 'EB' : '⊘';
+      baseFontSize = 13.5;
+    } else if (dieType == DiceType.d100) {
+      text = '$value';
+      baseFontSize = 8.5;
+    } else if (dieType == DiceType.d20 || dieType == DiceType.d12) {
+      text = '$value';
+      baseFontSize = 10.5;
+    } else {
+      text = '$value';
+      baseFontSize = 13.0;
+    }
+
     final TextSpan span = TextSpan(
       text: text,
       style: TextStyle(
         fontFamily: 'Roboto',
         fontWeight: FontWeight.w900,
-        fontSize: 13.0 * tilt,
+        fontSize: baseFontSize * tilt,
         color: accentColor.withValues(alpha: (0.75 + 0.25 * tilt).clamp(0.0, 1.0)),
         shadows: <Shadow>[
           Shadow(

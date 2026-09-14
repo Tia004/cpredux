@@ -1,15 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../app/app_state.dart';
+import '../../data/app_paths.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../../domain/catalog_item.dart';
 import '../../domain/enums.dart';
 import '../../domain/rules.dart';
 import '../../domain/sheet.dart';
+import '../../domain/stats.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/health_heart.dart';
 import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
+import '../../widgets/tech_button.dart';
+import '../files/file_browser.dart';
 
 class CharacterTab extends StatelessWidget {
   const CharacterTab({super.key});
@@ -21,7 +28,8 @@ class CharacterTab extends StatelessWidget {
     final totals = state.totals;
     if (sheet == null || totals == null) return const SizedBox.shrink();
 
-    final bool isUncompiled = sheet.identity.tag.trim().isEmpty || sheet.identity.role.trim().isEmpty;
+    final bool isUncompiled =
+        sheet.identity.tag.trim().isEmpty || sheet.identity.role.trim().isEmpty;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -34,29 +42,60 @@ class CharacterTab extends StatelessWidget {
           ],
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints c) {
-              // Il cuore e la spira sono elementi grandi: sotto i 900 px si
-              // impilano invece di comprimersi fino a diventare illeggibili.
-              const Widget vitals = _VitalsPanel();
-              const Widget identity = _IdentityPanel();
-              if (c.maxWidth < 900) {
-                return const Column(
-                  children: <Widget>[vitals, SizedBox(height: 16), identity],
+              final bool twoColumns = c.maxWidth >= 960;
+              if (!twoColumns) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const _VitalsPanel(),
+                    const SizedBox(height: 16),
+                    _DeathSavePanel(bodyStat: totals.statValue(Stat.body)),
+                    const SizedBox(height: 16),
+                    const _IdentityPanel(),
+                    const SizedBox(height: 16),
+                    const _QuickArmorPanel(),
+                    const SizedBox(height: 16),
+                    _ConditionsPanel(sheet: sheet),
+                    const SizedBox(height: 16),
+                    _DerivedPanel(totals: totals),
+                  ],
                 );
               }
-              return const Row(
+
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Expanded(flex: 5, child: vitals),
-                  SizedBox(width: 16),
-                  Expanded(flex: 6, child: identity),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        const _VitalsPanel(),
+                        const SizedBox(height: 16),
+                        _DeathSavePanel(bodyStat: totals.statValue(Stat.body)),
+                        const SizedBox(height: 16),
+                        _ConditionsPanel(sheet: sheet),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        const _IdentityPanel(),
+                        const SizedBox(height: 16),
+                        const _QuickArmorPanel(),
+                        const SizedBox(height: 16),
+                        _DerivedPanel(totals: totals),
+                      ],
+                    ),
+                  ),
                 ],
               );
             },
           ),
-          const SizedBox(height: 16),
-          _DerivedPanel(totals: totals),
-          const SizedBox(height: 16),
-          _ConditionsPanel(sheet: sheet),
         ],
       ),
     );
@@ -84,7 +123,8 @@ class _VitalsPanel extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
               Tooltip(
-                message: 'Punti Vita (PV): 10 + 5 × Media(FIS, VOL). A metà PV sei Ferito Gravemente (-2 a tutte le azioni). A 0 PV sei Morente.',
+                message:
+                    'Punti Vita (PV): 10 + 5 × Media(FIS, VOL). A metà PV sei Ferito Gravemente (-2 a tutte le azioni). A 0 PV sei Morente.',
                 waitDuration: const Duration(milliseconds: 200),
                 child: HealthHeart(
                   current: identity.currentHp,
@@ -94,7 +134,8 @@ class _VitalsPanel extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Tooltip(
-                message: 'Umanità: Inizia a Empatia × 10. Si riduce installando Cyberware. Sotto i 10 punti rischi la Cyberpsicosi!',
+                message:
+                    'Umanità: Inizia a Empatia × 10. Si riduce installando Cyberware. Sotto i 10 punti rischi la Cyberpsicosi!',
                 waitDuration: const Duration(milliseconds: 200),
                 child: HumanityGauge(
                   current: identity.currentHumanity,
@@ -167,7 +208,8 @@ class _VitalsPanel extends StatelessWidget {
                   value: identity.currentImprovementPoints,
                   max: 999,
                   compact: true,
-                  onChanged: (int v) => state.mutate((s) => s.identity.currentImprovementPoints = v),
+                  onChanged: (int v) =>
+                      state.mutate((s) => s.identity.currentImprovementPoints = v),
                 ),
               ),
               const SizedBox(width: 10),
@@ -177,7 +219,8 @@ class _VitalsPanel extends StatelessWidget {
                   value: identity.totalImprovementPoints,
                   max: 999,
                   compact: true,
-                  onChanged: (int v) => state.mutate((s) => s.identity.totalImprovementPoints = v),
+                  onChanged: (int v) =>
+                      state.mutate((s) => s.identity.totalImprovementPoints = v),
                 ),
               ),
             ],
@@ -188,12 +231,7 @@ class _VitalsPanel extends StatelessWidget {
   }
 }
 
-/// Controlli di danno e cura.
-///
-/// Il caso d'uso reale e' quasi sempre "ho preso 7 danni" oppure "ho usato un
-/// Medkit": chiedere all'utente di calcolare mentalmente il nuovo totale e
-/// digitarlo e' un errore di progetto, perche' lo espone a sbagliare proprio
-/// nel momento in cui la sessione e' piu' concitata.
+/// Controlli di danno e cura rapida.
 class _DamageControls extends StatelessWidget {
   const _DamageControls({
     required this.current,
@@ -280,6 +318,309 @@ class _QuickButton extends StatelessWidget {
   }
 }
 
+/// Pannello Tiro della Morte (Death Save) da regolamento Cyberpunk RED (p. 186).
+///
+/// A 0 PV il personaggio e' Morente: all'inizio di ogni turno deve tirare 1d10
+/// contro il proprio valore di Fisico (BODY). Ogni turno successivo aggiunge +1
+/// di penalita'. Con un 10 naturale muore sul colpo.
+class _DeathSavePanel extends StatefulWidget {
+  const _DeathSavePanel({required this.bodyStat});
+
+  final int bodyStat;
+
+  @override
+  State<_DeathSavePanel> createState() => _DeathSavePanelState();
+}
+
+class _DeathSavePanelState extends State<_DeathSavePanel> {
+  int _deathPenalty = 0;
+  String? _rollOutcome;
+  bool _survived = true;
+
+  void _rollDeathSave() {
+    final DiceRoll roll = rollDie(DiceType.d10, label: 'Tiro della Morte');
+    final int effectiveRoll = roll.result + _deathPenalty;
+    final bool nat10 = roll.result == 10;
+    final bool survived = !nat10 && effectiveRoll < widget.bodyStat;
+
+    setState(() {
+      _survived = survived;
+      if (nat10) {
+        _rollOutcome =
+            '10 NATURALE (CRITICO): Il personaggio non regge lo sforzo e soccombe alla morte.';
+      } else if (survived) {
+        _rollOutcome =
+            'SUCCESSO: Tiro [${roll.result}] + Penalità [$_deathPenalty] = $effectiveRoll (< FIS ${widget.bodyStat}). Sei ancora vivo!';
+      } else {
+        _rollOutcome =
+            'FALLITO: Tiro [${roll.result}] + Penalità [$_deathPenalty] = $effectiveRoll (>= FIS ${widget.bodyStat}). Il personaggio spira.';
+      }
+      _deathPenalty++;
+    });
+  }
+
+  void _reset() {
+    setState(() {
+      _deathPenalty = 0;
+      _rollOutcome = null;
+      _survived = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ChamferPanel(
+      title: 'Tiro della morte (Death save)',
+      accent: CprPalette.danger,
+      trailing: TechButton(
+        label: 'Azzera penalità',
+        variant: TechButtonVariant.ghost,
+        compact: true,
+        onPressed: _reset,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Tooltip(
+                  message:
+                      'Soglia Base del Tiro della Morte: corrisponde al valore di Fisico (BODY). Per sopravvivere a 0 PV devi fare strettamente meno con 1d10 + penalità.',
+                  waitDuration: const Duration(milliseconds: 200),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: CprPalette.surfaceRaised,
+                      border: Border.all(color: CprPalette.hairline),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'SOGLIA MORTE (FISICO)',
+                          style: CprType.label.copyWith(fontSize: 9, color: CprPalette.inkFaint),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${widget.bodyStat}',
+                          style: CprType.numeral.copyWith(fontSize: 22, color: CprPalette.ink),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TechNumberStepper(
+                  label: 'Penalità round (+1/turno)',
+                  value: _deathPenalty,
+                  max: 20,
+                  accent: CprPalette.danger,
+                  compact: true,
+                  onChanged: (int v) => setState(() => _deathPenalty = v),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: TechButton(
+              label: 'Lancia tiro della morte (1d10)',
+              icon: Icons.casino_outlined,
+              variant: TechButtonVariant.danger,
+              onPressed: _rollDeathSave,
+            ),
+          ),
+          if (_rollOutcome != null) ...<Widget>[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: CprPalette.veil(
+                  _survived ? CprPalette.success : CprPalette.danger,
+                  0.12,
+                ),
+                border: Border.all(
+                  color: _survived ? CprPalette.success : CprPalette.danger,
+                  width: 1.2,
+                ),
+              ),
+              child: Text(
+                _rollOutcome!,
+                style: CprType.body.copyWith(
+                  fontSize: 12,
+                  color: _survived ? CprPalette.success : CprPalette.danger,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Riepilogo rapido delle armature equipaggiate e relative penalità (da Java FXML).
+class _QuickArmorPanel extends StatelessWidget {
+  const _QuickArmorPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppState state = AppScope.of(context);
+    final List<ResolvedItem> inventory = state.resolvedInventory;
+    final List<ResolvedItem> equippedArmor =
+        inventory.where((ResolvedItem i) => i.entry.isEquipped && i.isArmor).toList();
+
+    ResolvedItem? head;
+    ResolvedItem? body;
+    ResolvedItem? shield;
+    int totalPenalty = 0;
+
+    for (final ResolvedItem item in equippedArmor) {
+      final armor = item.armor;
+      if (armor == null) continue;
+      totalPenalty += armor.penalties;
+      switch (armor.slot) {
+        case ArmorSlot.head:
+          head ??= item;
+          break;
+        case ArmorSlot.body:
+          body ??= item;
+          break;
+        case ArmorSlot.shield:
+          shield ??= item;
+          break;
+      }
+    }
+
+    return ChamferPanel(
+      title: 'Armatura equipaggiata',
+      accent: CprPalette.cyan,
+      trailing: totalPenalty > 0
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: CprPalette.danger.withValues(alpha: 0.15),
+                border: Border.all(color: CprPalette.danger, width: 1),
+              ),
+              child: Text(
+                'PENALITÀ -$totalPenalty RIF/DES/MOV',
+                style: CprType.label.copyWith(
+                  fontSize: 9,
+                  color: CprPalette.danger,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            )
+          : Text(
+              'Nessuna penalità',
+              style: CprType.caption.copyWith(color: CprPalette.success, fontSize: 10),
+            ),
+      child: Column(
+        children: <Widget>[
+          _ArmorSlotRow(
+            slotLabel: 'Testa (SP)',
+            item: head,
+            icon: Icons.face_retouching_natural_outlined,
+          ),
+          const Divider(height: 14, color: CprPalette.hairline),
+          _ArmorSlotRow(
+            slotLabel: 'Corpo (SP)',
+            item: body,
+            icon: Icons.shield_outlined,
+          ),
+          const Divider(height: 14, color: CprPalette.hairline),
+          _ArmorSlotRow(
+            slotLabel: 'Scudo (SP)',
+            item: shield,
+            icon: Icons.security_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArmorSlotRow extends StatelessWidget {
+  const _ArmorSlotRow({
+    required this.slotLabel,
+    required this.item,
+    required this.icon,
+  });
+
+  final String slotLabel;
+  final ResolvedItem? item;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final int sp = item?.armor?.sp ?? 0;
+    final int penalties = item?.armor?.penalties ?? 0;
+    final String name = item?.name ?? 'Nessuna armatura';
+
+    return Row(
+      children: <Widget>[
+        Icon(icon, size: 18, color: item != null ? CprPalette.cyan : CprPalette.inkFaint),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                slotLabel.toUpperCase(),
+                style: CprType.label.copyWith(fontSize: 9, color: CprPalette.inkFaint),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                name,
+                style: CprType.body.copyWith(
+                  fontSize: 13,
+                  color: item != null ? CprPalette.ink : CprPalette.inkMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        if (penalties > 0) ...<Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              border: Border.all(color: CprPalette.danger, width: 1),
+            ),
+            child: Text(
+              '-$penalties',
+              style: CprType.label.copyWith(fontSize: 9, color: CprPalette.danger),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: CprPalette.veil(CprPalette.cyan, 0.1),
+            border: Border.all(color: CprPalette.veil(CprPalette.cyan, 0.4)),
+          ),
+          child: Text(
+            'SP $sp',
+            style: CprType.numeral.copyWith(
+              fontSize: 14,
+              color: sp > 0 ? CprPalette.cyan : CprPalette.inkFaint,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _IdentityPanel extends StatelessWidget {
   const _IdentityPanel();
 
@@ -299,37 +640,45 @@ class _IdentityPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppState state = AppScope.of(context);
-    final identity = state.sheet!.identity;
+    final sheet = state.sheet!;
+    final identity = sheet.identity;
 
     return ChamferPanel(
-      title: 'Anagrafica',
+      title: 'Anagrafica & Identità',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              _CharacterAvatarThumb(sheet: sheet, state: state),
+              const SizedBox(width: 14),
               Expanded(
-                child: Tooltip(
-                  message: 'Il nome da strada (Handle) con cui il tuo personaggio è conosciuto.',
-                  waitDuration: const Duration(milliseconds: 200),
-                  child: TechField(
-                    label: 'Nome del personaggio',
-                    value: identity.tag,
-                    hint: 'Come ti chiamano in strada',
-                    onChanged: (String v) => state.mutate((s) => s.identity.tag = v),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Tooltip(
-                  message: 'Il tuo nome o nickname reale al tavolo di gioco.',
-                  waitDuration: const Duration(milliseconds: 200),
-                  child: TechField(
-                    label: 'Giocatore',
-                    value: identity.playerName,
-                    onChanged: (String v) => state.mutate((s) => s.identity.playerName = v),
-                  ),
+                child: Column(
+                  children: <Widget>[
+                    Tooltip(
+                      message:
+                          'Il nome da strada (Handle) con cui il tuo personaggio è conosciuto.',
+                      waitDuration: const Duration(milliseconds: 200),
+                      child: TechField(
+                        label: 'Nome del personaggio (Handle)',
+                        value: identity.tag,
+                        hint: 'Come ti chiamano in strada',
+                        onChanged: (String v) => state.mutate((s) => s.identity.tag = v),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Tooltip(
+                      message: 'Il tuo nome o nickname reale al tavolo di gioco.',
+                      waitDuration: const Duration(milliseconds: 200),
+                      child: TechField(
+                        label: 'Giocatore',
+                        value: identity.playerName,
+                        onChanged: (String v) =>
+                            state.mutate((s) => s.identity.playerName = v),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -373,7 +722,8 @@ class _IdentityPanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Tooltip(
-                      message: 'Scegli la tua carriera: clicca un pulsante rapido sotto o digita un ruolo.',
+                      message:
+                          'Scegli la tua carriera: clicca un pulsante rapido sotto o digita un ruolo.',
                       waitDuration: const Duration(milliseconds: 200),
                       child: TechField(
                         label: 'Ruolo',
@@ -391,13 +741,15 @@ class _IdentityPanel extends StatelessWidget {
                         for (final r in _standardRoles)
                           _RoleChip(
                             label: r['role']!,
-                            selected: identity.role.trim().toLowerCase() == r['role']!.toLowerCase(),
+                            selected:
+                                identity.role.trim().toLowerCase() == r['role']!.toLowerCase(),
                             onTap: () => state.mutate((s) {
                               s.identity.role = r['role']!;
                               if (s.identity.roleAbility.trim().isEmpty) {
                                 s.identity.roleAbility = r['ability']!;
                               }
-                              if (s.identity.roleRank.trim().isEmpty || s.identity.roleRank == '0') {
+                              if (s.identity.roleRank.trim().isEmpty ||
+                                  s.identity.roleRank == '0') {
                                 s.identity.roleRank = '4';
                               }
                             }),
@@ -410,7 +762,8 @@ class _IdentityPanel extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Tooltip(
-                  message: 'Reputazione: quanto sei temuto o rispettato (da 0 per sconosciuto a 10 per leggenda).',
+                  message:
+                      'Reputazione: quanto sei temuto o rispettato (da 0 per sconosciuto a 10 per leggenda).',
                   waitDuration: const Duration(milliseconds: 200),
                   child: TechField(
                     label: 'Punti reputazione',
@@ -440,7 +793,8 @@ class _IdentityPanel extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Tooltip(
-                  message: 'Grado di competenza dell\'abilità di ruolo (da 1 a 10, di norma 4 alla creazione).',
+                  message:
+                      'Grado di competenza dell\'abilità di ruolo (da 1 a 10, di norma 4 alla creazione).',
                   waitDuration: const Duration(milliseconds: 200),
                   child: TechField(
                     label: 'Rango',
@@ -453,6 +807,84 @@ class _IdentityPanel extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Miniatura ritratto del personaggio con selezione rapida file (da Java imageViewCharacterImage).
+class _CharacterAvatarThumb extends StatelessWidget {
+  const _CharacterAvatarThumb({required this.sheet, required this.state});
+
+  final CharacterSheet sheet;
+  final AppState state;
+
+  Future<void> _chooseAvatar(BuildContext context) async {
+    final String? picked = await showFileBrowser(
+      context,
+      mode: FileBrowserMode.open,
+      title: 'Scegli il ritratto del personaggio',
+      extensions: const <String>['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'],
+      initialDirectory: AppPaths.documentsDir().path,
+      showAllFilesToggle: true,
+    );
+    if (picked == null) return;
+    state.mutate((s) => s.physical.imagePath = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? path = sheet.physical.imagePath;
+    final bool hasImage = path != null && path.trim().isNotEmpty && File(path).existsSync();
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => _chooseAvatar(context),
+        child: Tooltip(
+          message: 'Clicca per caricare o cambiare il ritratto del personaggio',
+          waitDuration: const Duration(milliseconds: 200),
+          child: Container(
+            width: 82,
+            height: 82,
+            decoration: BoxDecoration(
+              color: CprPalette.surfaceRaised,
+              border: Border.all(
+                color: hasImage ? CprPalette.cyan : CprPalette.hairline,
+                width: 1.5,
+              ),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                if (hasImage)
+                  Image.file(File(path), fit: BoxFit.cover)
+                else
+                  const Center(
+                    child: Icon(Icons.person_pin, size: 40, color: CprPalette.inkFaint),
+                  ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: CprPalette.voidBlack.withValues(alpha: 0.75),
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      'FOTO',
+                      textAlign: TextAlign.center,
+                      style: CprType.label.copyWith(
+                        fontSize: 8,
+                        color: hasImage ? CprPalette.cyan : CprPalette.inkFaint,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -548,7 +980,7 @@ class _DerivedPanel extends StatelessWidget {
         style: CprType.caption.copyWith(color: CprPalette.inkFaint),
       ),
       child: Wrap(
-        spacing: 26,
+        spacing: 24,
         runSpacing: 14,
         children: <Widget>[
           _DerivedValue(
@@ -559,7 +991,7 @@ class _DerivedPanel extends StatelessWidget {
           _DerivedValue(
             label: 'Soglia ferite gravi',
             value: '${totals.severeInjuriesThreshold}',
-            hint: 'ogni danno oltre questa soglia',
+            hint: 'oltre questa soglia',
             tooltip: 'A metà dei PV massimi. Sei Ferito Gravemente (-2 a tutte le azioni).',
           ),
           _DerivedValue(
@@ -576,7 +1008,8 @@ class _DerivedPanel extends StatelessWidget {
             label: 'Umanita persa',
             value: '${totals.humanityLost}',
             danger: totals.humanityLost > 0,
-            tooltip: 'Umanità sottratta a causa di Cyberware installato o traumi psicologici.',
+            tooltip:
+                'Umanità sottratta a causa di Cyberware installato o traumi psicologici.',
           ),
           _DerivedValue(
             label: 'Carico massimo',
@@ -621,7 +1054,10 @@ class _DerivedValue extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(label.toUpperCase(), style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9)),
+        Text(
+          label.toUpperCase(),
+          style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9),
+        ),
         const SizedBox(height: 3),
         Text(
           value,

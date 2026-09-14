@@ -38,13 +38,10 @@ class _NotesTabState extends State<NotesTab> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: ChamferPanel(
-            title: 'Note',
-            accent: CprPalette.yellow,
-            trailing: TechButton(
+      child: ChamferPanel(
+        title: 'Note',
+        accent: CprPalette.yellow,
+        trailing: TechButton(
               label: 'Nuova nota',
               icon: Icons.add,
               variant: TechButtonVariant.primary,
@@ -71,8 +68,6 @@ class _NotesTabState extends State<NotesTab> {
                         ),
                     ],
                   ),
-          ),
-        ),
       ),
     );
   }
@@ -246,13 +241,10 @@ class BackgroundTab extends StatelessWidget {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              LayoutBuilder(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints c) {
                   final Widget left = Column(
                     children: <Widget>[
@@ -385,11 +377,9 @@ class BackgroundTab extends StatelessWidget {
               _Enemies(state: state, enemies: bg.enemies),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
+        );
+      }
+    }
 
 class _Block extends StatelessWidget {
   const _Block({required this.title, required this.accent, required this.children});
@@ -605,11 +595,8 @@ class _DescriptionTabState extends State<DescriptionTab> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          child: LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints c) {
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints c) {
               final Widget portrait = _Portrait(state: state, path: ph.imagePath);
               final Widget form = ChamferPanel(
                 title: 'Anagrafica',
@@ -693,13 +680,11 @@ class _DescriptionTabState extends State<DescriptionTab> {
                   const SizedBox(width: 16),
                   Expanded(child: form),
                 ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
+        );
+      },
+    ),
+  );
+}
 }
 
 /// Ritratto del personaggio.

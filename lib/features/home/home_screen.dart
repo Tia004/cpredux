@@ -103,47 +103,72 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
-        // Il logo e' disegnato con testo e barre invece che caricato come
-        // immagine: cosi' resta nitido a qualunque risoluzione e scala con la
-        // tipografia dell'app senza dover spedire piu' versioni dell'asset.
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Container(width: 6, height: 34, color: CprPalette.yellow),
-                const SizedBox(width: 12),
-                Text(
-                  'CPRED',
-                  style: CprType.display.copyWith(
-                    fontSize: 46,
-                    letterSpacing: 2,
-                    color: CprPalette.ink,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            'assets/branding/CPReduxLogo.png',
+            height: 70,
+            fit: BoxFit.contain,
+            errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) =>
+                const SizedBox.shrink(),
+          ),
+        ),
+        const SizedBox(width: 18),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(width: 5, height: 28, color: CprPalette.yellow),
+                  const SizedBox(width: 10),
+                  Text(
+                    'CPRED',
+                    style: CprType.display.copyWith(
+                      fontSize: 34,
+                      letterSpacing: 1.5,
+                      color: CprPalette.ink,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
+                  const SizedBox(width: 8),
+                  Text(
                     'VISUALIZER',
                     style: CprType.label.copyWith(
-                      fontSize: 15,
-                      letterSpacing: 5,
+                      fontSize: 14,
+                      letterSpacing: 4,
                       color: CprPalette.yellow,
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Schede e campagne di Cyberpunk RED, senza fare i conti a mano.',
-              style: CprType.body.copyWith(color: CprPalette.inkMuted),
-            ),
-          ],
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: CprPalette.yellow.withValues(alpha: 0.15),
+                      border: Border.all(color: CprPalette.yellow, width: 1),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      'TTRPG ASSISTANT',
+                      style: CprType.label.copyWith(
+                        fontSize: 10,
+                        letterSpacing: 2,
+                        color: CprPalette.yellow,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'CPRed Visualizer — Schede, combattimento e campagne di Cyberpunk RED, senza fare i conti a mano.',
+                style: CprType.body.copyWith(color: CprPalette.inkMuted),
+              ),
+            ],
+          ),
         ),
       ],
     );
