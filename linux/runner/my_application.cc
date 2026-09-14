@@ -52,7 +52,7 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "cpredux");
   }
 
-  gtk_window_set_default_size(window, 1360, 860);
+  gtk_window_set_default_size(window, 1360, 900);
 
   GdkGeometry geometry;
   geometry.min_width = 1024;
