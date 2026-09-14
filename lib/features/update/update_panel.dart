@@ -64,6 +64,15 @@ class UpdatePanel extends StatelessWidget {
           onChanged: (bool v) => state.updateSettings((s) => s.autoCheckUpdates = v),
         ),
         const SizedBox(height: 14),
+        _UpdateToggle(
+          label: 'Mostra avviso "Aggiorna ora" nella barra superiore',
+          description:
+              'Mostra il pulsante ad alto contrasto nella barra superiore quando e\' disponibile una nuova versione. '
+              'Disattivando questa opzione, il pulsante in alto non verra\' mostrato.',
+          value: state.settings.showUpdateNotifications,
+          onChanged: (bool v) => state.updateSettings((s) => s.showUpdateNotifications = v),
+        ),
+        const SizedBox(height: 14),
         _StatusLine(state: state),
         const SizedBox(height: 14),
         Wrap(

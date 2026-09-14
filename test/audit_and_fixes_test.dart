@@ -102,9 +102,9 @@ void main() {
       expect(stats.faces, equals(12));
     });
 
-    test('D100 has 100 closed kite faces and 102 vertices', () {
+    test('D100 has 100 closed regular spherical faces and 82 vertices', () {
       final ({int faces, int vertices}) stats = Dice3DTable.getMeshStatsForTesting(DiceType.d100);
-      expect(stats.vertices, equals(102));
+      expect(stats.vertices, equals(82));
       expect(stats.faces, equals(100));
     });
 

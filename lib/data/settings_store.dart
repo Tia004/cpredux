@@ -13,6 +13,7 @@ class AppSettings {
     this.enableDiscordRichPresence = true,
     this.autosave = true,
     this.autoCheckUpdates = true,
+    this.showUpdateNotifications = true,
     this.discordClientId = defaultDiscordClientId,
     this.updateFeedUrl = defaultUpdateFeedUrl,
     this.skippedUpdateVersion = '',
@@ -57,6 +58,9 @@ class AppSettings {
   /// nuova, **chiede** invece di installare.
   bool autoCheckUpdates;
 
+  /// Mostra il pulsante persistente di aggiornamento in alto a destra.
+  bool showUpdateNotifications;
+
   String updateFeedUrl;
 
   /// La versione che l'utente ha scelto di saltare.
@@ -88,8 +92,9 @@ class AppSettings {
       pendingUpdateArchive.trim().isNotEmpty && pendingUpdateVersion.trim().isNotEmpty;
 
   /// True se c'e' un indirizzo su cui controllare gli aggiornamenti.
-  bool get hasUpdateFeed => updateFeedUrl.trim().isNotEmpty;
+  bool get canCheckUpdates => updateFeedUrl.trim().isNotEmpty;
 
+  /// Le schede e campagne aperte di recente, percorsi completi.
   final List<String> recentFiles;
 
   static const int maxRecentFiles = 12;
@@ -113,6 +118,7 @@ class AppSettings {
         'discordClientId': discordClientId,
         'autosave': autosave,
         'autoCheckUpdates': autoCheckUpdates,
+        'showUpdateNotifications': showUpdateNotifications,
         'updateFeedUrl': updateFeedUrl,
         'skippedUpdateVersion': skippedUpdateVersion,
         'pendingUpdateVersion': pendingUpdateVersion,
@@ -133,6 +139,9 @@ class AppSettings {
           : defaultDiscordClientId,
       autosave: json['autosave'] is bool ? json['autosave']! as bool : true,
       autoCheckUpdates: json['autoCheckUpdates'] is bool ? json['autoCheckUpdates']! as bool : true,
+      showUpdateNotifications: json['showUpdateNotifications'] is bool
+          ? json['showUpdateNotifications']! as bool
+          : true,
       updateFeedUrl: json['updateFeedUrl'] is String && (json['updateFeedUrl']! as String).trim().isNotEmpty
           ? (json['updateFeedUrl']! as String).trim()
           : defaultUpdateFeedUrl,

@@ -27,7 +27,31 @@ import '../net/update_installer.dart';
 import '../net/update_manifest.dart';
 import '../net/updater.dart';
 
-enum AppScreen { home, sheet, campaign, settings, compare }
+enum AppScreen { home, sheet, campaign, settings, compare, cloud }
+
+/// Categoria di una tab aperta nell'interfaccia browser.
+enum AppTabKind { home, sheet, campaign, cloud, settings, compare }
+
+/// Modello di una scheda/tab aperta nel browser dell'applicazione.
+class AppTab {
+  AppTab({
+    required this.id,
+    required this.kind,
+    required this.title,
+    this.filePath,
+    this.sheet,
+    this.campaign,
+    this.isDirty = false,
+  });
+
+  final String id;
+  final AppTabKind kind;
+  String title;
+  String? filePath;
+  CharacterSheet? sheet;
+  Campaign? campaign;
+  bool isDirty;
+}
 
 /// Un lato di un confronto: una scheda, con il nome con cui va mostrata.
 ///
@@ -218,6 +242,166 @@ class AppState extends ChangeNotifier {
     if (_campaign == null) return;
     _screen = AppScreen.campaign;
     notifyListeners();
+  }
+
+  // --- Gestione Multi-Tab in stile Browser ---------------------------------
+
+  late final List<AppTab> _tabs = <AppTab>[
+    AppTab(
+      id: 'tab_library',
+      kind: AppTabKind.home,
+      title: 'Libreria Schede',
+    ),
+  ];
+  int _activeTabIndex = 0;
+
+  List<AppTab> get tabs => List<AppTab>.unmodifiable(_tabs);
+  int get activeTabIndex => _activeTabIndex;
+  AppTab get activeTab => _tabs[_activeTabIndex.clamp(0, _tabs.length - 1)];
+
+  void selectTab(int index) {
+    if (index < 0 || index >= _tabs.length) return;
+    _activeTabIndex = index;
+    final AppTab tab = _tabs[index];
+    switch (tab.kind) {
+      case AppTabKind.home:
+        _screen = AppScreen.home;
+      case AppTabKind.sheet:
+        _screen = AppScreen.sheet;
+        _sheet = tab.sheet;
+        _documentPath = tab.filePath;
+        if (_sheet != null) {
+          _totals = computeTotals(_sheet!, lookup: catalogLookup);
+        }
+      case AppTabKind.campaign:
+        _screen = AppScreen.campaign;
+        _campaign = tab.campaign;
+        _documentPath = tab.filePath;
+      case AppTabKind.cloud:
+        _screen = AppScreen.cloud;
+      case AppTabKind.settings:
+        _screen = AppScreen.settings;
+      case AppTabKind.compare:
+        _screen = AppScreen.compare;
+    }
+    notifyListeners();
+  }
+
+  void closeTab(int index) {
+    if (index <= 0 || index >= _tabs.length) return; // Tab 0 (Libreria) permanente
+    final AppTab closing = _tabs.removeAt(index);
+    if (closing.sheet != null && closing.sheet == _sheet) {
+      _sheet = null;
+    }
+    if (closing.campaign != null && closing.campaign == _campaign) {
+      _campaign = null;
+    }
+    if (_activeTabIndex >= _tabs.length) {
+      _activeTabIndex = _tabs.length - 1;
+    }
+    selectTab(_activeTabIndex);
+  }
+
+  void openSheetInNewTab(CharacterSheet sheet, {String? path}) {
+    final int existing = _tabs.indexWhere((AppTab t) =>
+        (path != null && t.filePath == path) ||
+        (sheet.meta.id.isNotEmpty && t.sheet?.meta.id == sheet.meta.id));
+    if (existing >= 0) {
+      _tabs[existing].sheet = sheet;
+      if (path != null) _tabs[existing].filePath = path;
+      _tabs[existing].title = sheet.meta.name.trim().isNotEmpty ? sheet.meta.name.trim() : 'Nuova Scheda';
+      selectTab(existing);
+      return;
+    }
+
+    final AppTab newTab = AppTab(
+      id: 'sheet_${sheet.meta.id}_${DateTime.now().microsecondsSinceEpoch}',
+      kind: AppTabKind.sheet,
+      title: sheet.meta.name.trim().isNotEmpty ? sheet.meta.name.trim() : 'Nuova Scheda',
+      filePath: path,
+      sheet: sheet,
+    );
+    _tabs.add(newTab);
+    selectTab(_tabs.length - 1);
+  }
+
+  void openCampaignInNewTab(Campaign campaign, {String? path}) {
+    final int existing = _tabs.indexWhere((AppTab t) =>
+        (path != null && t.filePath == path) ||
+        (campaign.meta.id.isNotEmpty && t.campaign?.meta.id == campaign.meta.id));
+    if (existing >= 0) {
+      _tabs[existing].campaign = campaign;
+      if (path != null) _tabs[existing].filePath = path;
+      _tabs[existing].title = campaign.meta.name.trim().isNotEmpty ? campaign.meta.name.trim() : 'Campagna';
+      selectTab(existing);
+      return;
+    }
+
+    final AppTab newTab = AppTab(
+      id: 'campaign_${campaign.meta.id}_${DateTime.now().microsecondsSinceEpoch}',
+      kind: AppTabKind.campaign,
+      title: campaign.meta.name.trim().isNotEmpty ? campaign.meta.name.trim() : 'Campagna',
+      filePath: path,
+      campaign: campaign,
+    );
+    _tabs.add(newTab);
+    selectTab(_tabs.length - 1);
+  }
+
+  Future<void> openFileInNewTab(String path) async {
+    final File file = File(path);
+    if (!file.existsSync()) return;
+    try {
+      final CpreduxFile doc = CpreduxFile.open(path);
+      try {
+        final DocumentSummary sum = doc.summary();
+        if (sum.kind == DocumentKind.sheet) {
+          final CharacterSheet sheet = doc.readSheet();
+          openSheetInNewTab(sheet, path: path);
+        } else {
+          final Campaign campaign = doc.readCampaign();
+          openCampaignInNewTab(campaign, path: path);
+        }
+      } finally {
+        doc.close();
+      }
+    } catch (_) {
+      await openDocument(path);
+    }
+  }
+
+  Future<void> createSheetInNewTab() async {
+    final Directory dir = AppPaths.sheetsDir();
+    await createSheet(name: 'Nuovo Edgerunner', directory: dir.path);
+    if (_sheet != null) {
+      openSheetInNewTab(_sheet!, path: _documentPath);
+    }
+  }
+
+  void goToCloudSpace() {
+    final int existing = _tabs.indexWhere((AppTab t) => t.kind == AppTabKind.cloud);
+    if (existing >= 0) {
+      selectTab(existing);
+      return;
+    }
+    final AppTab cloudTab = AppTab(
+      id: 'tab_cloud',
+      kind: AppTabKind.cloud,
+      title: 'Spazio Cloud',
+    );
+    _tabs.add(cloudTab);
+    selectTab(_tabs.length - 1);
+  }
+
+  /// Invia direttamente una scheda aggiornata a un giocatore collegato al tavolo (Master -> Giocatore).
+  void sendSheetToPlayer(String playerId, CharacterSheet sheet, {String? reason}) {
+    if (_host == null) return;
+    _host?.sendTo(playerId, <String, Object?>{
+      't': SessionMessage.sheetSync,
+      'playerId': playerId,
+      'sheet': sheet.toJson(),
+      'reason': reason ?? 'Scheda aggiornata dal Game Master',
+    });
   }
 
   // --- Scheda --------------------------------------------------------------
@@ -1646,7 +1830,12 @@ class AppState extends ChangeNotifier {
             stateDiffLog.insert(0, entry);
             if (stateDiffLog.length > 50) stateDiffLog.removeLast();
           }
+          _appendSession(
+            description: 'Ricevuto aggiornamento della scheda dal Game Master.',
+            delta: 'MASTER',
+          );
           _scheduleSave();
+          notifyListeners();
         }
 
       case SessionMessage.chat:

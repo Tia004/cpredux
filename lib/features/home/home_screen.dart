@@ -22,6 +22,7 @@ import '../../widgets/menu.dart';
 import '../../widgets/tech_button.dart';
 import '../compare/compare_picker.dart';
 import '../files/file_browser.dart';
+import '../library/library_view.dart';
 
 /// Schermata iniziale: creare, aprire, convertire, partecipare.
 ///
@@ -86,6 +87,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   },
                 ),
+              ),
+              const SizedBox(height: 24),
+              const Entrance(
+                delay: Duration(milliseconds: 120),
+                child: LibraryView(embedded: true),
               ),
               const SizedBox(height: 22),
               Entrance(delay: const Duration(milliseconds: 150), child: const _Footer()),

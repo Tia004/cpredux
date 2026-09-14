@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
+import '../domain/campaign.dart';
 import '../domain/enums.dart';
 import '../domain/sheet.dart';
 
@@ -183,6 +184,30 @@ class CpreduxFile {
       <Object?>[encoded, now],
     );
     if (name != null) _setMeta(_metaName, name);
+  }
+
+  /// Deserializza direttamente una scheda personaggio.
+  CharacterSheet readSheet() => CharacterSheet.fromJson(readPayload());
+
+  /// Deserializza direttamente un documento campagna.
+  Campaign readCampaign() => Campaign.fromJson(readPayload());
+
+  /// Scrive direttamente una scheda personaggio.
+  void writeSheet(CharacterSheet sheet, {String? now}) {
+    writePayload(
+      sheet.toJson(),
+      name: sheet.meta.name,
+      now: now ?? DateTime.now().toIso8601String(),
+    );
+  }
+
+  /// Scrive direttamente un documento campagna.
+  void writeCampaign(Campaign campaign, {String? now}) {
+    writePayload(
+      campaign.toJson(),
+      name: campaign.meta.name,
+      now: now ?? DateTime.now().toIso8601String(),
+    );
   }
 
   String? readMeta(String key) {

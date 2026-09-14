@@ -72,10 +72,41 @@ jobs:
           # l'applicazione non si apre piu' dopo l'aggiornamento.
           mkdir -p "$GITHUB_WORKSPACE/dist"
           ditto -c -k --keepParent cpredux.app "$GITHUB_WORKSPACE/dist/cpredux-macos.zip"
+
+      - name: Crea DMG Installer macOS con sfondo personalizzato e logo
+        run: |
+          brew install create-dmg || true
+          swift tool/generate_dmg_background.swift
+          swift tool/generate_dmg_icon.swift
+          mkdir -p dmg_staging
+          rm -rf dmg_staging/*
+          cp -R build/macos/Build/Products/Release/cpredux.app dmg_staging/
+          create-dmg \
+            --volname "CPRedux" \
+            --volicon "assets/branding/dmg_logo.icns" \
+            --background "assets/branding/dmg_background.png" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 128 \
+            --text-size 12 \
+            --icon "cpredux.app" 175 190 \
+            --hide-extension "cpredux.app" \
+            --app-drop-link 485 190 \
+            --no-internet-enable \
+            --overwrite \
+            "dist/cpredux-macos.dmg" \
+            "dmg_staging" || true
+          # Se create-dmg fallisce a causa dell'ambiente headless di CI, crea DMG compatibile con hdiutil
+          if [ ! -f "dist/cpredux-macos.dmg" ]; then
+            hdiutil create -volname "CPRedux" -srcfolder "dmg_staging" -ov -format UDZO "dist/cpredux-macos.dmg"
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: dist/cpredux-macos.zip
+          path: |
+            dist/cpredux-macos.zip
+            dist/cpredux-macos.dmg
 
   windows:
     name: Windows
@@ -106,7 +137,9 @@ jobs:
             $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           }
           $root = (Get-Location).Path
-          & $makensis -DPRODUCT_VERSION="0.2.3" -DBUILD_DIR="$root\build\windows\x64\runner\Release" -DOUTPUT_EXE="$root\dist\cpredux-windows-setup.exe" -DAPP_ICON="$root\windows\runner\resources\app_icon.ico" -DLOGO_IMAGE="$root\assets\branding\CPReduxLogo.png" "$root\windows\installer\cpredux_setup.nsi"
+          $ver = $env:GITHUB_REF_NAME -replace '^v',''
+          if (-not $ver) { $ver = "0.2.4" }
+          & $makensis -DPRODUCT_VERSION="$ver" -DBUILD_DIR="$root\build\windows\x64\runner\Release" -DOUTPUT_EXE="$root\dist\cpredux-windows-setup.exe" -DAPP_ICON="$root\windows\runner\resources\app_icon.ico" -DLOGO_IMAGE="$root\assets\branding\CPReduxLogo.png" "$root\windows\installer\cpredux_setup.nsi"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -160,10 +193,11 @@ jobs:
           Type=Application
           Name=CPRED Visualizer
           Comment=Scheda del personaggio, campagna e mappa per Cyberpunk RED
-          Exec=cpredux
+          Exec=cpredux %F
           Icon=cpredux
           Categories=Game;RolePlaying;
           Terminal=false
+          MimeType=application/x-cpredux;
           EOF
 
           mkdir -p dist
@@ -210,6 +244,7 @@ jobs:
           files: |
             dist/cpredux-windows-setup.exe
             dist/cpredux-windows.zip
+            dist/cpredux-macos.dmg
             dist/cpredux-macos.zip
             dist/cpredux-linux.AppImage
 

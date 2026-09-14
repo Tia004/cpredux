@@ -8,6 +8,7 @@ import '../design/palette.dart';
 import '../design/theme.dart';
 import '../design/typography.dart';
 import '../features/campaign/campaign_screen.dart';
+import '../features/cloud/cloud_space_view.dart';
 import '../features/compare/compare_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -15,6 +16,7 @@ import '../features/sheet/sheet_screen.dart';
 import '../features/update/update_dialog.dart';
 import '../data/catalog.dart';
 import '../net/update_manifest.dart';
+import '../widgets/browser_tab_bar.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/tech_background.dart';
 import '../widgets/window_title_bar.dart';
@@ -74,6 +76,10 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
         );
       }
       return;
+    }
+
+    if (widget.startup.initialFilePath != null) {
+      await _state.openFileInNewTab(widget.startup.initialFilePath!);
     }
 
     if (!_state.settings.autoCheckUpdates) return;
@@ -189,6 +195,7 @@ class _Root extends StatelessWidget {
             child: Column(
               children: <Widget>[
                 const WindowTitleBar(),
+                const BrowserTabBar(),
                 if (state.errorMessage != null) _ErrorBar(message: state.errorMessage!),
             Expanded(
               child: AnimatedSwitcher(
@@ -233,6 +240,8 @@ class _Root extends StatelessWidget {
         return const SettingsScreen();
       case AppScreen.compare:
         return const CompareScreen();
+      case AppScreen.cloud:
+        return const CloudSpaceView();
     }
   }
 }

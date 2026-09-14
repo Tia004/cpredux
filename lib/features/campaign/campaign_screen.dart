@@ -9,10 +9,13 @@ import '../../app/app_state.dart';
 import '../../design/motion.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
-import '../sheet/chat_rich_tools.dart';
+import '../../data/cpredux_file.dart';
+import '../../data/document_library.dart';
 import '../../domain/campaign.dart';
 import '../../domain/enums.dart';
 import '../../domain/rules.dart';
+import '../../domain/sheet.dart';
+import '../sheet/chat_rich_tools.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/humanity_gauge.dart';
@@ -814,6 +817,17 @@ class _PlayerCardState extends State<_PlayerCard> {
                   style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9),
                 ),
                 const Spacer(),
+                if (AppScope.of(context).isHosting) ...<Widget>[
+                  TechButton(
+                    label: 'Invia scheda',
+                    icon: Icons.send_outlined,
+                    variant: TechButtonVariant.secondary,
+                    compact: true,
+                    tooltip: 'Invia una scheda aggiornata direttamente a questo giocatore',
+                    onPressed: () => _promptSendSheetToPlayer(context, AppScope.of(context), p),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 TechButton(
                   label: p.isBanned ? 'Riammetti' : 'Allontana',
                   icon: p.isBanned ? Icons.lock_open_outlined : Icons.block,
@@ -833,6 +847,92 @@ class _PlayerCardState extends State<_PlayerCard> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _promptSendSheetToPlayer(BuildContext context, AppState state, CampaignPlayer player) async {
+    final List<DocumentEntry> sheets = state.documentsOfKind(DocumentKind.sheet);
+    if (sheets.isEmpty) {
+      showTechMessage(
+        context,
+        title: 'Nessuna Scheda',
+        message: 'Non ci sono schede personaggio salvate nella libreria da inviare al giocatore.',
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        backgroundColor: CprPalette.surface,
+        title: Text(
+          'Invia scheda a ${player.characterName.isNotEmpty ? player.characterName : player.id}',
+          style: CprType.body.copyWith(fontWeight: FontWeight.bold),
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Seleziona quale scheda inviare dal tuo archivio al giocatore:',
+                style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 280),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: sheets.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (BuildContext _, int idx) {
+                    final DocumentEntry entry = sheets[idx];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.person, color: CprPalette.cyan, size: 20),
+                      title: Text(entry.name, style: CprType.body.copyWith(fontSize: 13)),
+                      subtitle: Text(entry.fileName, style: CprType.caption.copyWith(fontSize: 10)),
+                      trailing: const Icon(Icons.send_outlined, size: 16, color: CprPalette.yellow),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        try {
+                          final CpreduxFile file = CpreduxFile.open(entry.path);
+                          final CharacterSheet s;
+                          try {
+                            s = file.readSheet();
+                          } finally {
+                            file.close();
+                          }
+                          state.sendSheetToPlayer(player.id, s, reason: 'Scheda aggiornata inviata dal Master');
+                          showTechMessage(
+                            context,
+                            title: 'Scheda Inviata',
+                            message: 'La scheda "${s.meta.name}" e\' stata inviata a ${player.characterName.isNotEmpty ? player.characterName : player.id}.',
+                          );
+                        } catch (e) {
+                          showTechMessage(
+                            context,
+                            title: 'Errore',
+                            message: 'Impossibile inviare la scheda: $e',
+                            isError: true,
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Annulla'),
+          ),
         ],
       ),
     );

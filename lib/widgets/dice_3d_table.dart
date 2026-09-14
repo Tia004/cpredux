@@ -319,50 +319,89 @@ class _DieModel {
     return _DieModel(vertices: v, faces: f);
   }
 
-  /// Generatore di un trapezoedro 50-gonale D100 a 100 facce ad aquilone perfettamente chiuse (Zocchihedron solido).
+  /// Generatore di un Zocchihedron sferico geodetico D100 a 100 facce perfettamente chiuse e simmetriche.
   static _DieModel createD100(double radius) {
-    const int n = 50;
-    final double h = radius * 1.15;
-    final double hMid = radius * 0.16;
-    final double rMid = radius * 0.98;
+    const int n = 20; // 20 facce per fascia
+    final List<_Vec3> v = <_Vec3>[];
+    final List<List<int>> faceIndices = <List<int>>[];
 
-    final List<_Vec3> v = <_Vec3>[
-      _Vec3(0, 0, h), // 0: Polo Nord
-      _Vec3(0, 0, -h), // 1: Polo Sud
-    ];
+    // Polo Nord (0) e Polo Sud (1)
+    v.add(_Vec3(0, 0, radius)); // 0: Polo Nord
+    v.add(_Vec3(0, 0, -radius)); // 1: Polo Sud
 
-    // 50 vertici anello superiore
-    for (int i = 0; i < n; i++) {
-      final double ang = (i * 2.0 * math.pi) / n;
-      v.add(_Vec3(rMid * math.cos(ang), rMid * math.sin(ang), hMid));
+    _Vec3 spherePoint(double latDeg, double lonDeg) {
+      final double lat = latDeg * math.pi / 180.0;
+      final double lon = lonDeg * math.pi / 180.0;
+      return _Vec3(
+        radius * math.cos(lat) * math.cos(lon),
+        radius * math.cos(lat) * math.sin(lon),
+        radius * math.sin(lat),
+      );
     }
-    // 50 vertici anello inferiore sfasati di pi/n
+
+    // Ring 1: 20 vertici a +54 gradi
+    final int r1 = v.length;
     for (int i = 0; i < n; i++) {
-      final double ang = (i * 2.0 * math.pi) / n + (math.pi / n);
-      v.add(_Vec3(rMid * math.cos(ang), rMid * math.sin(ang), -hMid));
+      v.add(spherePoint(54.0, (i * 360.0) / n));
+    }
+
+    // Ring 2: 20 vertici a +18 gradi (sfasati di 9 gradi)
+    final int r2 = v.length;
+    for (int i = 0; i < n; i++) {
+      v.add(spherePoint(18.0, (i * 360.0) / n + (180.0 / n)));
+    }
+
+    // Ring 3: 20 vertici a -18 gradi
+    final int r3 = v.length;
+    for (int i = 0; i < n; i++) {
+      v.add(spherePoint(-18.0, (i * 360.0) / n));
+    }
+
+    // Ring 4: 20 vertici a -54 gradi (sfasati di 9 gradi)
+    final int r4 = v.length;
+    for (int i = 0; i < n; i++) {
+      v.add(spherePoint(-54.0, (i * 360.0) / n + (180.0 / n)));
+    }
+
+    // Fascia 1: Calotta Polo Nord -> Ring 1 (20 triangoli)
+    for (int i = 0; i < n; i++) {
+      final int next = (i + 1) % n;
+      faceIndices.add(<int>[0, r1 + i, r1 + next]);
+    }
+
+    // Fascia 2: Ring 1 -> Ring 2 (20 quadrilateri)
+    for (int i = 0; i < n; i++) {
+      final int next = (i + 1) % n;
+      faceIndices.add(<int>[r1 + i, r2 + i, r2 + next, r1 + next]);
+    }
+
+    // Fascia 3: Fascia equatoriale Ring 2 -> Ring 3 (20 quadrilateri)
+    for (int i = 0; i < n; i++) {
+      final int next = (i + 1) % n;
+      faceIndices.add(<int>[r2 + i, r3 + i, r3 + next, r2 + next]);
+    }
+
+    // Fascia 4: Ring 3 -> Ring 4 (20 quadrilateri)
+    for (int i = 0; i < n; i++) {
+      final int next = (i + 1) % n;
+      faceIndices.add(<int>[r3 + i, r4 + i, r4 + next, r3 + next]);
+    }
+
+    // Fascia 5: Calotta Ring 4 -> Polo Sud (20 triangoli)
+    for (int i = 0; i < n; i++) {
+      final int next = (i + 1) % n;
+      faceIndices.add(<int>[1, r4 + next, r4 + i]);
     }
 
     final List<_PolyFace> f = <_PolyFace>[];
-    int faceCounter = 1;
-
-    // 50 facce superiori ad aquilone (Polo Nord)
-    for (int i = 0; i < n; i++) {
-      final int top1 = 2 + i;
-      final int bot = 2 + n + i;
-      final int top2 = 2 + ((i + 1) % n);
-      final List<int> idx = <int>[0, top1, bot, top2];
-      final _Vec3 normal = (v[top1] - v[0]).cross(v[bot] - v[0]).normalized();
-      f.add(_PolyFace(indices: idx, value: faceCounter++, normal: normal));
-    }
-
-    // 50 facce inferiori ad aquilone (Polo Sud)
-    for (int i = 0; i < n; i++) {
-      final int bot1 = 2 + n + i;
-      final int top = 2 + ((i + 1) % n);
-      final int bot2 = 2 + n + ((i + 1) % n);
-      final List<int> idx = <int>[1, bot2, top, bot1];
-      final _Vec3 normal = (v[bot2] - v[1]).cross(v[top] - v[1]).normalized();
-      f.add(_PolyFace(indices: idx, value: faceCounter++, normal: normal));
+    for (int i = 0; i < faceIndices.length; i++) {
+      final List<int> idx = faceIndices[i];
+      _Vec3 center = const _Vec3(0, 0, 0);
+      for (final int vi in idx) {
+        center = center + v[vi];
+      }
+      final _Vec3 normal = center.normalized();
+      f.add(_PolyFace(indices: idx, value: i + 1, normal: normal));
     }
 
     return _DieModel(vertices: v, faces: f);
@@ -1095,8 +1134,8 @@ class _Dice3DRenderer extends CustomPainter {
     final String text;
     final double baseFontSize;
     if (dieType == DiceType.coin) {
-      text = value == 1 ? 'EB' : '⊘';
-      baseFontSize = 13.5;
+      text = '$value';
+      baseFontSize = 14.0;
     } else if (dieType == DiceType.d100) {
       text = '$value';
       baseFontSize = 8.5;

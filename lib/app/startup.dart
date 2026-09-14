@@ -20,6 +20,7 @@ class StartupRequest {
     this.mode = StartupMode.normal,
     this.archivePath,
     this.version,
+    this.initialFilePath,
   });
 
   final StartupMode mode;
@@ -30,9 +31,13 @@ class StartupRequest {
   /// La versione installata, per il messaggio di [StartupMode.justUpdated].
   final String? version;
 
+  /// Il percorso di un file .cpredux da aprire all'avvio (es. da doppio click nel sistema operativo).
+  final String? initialFilePath;
+
   static StartupRequest parse(List<String> args) {
     String? archive;
     String? version;
+    String? initialFile;
     StartupMode mode = StartupMode.normal;
 
     for (int i = 0; i < args.length; i++) {
@@ -49,6 +54,11 @@ class StartupRequest {
           mode = StartupMode.justUpdated;
           version = valueOf() ?? version;
         default:
+          if (!arg.startsWith('-') &&
+              (arg.toLowerCase().endsWith('.cpredux') ||
+                  arg.toLowerCase().endsWith('.cpred_sheet'))) {
+            initialFile = arg;
+          }
           break;
       }
     }
@@ -60,6 +70,11 @@ class StartupRequest {
       return const StartupRequest();
     }
 
-    return StartupRequest(mode: mode, archivePath: archive, version: version);
+    return StartupRequest(
+      mode: mode,
+      archivePath: archive,
+      version: version,
+      initialFilePath: initialFile,
+    );
   }
 }

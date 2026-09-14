@@ -7,7 +7,7 @@ Unicode True
 
 !define PRODUCT_NAME "CPRedux Desktop"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "0.2.3"
+  !define PRODUCT_VERSION "0.2.4"
 !endif
 !define PRODUCT_PUBLISHER "CPRedux Team"
 !define PRODUCT_WEB_SITE "https://gitlab.com/Tia004/cpredux"
@@ -18,7 +18,7 @@ Unicode True
   !define BUILD_DIR "..\..\build\windows\x64\runner\Release"
 !endif
 !ifndef OUTPUT_EXE
-  !define OUTPUT_EXE "cpredux-v0.2.3-setup.exe"
+  !define OUTPUT_EXE "cpredux-v0.2.4-setup.exe"
 !endif
 !ifndef APP_ICON
   !define APP_ICON "..\runner\resources\app_icon.ico"
@@ -98,6 +98,12 @@ Section "CPRedux Desktop" SecCore
   WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall CPRedux.exe" /S'
   WriteRegDWORD HKCU "${PRODUCT_UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${PRODUCT_UNINST_KEY}" "NoRepair" 1
+
+  ; Associazione file .cpredux con icona ufficiale e apertura con doppio click
+  WriteRegStr HKCU "Software\Classes\.cpredux" "" "CPRedux.Sheet"
+  WriteRegStr HKCU "Software\Classes\CPRedux.Sheet" "" "Documento Scheda CPRedux"
+  WriteRegStr HKCU "Software\Classes\CPRedux.Sheet\DefaultIcon" "" "$INSTDIR\app_icon.ico,0"
+  WriteRegStr HKCU "Software\Classes\CPRedux.Sheet\shell\open\command" "" '"$INSTDIR\cpredux.exe" "%1"'
 SectionEnd
 
 Section "Uninstall"
@@ -116,6 +122,10 @@ Section "Uninstall"
   RMDir /r "$INSTDIR\assets"
   Delete "$INSTDIR\Uninstall CPRedux.exe"
   RMDir "$INSTDIR"
+
+  ; Rimozione Associazione File
+  DeleteRegKey HKCU "Software\Classes\.cpredux"
+  DeleteRegKey HKCU "Software\Classes\CPRedux.Sheet"
 
   ; Rimozione Chiavi di Registro
   DeleteRegKey HKCU "${PRODUCT_UNINST_KEY}"

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../app/app_state.dart';
 import '../design/palette.dart';
 import '../design/typography.dart';
+import '../features/update/custom_update_dialog.dart';
 import '../net/updater.dart';
 import '../version.dart';
 
@@ -58,6 +59,8 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
         return 'Confronto Schede';
       case AppScreen.settings:
         return 'Impostazioni';
+      case AppScreen.cloud:
+        return 'Spazio Cloud Firebase Spark';
     }
   }
 
@@ -154,7 +157,7 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
             top: 0,
             bottom: 0,
             child: Center(
-              child: _buildRightStatus(state),
+              child: _buildRightStatus(context, state),
             ),
           ),
         ],
@@ -162,7 +165,7 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  Widget _buildRightStatus(AppState state) {
+  Widget _buildRightStatus(BuildContext context, AppState state) {
     final bool isChecking = state.updateStage == UpdateStage.checking;
     final bool updateAvailable = state.updateStage == UpdateStage.available;
 
@@ -171,6 +174,45 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
       children: <Widget>[
         if (state.screen == AppScreen.sheet && state.sheet != null) ...<Widget>[
           _buildSheetSaveStatus(state),
+          const SizedBox(width: 8),
+          Container(width: 1, height: 10, color: CprPalette.hairline),
+          const SizedBox(width: 8),
+        ],
+        if (updateAvailable && state.settings.showUpdateNotifications) ...<Widget>[
+          InkWell(
+            onTap: () => showCustomUpdateDownloadDialog(context),
+            borderRadius: BorderRadius.circular(2),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: CprPalette.yellow,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: CprPalette.yellow.withValues(alpha: 0.5),
+                    blurRadius: 6,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(Icons.arrow_upward, size: 11, color: Colors.black),
+                  const SizedBox(width: 4),
+                  Text(
+                    'AGGIORNA ORA',
+                    style: CprType.label.copyWith(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
           Container(width: 1, height: 10, color: CprPalette.hairline),
           const SizedBox(width: 8),
