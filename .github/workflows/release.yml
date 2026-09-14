@@ -197,11 +197,12 @@ jobs:
       - name: Rilascia su GitHub
         uses: softprops/action-gh-release@v2
         with:
+          name: "CPRedux v${{ steps.v.outputs.version }}"
           files: |
             dist/cpredux-windows-setup.exe
-            site/cpredux-windows.zip
-            site/cpredux-macos.zip
-            site/cpredux-linux.AppImage
+            dist/cpredux-windows.zip
+            dist/cpredux-macos.zip
+            dist/cpredux-linux.AppImage
 
       # Va prima di generare il manifesto: il manifesto ha bisogno dell'URL su
       # cui verra' pubblicato, e quell'URL lo conosce solo Pages.

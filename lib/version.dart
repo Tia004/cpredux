@@ -10,7 +10,7 @@
 /// leggendo il pubspec: una versione disallineata rende invisibile la funzione
 /// di aggiornamento, perche' il programma crederebbe di essere piu' vecchio o
 /// piu' nuovo di quello che e' e non riconoscerebbe mai la versione giusta.
-const String appVersion = '0.2.2';
+const String appVersion = '0.2.3';
 
 /// Il canale di rilascio, per distinguere un build stabile da uno di prova.
 const String appChannel =

@@ -100,12 +100,21 @@ abstract final class DocumentLibrary {
       if (kind == null || entry.kind == kind) found[entry.path] = entry;
     }
 
-    // 2. La cartella dei documenti dell'app.
+    // 2. Le cartelle dell'app (%APPDATA% / Library / .local/share) e i documenti utente.
     if (includeAppFolder) {
-      for (final File file in _walk(AppPaths.documentsDir())) {
-        final DocumentEntry entry = _describe(file.path);
-        if (kind != null && entry.kind != kind) continue;
-        found[entry.path] = entry;
+      final Set<String> scannedRoots = <String>{};
+      final List<Directory> roots = <Directory>[
+        AppPaths.sheetsDir(),
+        AppPaths.dataDir(),
+        AppPaths.documentsDir(),
+      ];
+      for (final Directory root in roots) {
+        if (!scannedRoots.add(root.path)) continue;
+        for (final File file in _walk(root)) {
+          final DocumentEntry entry = _describe(file.path);
+          if (kind != null && entry.kind != kind) continue;
+          found[entry.path] = entry;
+        }
       }
     }
 

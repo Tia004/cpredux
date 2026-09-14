@@ -32,6 +32,17 @@ abstract final class AppPaths {
         linux: () => _env('XDG_DATA_HOME') ?? _home('.local', 'share'),
       );
 
+  /// Sottocartella dedicata alle schede dell'applicazione in %APPDATA%/Library.
+  static Directory sheetsDir() {
+    final Directory dir = Directory(p.join(dataDir().path, 'sheets'));
+    if (!dir.existsSync()) {
+      try {
+        dir.createSync(recursive: true);
+      } catch (_) {}
+    }
+    return dir;
+  }
+
   /// Cartella in cui proporre i salvataggi: i Documenti dell'utente, che e'
   /// dove l'utente si aspetta di ritrovare i propri file.
   static Directory documentsDir() {

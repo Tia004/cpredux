@@ -9,6 +9,7 @@ import '../../domain/sheet.dart';
 import '../../domain/skills.dart';
 import '../../domain/stats.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/dialogs.dart';
 import '../../widgets/dice_roll_dialog.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
@@ -30,6 +31,18 @@ class StatsTab extends StatefulWidget {
 class _StatsTabState extends State<StatsTab> {
   final TextEditingController _search = TextEditingController();
   String _query = '';
+  bool? _isLockedOverride;
+
+  bool _isStatsLocked(CharacterSheet sheet) {
+    if (_isLockedOverride != null) return _isLockedOverride!;
+    // Durante la prima creazione della scheda (prima del primo salvataggio / senza IP storici),
+    // le caratteristiche sono liberamente modificabili. Una volta salvata o con avanzamenti,
+    // sono bloccate e richiedono la pressione della matitina con conferma.
+    final bool isBrandNew = sheet.identity.totalImprovementPoints == 0 &&
+        sheet.meta.createdAt.isNotEmpty &&
+        sheet.meta.createdAt == sheet.meta.updatedAt;
+    return !isBrandNew;
+  }
 
   @override
   void dispose() {
@@ -42,13 +55,94 @@ class _StatsTabState extends State<StatsTab> {
     final AppState state = AppScope.of(context);
     final sheet = state.sheet!;
     final totals = state.totals!;
+    final bool locked = _isStatsLocked(sheet);
 
     final Widget statsCol = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         ChamferPanel(
           title: 'Caratteristiche',
-          trailing: _PointTracker(sheet: sheet),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              _PointTracker(sheet: sheet),
+              const SizedBox(width: 8),
+              if (locked)
+                Tooltip(
+                  message: 'Modifica caratteristiche base (richiede conferma)',
+                  child: InkResponse(
+                    onTap: () async {
+                      final bool ok = await showTechConfirm(
+                        context,
+                        title: 'MODIFICA CARATTERISTICHE BASE',
+                        message:
+                            'I punti caratteristica (INT, RIF, DES, TEC, CAR, VOL, FOR, VEL, FIS, EMP) '
+                            'sono definiti alla creazione della scheda e aumentano solo avanzando '
+                            'di livello con i Punti Miglioramento (IP).\n\n'
+                            'Vuoi sbloccare la modifica manuale delle caratteristiche?',
+                        confirmLabel: 'SBLOCCA MODIFICA',
+                      );
+                      if (ok && mounted) {
+                        setState(() => _isLockedOverride = false);
+                      }
+                    },
+                    radius: 14,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: CprPalette.surfaceSunken,
+                        border: Border.all(color: CprPalette.yellow.withValues(alpha: 0.6)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(Icons.edit_outlined, size: 12, color: CprPalette.yellow),
+                          const SizedBox(width: 4),
+                          Text(
+                            'MODIFICA',
+                            style: CprType.label.copyWith(
+                              fontSize: 9.5,
+                              color: CprPalette.yellow,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Tooltip(
+                  message: 'Blocca modifiche caratteristiche base',
+                  child: InkResponse(
+                    onTap: () => setState(() => _isLockedOverride = true),
+                    radius: 14,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: CprPalette.surfaceSunken,
+                        border: Border.all(color: CprPalette.cyan.withValues(alpha: 0.6)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(Icons.lock_open, size: 12, color: CprPalette.cyan),
+                          const SizedBox(width: 4),
+                          Text(
+                            'SBLOCCATO',
+                            style: CprType.label.copyWith(
+                              fontSize: 9.5,
+                              color: CprPalette.cyan,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           child: Column(
             children: <Widget>[
               for (final Stat stat in Stat.values)
@@ -56,7 +150,7 @@ class _StatsTabState extends State<StatsTab> {
                   stat: stat,
                   base: sheet.statBase[stat] ?? 1,
                   calculated: totals.statValue(stat),
-                  onChanged: (int v) => state.mutate((s) => s.statBase[stat] = v),
+                  onChanged: locked ? null : (int v) => state.mutate((s) => s.statBase[stat] = v),
                 ),
             ],
           ),
@@ -196,7 +290,7 @@ class _StatRow extends StatelessWidget {
   final Stat stat;
   final int base;
   final int calculated;
-  final ValueChanged<int> onChanged;
+  final ValueChanged<int>? onChanged;
 
   static const Map<Stat, String> _statDescriptions = <Stat, String>{
     Stat.intelligence: 'INTELLIGENZA (INT): Capacità logica, percezione, calcolo e deduzione. Fondamentale per Netrunner, Tech e detective.',
@@ -451,34 +545,43 @@ class _MiniStepper extends StatelessWidget {
   });
 
   final int value;
-  final ValueChanged<int> onChanged;
+  final ValueChanged<int>? onChanged;
   final int min;
   final int max;
 
   @override
   Widget build(BuildContext context) {
+    final bool isEditable = onChanged != null;
     return Container(
-      decoration: BoxDecoration(border: Border.all(color: CprPalette.hairline)),
+      decoration: BoxDecoration(
+        color: isEditable ? Colors.transparent : CprPalette.surfaceSunken,
+        border: Border.all(
+          color: isEditable ? CprPalette.hairline : CprPalette.hairline.withValues(alpha: 0.3),
+        ),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           _MiniButton(
             icon: Icons.remove,
-            enabled: value > min,
-            onTap: () => onChanged((value - 1).clamp(min, max)),
+            enabled: isEditable && value > min,
+            onTap: () => onChanged?.call((value - 1).clamp(min, max)),
           ),
           SizedBox(
             width: 26,
             child: Text(
               '$value',
               textAlign: TextAlign.center,
-              style: CprType.numeralSmall.copyWith(fontSize: 12),
+              style: CprType.numeralSmall.copyWith(
+                fontSize: 12,
+                color: isEditable ? CprPalette.ink : CprPalette.inkMuted,
+              ),
             ),
           ),
           _MiniButton(
             icon: Icons.add,
-            enabled: value < max,
-            onTap: () => onChanged((value + 1).clamp(min, max)),
+            enabled: isEditable && value < max,
+            onTap: () => onChanged?.call((value + 1).clamp(min, max)),
           ),
         ],
       ),

@@ -178,11 +178,18 @@ class _Root extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: TechBackground(
-        child: Column(
-          children: <Widget>[
-            const WindowTitleBar(),
-            if (state.errorMessage != null) _ErrorBar(message: state.errorMessage!),
+      body: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: CprPalette.hairline),
+          ),
+          child: TechBackground(
+            child: Column(
+              children: <Widget>[
+                const WindowTitleBar(),
+                if (state.errorMessage != null) _ErrorBar(message: state.errorMessage!),
             Expanded(
               child: AnimatedSwitcher(
                 duration: CprMotion.slow,
@@ -207,6 +214,8 @@ class _Root extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
         ),
       ),
     );

@@ -153,14 +153,14 @@ class LineChannel {
 
 /// Chi sta parlando con il master.
 class HostedPlayer {
-  HostedPlayer({required this.id, required this.channel});
+  HostedPlayer({required this.id, this.channel});
 
   final String id;
 
   /// Non `final`: una riconnessione sostituisce il socket mantenendo la stessa
   /// identita' di giocatore, cosi' il master non vede due volte lo stesso
   /// personaggio dopo una caduta di rete.
-  LineChannel channel;
+  LineChannel? channel;
 
   String characterName = '';
   String playerName = '';
@@ -250,8 +250,8 @@ class CampaignHost {
         // il wifi e il giocatore rientra). Il vecchio socket si chiude **prima**
         // di sovrascrivere il riferimento: dopo la sovrascrittura non si
         // saprebbe piu' quale fosse, e resterebbe aperto a tempo indefinito.
-        final LineChannel previousChannel = created.channel;
-        if (previousChannel != channel) {
+        final LineChannel? previousChannel = created.channel;
+        if (previousChannel != null && previousChannel != channel) {
           previousChannel.close();
         }
 
@@ -291,13 +291,13 @@ class CampaignHost {
 
   /// Manda un messaggio a un giocatore.
   void sendTo(String playerId, Map<String, Object?> message) {
-    players[playerId]?.channel.send(message);
+    players[playerId]?.channel?.send(message);
   }
 
   /// Manda un messaggio a tutti.
   void broadcast(Map<String, Object?> message) {
     for (final HostedPlayer p in players.values) {
-      p.channel.send(message);
+      p.channel?.send(message);
     }
   }
 
@@ -317,18 +317,18 @@ class CampaignHost {
   void kick(String playerId, String reason, {bool ban = false}) {
     final HostedPlayer? player = players.remove(playerId);
     if (player == null) return;
-    player.channel.send(<String, Object?>{
+    player.channel?.send(<String, Object?>{
       't': SessionMessage.kicked,
       'reason': reason,
       'ban': ban,
     });
-    player.channel.close();
+    player.channel?.close();
   }
 
   Future<void> stop() async {
     for (final HostedPlayer p in players.values.toList()) {
-      p.channel.send(<String, Object?>{'t': SessionMessage.kicked, 'reason': 'Il master ha chiuso il tavolo.'});
-      await p.channel.close();
+      p.channel?.send(<String, Object?>{'t': SessionMessage.kicked, 'reason': 'Il master ha chiuso il tavolo.'});
+      await p.channel?.close();
     }
     players.clear();
     await _server.close();
@@ -359,6 +359,7 @@ class CampaignClient {
     required String characterName,
     required String playerName,
     required Map<String, Object?> characterState,
+    Map<String, Object?>? fullSheet,
     String password = '',
     Duration timeout = const Duration(seconds: 6),
   }) async {
@@ -398,6 +399,7 @@ class CampaignClient {
       'characterName': characterName,
       'playerName': playerName,
       'password': password,
+      'sheet': ?fullSheet,
       ...characterState,
     });
 

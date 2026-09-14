@@ -1,19 +1,56 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
-# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/dependency_scanning_sbom/#customizing-analyzer-behavior
-# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
+# Pipeline CI/CD per CPRedux Desktop
 stages:
-- test
-- secret-detection
+  - test
+  - secret-detection
+  - release
+
 sast:
   stage: test
+
 include:
-- template: Security/SAST.gitlab-ci.yml
-- template: Security/Secret-Detection.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
 variables:
   SECRET_DETECTION_ENABLED: 'true'
+
 secret_detection:
   stage: secret-detection
+
+release_job:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Creazione release GitLab per $CI_COMMIT_TAG collegata agli asset GitHub..."
+  release:
+    name: 'Release $CI_COMMIT_TAG'
+    description: |
+      ## CPRedux $CI_COMMIT_TAG
+
+      Release ufficiale per la suite desktop CPRedux (Cyberpunk RED).
+      I pacchetti di installazione nativi sono compilati automaticamente tramite GitHub Actions ed ospitati su GitHub Releases:
+
+      - **Windows Setup Installer (.exe)**: [Scarica Installer Windows (.exe)](https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-windows-setup.exe)
+      - **Windows Portable (.zip)**: [Scarica Windows Portable (.zip)](https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-windows.zip)
+      - **macOS Universal (.zip)**: [Scarica macOS Universal (.zip)](https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-macos.zip)
+      - **Linux AppImage (.AppImage)**: [Scarica Linux AppImage (.AppImage)](https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-linux.AppImage)
+
+      Note complete e sorgenti su GitHub: https://github.com/Tia004/cpredux/releases/tag/$CI_COMMIT_TAG
+    tag_name: '$CI_COMMIT_TAG'
+    ref: '$CI_COMMIT_TAG'
+    assets:
+      links:
+        - name: 'Windows Setup Installer (.exe)'
+          url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-windows-setup.exe'
+          link_type: 'package'
+        - name: 'Windows Portable (.zip)'
+          url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-windows.zip'
+          link_type: 'package'
+        - name: 'macOS Universal (.zip)'
+          url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-macos.zip'
+          link_type: 'package'
+        - name: 'Linux AppImage (.AppImage)'
+          url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-linux.AppImage'
+          link_type: 'package'

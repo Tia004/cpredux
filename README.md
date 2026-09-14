@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v0.2.2-24d8e8?style=for-the-badge&logo=gitlab&logoColor=white" alt="Release v0.2.2">
+  <img src="https://img.shields.io/badge/release-v0.2.3-24d8e8?style=for-the-badge&logo=gitlab&logoColor=white" alt="Release v0.2.3">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-fcee0a?style=for-the-badge&logo=apple&logoColor=black" alt="Piattaforme">
   <img src="https://img.shields.io/badge/flutter-3.x-ff2e88?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter 3">
   <img src="https://img.shields.io/badge/license-MIT%20%2F%20Homebrew-blueviolet?style=for-the-badge" alt="Licenza">
@@ -25,23 +25,32 @@
   <img src="assets/branding/divider.svg" width="100%">
 </p>
 
-## Release v0.2.2
+## Release v0.2.3
 
-Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [GitLab Releases](https://gitlab.com/Tia004/cpredux/-/releases).
+Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [GitHub Releases](https://github.com/Tia004/cpredux/releases/tag/v0.2.3) e da [GitLab Releases](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.3).
 
 ### File di Rilascio
 
 | Piattaforma | Architettura | Formato & Descrizione | Download Diretto |
 | :--- | :--- | :--- | :--- |
-| macOS | Apple Silicon (aarch64 / M1-M4) & Intel | Installer Disco Immagine (.dmg) | [Scarica Installer macOS DMG](https://gitlab.com/-/project/86426687/uploads/324cffde6104a5d091804d98e6eb9876/cpredux-v0.2.2-macos-arm64.dmg) |
-| macOS | Universal (Apple Silicon & Intel) | Applicazione Standalone .app (ZIP) | [Scarica cpredux-macos-arm64.zip](https://gitlab.com/-/project/86426687/uploads/d4d340d8a904c0da78f5639e2f311f45/cpredux-v0.2.2-macos-arm64.zip) |
-| Windows | x64 (Windows 10 / 11) | Installer Setup Diretto (.exe) | [Scarica Installer Windows EXE](https://gitlab.com/-/project/86426687/uploads/e695d891d296297fd487c2a0228df113/cpredux-v0.2.2-setup.exe) |
-| Windows | x64 (Windows 10 / 11) | Pacchetto di Installazione Windows (.msi) | [Scarica Pacchetto Windows MSI](https://gitlab.com/-/project/86426687/uploads/4e0d935ae832b52d4f5580dcffad4112/cpredux-v0.2.2-setup.msi) |
-| Linux | x86_64 / Desktop | Pacchetto Tarball + Launcher .desktop (.tar.gz) | [Scarica Pacchetto Linux Tar.gz](https://gitlab.com/-/project/86426687/uploads/e1aa4cdde0b1e18a0d2a49fa2b4a91b2/cpredux-v0.2.2-linux-x64.tar.gz) |
-| Tutte le Release | Multi-Platform | Elenco completo versioni e archivio | [Pagina Releases Ufficiale GitLab](https://gitlab.com/Tia004/cpredux/-/releases) |
-| Scheda Release v0.2.2 | Multi-Platform | Note di rilascio, novità e asset | [Release v0.2.2 Notes](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.2) |
-| Sorgenti (ZIP) | Multi-Platform | Archivio completo sorgenti v0.2.2 | [Scarica cpredux-v0.2.2.zip](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.2/cpredux-v0.2.2.zip) |
-| Sorgenti (Tar.gz) | Multi-Platform | Archivio compresso tarball v0.2.2 | [Scarica cpredux-v0.2.2.tar.gz](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.2/cpredux-v0.2.2.tar.gz) |
+| Windows | x64 (Windows 10 / 11) | Installer Setup Diretto (.exe) | [Scarica Installer Windows (.exe)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-windows-setup.exe) |
+| Windows | x64 (Windows 10 / 11) | Pacchetto Portatile (.zip) | [Scarica Windows Portable (.zip)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-windows.zip) |
+| macOS | Universal (Apple Silicon & Intel) | Applicazione Standalone .app (ZIP) | [Scarica macOS Universal (.zip)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-macos.zip) |
+| Linux | x86_64 / Desktop | Pacchetto Standalone AppImage | [Scarica Linux AppImage (.AppImage)](https://github.com/Tia004/cpredux/releases/download/v0.2.3/cpredux-linux.AppImage) |
+| Scheda Release GitHub | Multi-Platform | Asset compilati, binari e installer | [GitHub Release v0.2.3](https://github.com/Tia004/cpredux/releases/tag/v0.2.3) |
+| Scheda Release GitLab | Multi-Platform | Note di rilascio e collegamenti agli asset | [GitLab Release v0.2.3](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.3) |
+| Sorgenti (ZIP) | Multi-Platform | Archivio completo sorgenti v0.2.3 | [Scarica cpredux-v0.2.3.zip](https://github.com/Tia004/cpredux/archive/refs/tags/v0.2.3.zip) |
+| Sorgenti (Tar.gz) | Multi-Platform | Archivio compresso tarball v0.2.3 | [Scarica cpredux-v0.2.3.tar.gz](https://github.com/Tia004/cpredux/archive/refs/tags/v0.2.3.tar.gz) |
+
+### Novità introdotte in v0.2.3
+
+- **Geometria 3D Solida e Watertight dei Dadi**: Rielaborata completamente la struttura poliedrica per eliminare gap, fori e trasparenze wireframe. D12 con 12 pentagoni regolari complanari, D100 con trapezoedro a 100 facce kite chiuse (102 vertici). Ombreggiatura solida opaca al 100% e backface culling per eliminare la vista di cavità interne.
+- **Eliminazione Sovrapposizione Numeri**: Visualizzazione intelligente dei numeri solo sulle facce maggiormente rivolte verso la visuale su D20 e D100, eliminando il sovraffollamento visivo.
+- **Dado d2 / Moneta**: Ridenominazione ufficiale da "Moneta" a "d2" con layout a riga singola senza andare a capo verticalmente.
+- **Blocco Caratteristiche e Sblocco Sicuro con Conferma**: Punti caratteristica base (INT, RIF, DES, TEC, CAR, VOL, FOR, VEL, FIS, EMP) protetti da modifiche involontarie dopo la creazione; sblocco gestito da pulsante vettoriale a matita (`Icons.edit_outlined`) con dialogo di conferma cyberpunk (`showTechConfirm`).
+- **Confronto Automatico Master vs Giocatore**: Al momento della connessione di un giocatore, il Master confronta automaticamente la scheda ricevuta con quella salvata in archivio: se vengono rilevate alterazioni non autorizzate, viene aperta all'istante la vista comparativa `CompareScreen`.
+- **Cartella di Salvataggio Canonica del Sistema Operativo**: Archiviazione standardizzata in `%APPDATA%/cpredux/sheets` su Windows, `~/Library/Application Support/cpredux/sheets` su macOS e `~/.local/share/cpredux/sheets` su Linux.
+- **Barra del Titolo, Versione Dinamica e Angoli Stondati**: Mostra `v$appVersion`, include un pulsante rapido interattivo per la verifica degli aggiornamenti (`Icons.sync`) e bordi arrotondati nativi su Windows 11 (`DWMWA_WINDOW_CORNER_PREFERENCE`) e cross-platform su Linux e macOS.
 
 ### Novità introdotte
 

@@ -250,27 +250,34 @@ class _DieModel {
       _Vec3(-phi, 0, -invPhi) * scale,
     ];
 
-    // Le 12 facce pentagonali del dodecaedro con indici coerenti e normali verso l'esterno
+    // Le 12 facce pentagonali regolari perfettamente chiuse senza fessure
     const List<List<int>> faceIndices = <List<int>>[
-      <int>[0, 8, 10, 2, 16], // 1
-      <int>[0, 16, 17, 1, 12], // 2
-      <int>[0, 12, 14, 4, 8], // 3
-      <int>[8, 4, 18, 6, 10], // 4
-      <int>[10, 6, 15, 13, 2], // 5
-      <int>[2, 13, 3, 17, 16], // 6
-      <int>[1, 9, 11, 3, 17], // 7 (opposta a 6)
-      <int>[3, 11, 7, 15, 13], // 8 (opposta a 5)
-      <int>[7, 19, 18, 6, 15], // 9 (opposta a 4)
-      <int>[5, 14, 4, 18, 19], // 10 (opposta a 3)
-      <int>[5, 9, 1, 12, 14], // 11 (opposta a 2)
-      <int>[7, 11, 9, 5, 19], // 12 (opposta a 1)
+      <int>[0, 12, 14, 4, 8],  // 1
+      <int>[0, 8, 10, 2, 16],  // 2
+      <int>[0, 16, 17, 1, 12], // 3
+      <int>[1, 9, 5, 14, 12],  // 4
+      <int>[1, 17, 3, 11, 9],  // 5
+      <int>[2, 10, 6, 15, 13], // 6
+      <int>[2, 13, 3, 17, 16], // 7
+      <int>[3, 13, 15, 7, 11], // 8
+      <int>[4, 18, 6, 10, 8],  // 9
+      <int>[4, 14, 5, 19, 18], // 10
+      <int>[5, 9, 11, 7, 19],  // 11
+      <int>[6, 18, 19, 7, 15], // 12
     ];
 
     final List<_PolyFace> f = <_PolyFace>[];
     for (int i = 0; i < faceIndices.length; i++) {
       final List<int> idx = faceIndices[i];
-      // Calcolo normale con cross product
-      final _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      _Vec3 center = const _Vec3(0, 0, 0);
+      for (final int vi in idx) {
+        center = center + v[vi];
+      }
+      center = center * (1.0 / idx.length);
+      _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      if (n.dot(center) < 0) {
+        n = n * -1.0;
+      }
       f.add(_PolyFace(indices: idx, value: i + 1, normal: n));
     }
     return _DieModel(vertices: v, faces: f);
@@ -312,82 +319,50 @@ class _DieModel {
     return _DieModel(vertices: v, faces: f);
   }
 
-  /// Generatore di un Zocchihedron D100 a 100 facce poligonali distribuite uniformemente.
+  /// Generatore di un trapezoedro 50-gonale D100 a 100 facce ad aquilone perfettamente chiuse (Zocchihedron solido).
   static _DieModel createD100(double radius) {
-    // Generazione di una sfera geodetica / Zocchihedron a 100 facce numerate 1..100
-    // 5 bande di latitudine: 10 al polo nord + 25 subnord + 30 equatore + 25 subsud + 10 polo sud = 100 facce esatte!
+    const int n = 50;
+    final double h = radius * 1.15;
+    final double hMid = radius * 0.16;
+    final double rMid = radius * 0.98;
+
     final List<_Vec3> v = <_Vec3>[
-      _Vec3(0, 0, radius), // 0: Polo Nord
-      _Vec3(0, 0, -radius), // 1: Polo Sud
+      _Vec3(0, 0, h), // 0: Polo Nord
+      _Vec3(0, 0, -h), // 1: Polo Sud
     ];
 
-    // Anelli di latitudine (lat1: 60°, lat2: 20°, lat3: -20°, lat4: -60°)
-    final List<int> ringCounts = <int>[10, 25, 25, 10];
-    final List<double> latitudes = <double>[
-      math.pi / 3.0,
-      math.pi / 9.0,
-      -math.pi / 9.0,
-      -math.pi / 3.0,
-    ];
-
-    final List<int> ringStarts = <int>[];
-    for (int r = 0; r < ringCounts.length; r++) {
-      ringStarts.add(v.length);
-      final int count = ringCounts[r];
-      final double phi = latitudes[r];
-      final double z = radius * math.sin(phi);
-      final double rProj = radius * math.cos(phi);
-      for (int i = 0; i < count; i++) {
-        final double theta = (i * 2.0 * math.pi) / count;
-        v.add(_Vec3(rProj * math.cos(theta), rProj * math.sin(theta), z));
-      }
+    // 50 vertici anello superiore
+    for (int i = 0; i < n; i++) {
+      final double ang = (i * 2.0 * math.pi) / n;
+      v.add(_Vec3(rMid * math.cos(ang), rMid * math.sin(ang), hMid));
+    }
+    // 50 vertici anello inferiore sfasati di pi/n
+    for (int i = 0; i < n; i++) {
+      final double ang = (i * 2.0 * math.pi) / n + (math.pi / n);
+      v.add(_Vec3(rMid * math.cos(ang), rMid * math.sin(ang), -hMid));
     }
 
     final List<_PolyFace> f = <_PolyFace>[];
     int faceCounter = 1;
 
-    // 1. Polo Nord: 10 triangoli collegati al vertice 0
-    final int r0 = ringStarts[0];
-    for (int i = 0; i < 10; i++) {
-      final int iNext = r0 + ((i + 1) % 10);
-      final _Vec3 n = (v[r0 + i] - v[0]).cross(v[iNext] - v[0]).normalized();
-      f.add(_PolyFace(indices: <int>[0, r0 + i, iNext], value: faceCounter++, normal: n));
+    // 50 facce superiori ad aquilone (Polo Nord)
+    for (int i = 0; i < n; i++) {
+      final int top1 = 2 + i;
+      final int bot = 2 + n + i;
+      final int top2 = 2 + ((i + 1) % n);
+      final List<int> idx = <int>[0, top1, bot, top2];
+      final _Vec3 normal = (v[top1] - v[0]).cross(v[bot] - v[0]).normalized();
+      f.add(_PolyFace(indices: idx, value: faceCounter++, normal: normal));
     }
 
-    // 2. Banda 1 (25 triangoli/trapezi interpolati tra anello 0 e anello 1)
-    final int r1 = ringStarts[1];
-    for (int i = 0; i < 25; i++) {
-      final int iNext = r1 + ((i + 1) % 25);
-      final int topIdx = r0 + ((i * 10) ~/ 25);
-      final _Vec3 n = (v[r1 + i] - v[topIdx]).cross(v[iNext] - v[topIdx]).normalized();
-      f.add(_PolyFace(indices: <int>[topIdx, r1 + i, iNext], value: faceCounter++, normal: n));
-    }
-
-    // 3. Banda Equatoriale: 30 facce (tra anello 1 e anello 2)
-    final int r2 = ringStarts[2];
-    for (int i = 0; i < 30; i++) {
-      final int top = r1 + ((i * 25) ~/ 30);
-      final int bot = r2 + ((i * 25) ~/ 30);
-      final int topNext = r1 + (((i + 1) * 25) ~/ 30 % 25);
-      final _Vec3 n = (v[bot] - v[top]).cross(v[topNext] - v[top]).normalized();
-      f.add(_PolyFace(indices: <int>[top, bot, topNext], value: faceCounter++, normal: n));
-    }
-
-    // 4. Banda 3 (25 triangoli tra anello 2 e anello 3)
-    final int r3 = ringStarts[3];
-    for (int i = 0; i < 25; i++) {
-      final int top = r2 + i;
-      final int topNext = r2 + ((i + 1) % 25);
-      final int bot = r3 + ((i * 10) ~/ 25);
-      final _Vec3 n = (v[topNext] - v[top]).cross(v[bot] - v[top]).normalized();
-      f.add(_PolyFace(indices: <int>[top, topNext, bot], value: faceCounter++, normal: n));
-    }
-
-    // 5. Polo Sud: 10 triangoli collegati al vertice 1
-    for (int i = 0; i < 10; i++) {
-      final int iNext = r3 + ((i + 1) % 10);
-      final _Vec3 n = (v[iNext] - v[1]).cross(v[r3 + i] - v[1]).normalized();
-      f.add(_PolyFace(indices: <int>[1, iNext, r3 + i], value: faceCounter++, normal: n));
+    // 50 facce inferiori ad aquilone (Polo Sud)
+    for (int i = 0; i < n; i++) {
+      final int bot1 = 2 + n + i;
+      final int top = 2 + ((i + 1) % n);
+      final int bot2 = 2 + n + ((i + 1) % n);
+      final List<int> idx = <int>[1, bot2, top, bot1];
+      final _Vec3 normal = (v[bot2] - v[1]).cross(v[top] - v[1]).normalized();
+      f.add(_PolyFace(indices: idx, value: faceCounter++, normal: normal));
     }
 
     return _DieModel(vertices: v, faces: f);
@@ -518,6 +493,21 @@ class Dice3DTable extends StatefulWidget {
   final bool isFumble;
   final int revealKey;
   final double tableHeight;
+
+  @visibleForTesting
+  static ({int vertices, int faces}) getMeshStatsForTesting(DiceType type) {
+    final _DieModel model = switch (type) {
+      DiceType.coin => _DieModel.createCoin(100.0),
+      DiceType.d4 => _DieModel.createD4(100.0),
+      DiceType.d6 => _DieModel.createD6(100.0),
+      DiceType.d8 => _DieModel.createD8(100.0),
+      DiceType.d10 => _DieModel.createD10(100.0),
+      DiceType.d12 => _DieModel.createD12(100.0),
+      DiceType.d20 => _DieModel.createD20(100.0),
+      DiceType.d100 => _DieModel.createD100(100.0),
+    };
+    return (vertices: model.vertices.length, faces: model.faces.length);
+  }
 
   @override
   State<Dice3DTable> createState() => _Dice3DTableState();
@@ -973,63 +963,83 @@ class _Dice3DRenderer extends CustomPainter {
       rotVertices.add(v.rotate(rx, ry, rz));
     }
 
-    // 3. Calcola proiezioni 2D dei vertici
-    final List<Offset> proj2D = <Offset>[];
-    for (final _Vec3 v in rotVertices) {
-      final double worldX = v.x + curX;
-      final double worldY = v.y + curY;
-      final double worldZ = v.z + bounceZ;
+    // 3. Proiezione prospettica 3D con camera inclinata sul tavolo
+    const double camTilt = 0.52; // Inclinazione della vista verso il tavolo (~30°)
+    final double cosTilt = math.cos(camTilt);
+    final double sinTilt = math.sin(camTilt);
 
-      // Proiezione prospettica con camera inclinata
-      final double camZ = _camDist - worldZ;
+    final List<Offset> proj2D = <Offset>[];
+    final List<double> vertexCamZ = <double>[];
+
+    for (final _Vec3 v in rotVertices) {
+      final double wx = v.x + curX;
+      final double wy = v.y + curY;
+      final double wz = v.z + bounceZ;
+
+      // Coordinate nello spazio camera (allineata con la vista dall'alto)
+      final double eyeX = wx;
+      final double eyeY = wy * cosTilt - wz * sinTilt;
+      final double eyeZ = wy * sinTilt + wz * cosTilt;
+      vertexCamZ.add(eyeZ);
+
+      final double camZ = _camDist - eyeZ;
       final double s = _focalLen / (camZ > 10.0 ? camZ : 10.0);
 
-      proj2D.add(center + Offset(worldX * s, (worldY - worldZ * 0.6) * s));
+      proj2D.add(center + Offset(eyeX * s, eyeY * s));
     }
 
-    // 4. Ordina le facce per profondità (Painter's algorithm)
-    final List<({_PolyFace face, double depth, _Vec3 rotNormal})> sortedFaces = <({_PolyFace face, double depth, _Vec3 rotNormal})>[];
+    // 4. Ordina le facce visibili per profondità (Painter's algorithm puro)
+    final List<({_PolyFace face, double depth, _Vec3 camNormal})> sortedFaces = <({_PolyFace face, double depth, _Vec3 camNormal})>[];
 
     for (final _PolyFace face in model.faces) {
       final _Vec3 rotN = face.normal.rotate(rx, ry, rz);
 
-      // Back-face culling: normale rivolta verso la camera
-      if (rotN.z > -0.15) {
-        double avgZ = 0.0;
-        for (final int idx in face.indices) {
-          avgZ += rotVertices[idx].z;
-        }
-        avgZ /= face.indices.length;
+      // Trasforma la normale nello spazio camera
+      final double nCamX = rotN.x;
+      final double nCamY = rotN.y * cosTilt - rotN.z * sinTilt;
+      final double nCamZ = rotN.y * sinTilt + rotN.z * cosTilt;
 
-        sortedFaces.add((face: face, depth: avgZ, rotNormal: rotN));
+      // Back-face culling rigoroso: le facce orientate all'indietro vengono rimosse
+      // azzerando ogni trasparenza interna o sovrapposizione di wireframe
+      if (nCamZ > 0.001) {
+        double avgEyeZ = 0.0;
+        for (final int idx in face.indices) {
+          avgEyeZ += vertexCamZ[idx];
+        }
+        avgEyeZ /= face.indices.length;
+
+        sortedFaces.add((
+          face: face,
+          depth: avgEyeZ,
+          camNormal: _Vec3(nCamX, nCamY, nCamZ),
+        ));
       }
     }
 
     sortedFaces.sort((a, b) => a.depth.compareTo(b.depth));
 
-    // 5. Renderizza ciascuna faccia visibile
+    // 5. Renderizza ciascuna faccia visibile come poligono solido opaco
     for (final item in sortedFaces) {
       final _PolyFace face = item.face;
-      final _Vec3 n = item.rotNormal;
+      final _Vec3 n = item.camNormal;
 
-      // Shading: Ambient + Diffuse
+      // Shading: Ambient + Diffuse contrastato
       final double diff = math.max(0.0, n.dot(lightDir));
-      final double brightness = 0.28 + 0.72 * diff;
+      final double brightness = (0.35 + 0.65 * diff).clamp(0.25, 1.0);
 
       final Color baseDieColor = dieType == DiceType.d10
           ? const Color(0xFF1B242C)
           : const Color(0xFF1E2228);
 
-      final Color faceColor = Color.lerp(
-        baseDieColor,
-        accentColor,
-        0.08,
-      )!
-          .withValues(
-            red: (baseDieColor.r * brightness).clamp(0.0, 1.0),
-            green: (baseDieColor.g * brightness).clamp(0.0, 1.0),
-            blue: (baseDieColor.b * brightness).clamp(0.0, 1.0),
-          );
+      final Color tintedBase = Color.lerp(baseDieColor, accentColor, 0.10)!;
+
+      // Colore solido al 100% (alpha 255) per evitare dadi trasparenti o cavi
+      final Color faceColor = Color.fromARGB(
+        255,
+        (tintedBase.r * 255 * brightness).clamp(0, 255).toInt(),
+        (tintedBase.g * 255 * brightness).clamp(0, 255).toInt(),
+        (tintedBase.b * 255 * brightness).clamp(0, 255).toInt(),
+      );
 
       final Path facePath = Path();
       for (int i = 0; i < face.indices.length; i++) {
@@ -1042,20 +1052,20 @@ class _Dice3DRenderer extends CustomPainter {
       }
       facePath.close();
 
-      // Disegna poligono faccia
+      // Disegna poligono solido
       final Paint facePaint = Paint()
         ..color = faceColor
         ..style = PaintingStyle.fill;
       canvas.drawPath(facePath, facePaint);
 
-      // Bordo illuminato della faccia
+      // Bordo illuminato continuo e nitido della faccia
       final Paint strokePaint = Paint()
-        ..color = accentColor.withValues(alpha: 0.35 + 0.45 * diff)
-        ..strokeWidth = 1.1
+        ..color = accentColor.withValues(alpha: (0.45 + 0.50 * diff).clamp(0.0, 1.0))
+        ..strokeWidth = 1.25
         ..style = PaintingStyle.stroke;
       canvas.drawPath(facePath, strokePaint);
 
-      // Calcola baricentro 2D per il numero
+      // Baricentro 2D per il numero
       double c2dX = 0.0;
       double c2dY = 0.0;
       for (final int idx in face.indices) {
@@ -1065,9 +1075,16 @@ class _Dice3DRenderer extends CustomPainter {
       c2dX /= face.indices.length;
       c2dY /= face.indices.length;
 
-      // Disegna numero sulla faccia solo se è abbastanza rivolta verso lo schermo
-      if (n.z > 0.35) {
-        _paintFaceNumber(canvas, Offset(c2dX, c2dY), face.value, n.z);
+      // Disegna numero solo sulle facce ben orientate verso la camera
+      if (face.value > 0) {
+        final bool showNumber = switch (dieType) {
+          DiceType.d100 => n.z >= 0.68,
+          DiceType.d20 => n.z >= 0.45,
+          _ => n.z >= 0.35,
+        };
+        if (showNumber) {
+          _paintFaceNumber(canvas, Offset(c2dX, c2dY), face.value, n.z);
+        }
       }
     }
   }

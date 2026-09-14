@@ -193,7 +193,7 @@ enum LoadStatus {
 
 /// Dadi disponibili nel tiro.
 enum DiceType {
-  coin(2, 'Moneta'),
+  coin(2, 'd2'),
   d4(4, 'd4'),
   d6(6, 'd6'),
   d8(8, 'd8'),

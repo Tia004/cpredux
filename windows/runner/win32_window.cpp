@@ -294,4 +294,8 @@ void Win32Window::UpdateTheme(HWND const window) {
 
   COLORREF text_color = RGB(220, 220, 220);
   DwmSetWindowAttribute(window, 36, &text_color, sizeof(text_color));
+
+  // DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2 (angoli arrotondati su Windows 11)
+  int corner_preference = 2;
+  DwmSetWindowAttribute(window, 33, &corner_preference, sizeof(corner_preference));
 }

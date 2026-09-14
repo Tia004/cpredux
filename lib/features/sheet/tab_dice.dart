@@ -345,6 +345,8 @@ class _DieChip extends StatelessWidget {
           ),
           child: Text(
             label.toUpperCase(),
+            maxLines: 1,
+            softWrap: false,
             style: CprType.label.copyWith(
               fontSize: 10.5,
               color: selected ? CprPalette.yellow : CprPalette.inkMuted,

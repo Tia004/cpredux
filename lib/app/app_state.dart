@@ -1012,6 +1012,77 @@ class AppState extends ChangeNotifier {
       playerId: player.id,
     );
     _scheduleSave();
+    _checkIncomingPlayerSheet(player);
+  }
+
+  @visibleForTesting
+  void checkIncomingPlayerSheetForTesting(HostedPlayer player) => _checkIncomingPlayerSheet(player);
+
+  /// Verifica se il Master ha salvato in archivio una scheda corrispondente a quella
+  /// trasmessa dal giocatore. Se rileva differenze non autorizzate, apre automaticamente
+  /// il confronto a schermo diviso mostrando tutte le alterazioni.
+  void _checkIncomingPlayerSheet(HostedPlayer player) {
+    final Object? rawSheet = player.state['sheet'];
+    if (rawSheet is! Map<String, Object?>) return;
+
+    final CharacterSheet incomingSheet;
+    try {
+      incomingSheet = CharacterSheet.fromJson(rawSheet);
+    } catch (_) {
+      return;
+    }
+
+    CharacterSheet? localMasterSheet;
+    String? localSheetPath;
+
+    final List<DocumentEntry> entries = DocumentLibrary.scan();
+    for (final DocumentEntry entry in entries) {
+      if (entry.kind != DocumentKind.sheet) continue;
+      try {
+        final CpreduxFile file = CpreduxFile.open(entry.path);
+        final Map<String, Object?> payload = file.readPayload();
+        file.close();
+        final CharacterSheet candidate = CharacterSheet.fromJson(payload);
+        final bool idMatch = candidate.meta.id == incomingSheet.meta.id;
+        final bool nameMatch = candidate.meta.name.trim().isNotEmpty &&
+            candidate.meta.name.trim().toLowerCase() == incomingSheet.meta.name.trim().toLowerCase();
+        if (idMatch || nameMatch) {
+          localMasterSheet = candidate;
+          localSheetPath = entry.path;
+          break;
+        }
+      } catch (_) {}
+    }
+
+    if (localMasterSheet != null) {
+      final SheetDiff diff = SheetDiff.compare(
+        before: localMasterSheet,
+        after: incomingSheet,
+        beforeLabel: 'Master (${localMasterSheet.meta.name})',
+        afterLabel: '${player.characterName} (Giocatore)',
+        lookup: catalogLookup,
+      );
+
+      if (!diff.identical) {
+        _appendSession(
+          description: 'ATTENZIONE: ${player.characterName} ha modificato la scheda rispetto alla copia del Master!',
+          delta: 'DIFF',
+          playerId: player.id,
+        );
+
+        openComparison(Comparison(
+          before: ComparisonSide(
+            sheet: localMasterSheet,
+            label: 'Master (Salvata)',
+            path: localSheetPath,
+          ),
+          after: ComparisonSide(
+            sheet: incomingSheet,
+            label: '${player.characterName} (Giocatore)',
+          ),
+        ));
+      }
+    }
   }
 
   void _onPlayerLeft(HostedPlayer player) {
@@ -1162,6 +1233,9 @@ class AppState extends ChangeNotifier {
             ..empathy = '${message['empathy'] ?? entry.empathy}';
           _broadcastPlayers();
           _scheduleSave();
+          if (message.containsKey('sheet')) {
+            _checkIncomingPlayerSheet(player);
+          }
         }
 
       case SessionMessage.mapProposal:
@@ -1474,6 +1548,7 @@ class AppState extends ChangeNotifier {
         characterName: sheet.meta.name,
         playerName: sheet.identity.playerName,
         characterState: _characterState(sheet, totals),
+        fullSheet: sheet.toJson(),
       );
       client
         ..onMessage = _onServerMessage
@@ -1678,7 +1753,10 @@ class AppState extends ChangeNotifier {
       final CharacterSheet? sheet = _sheet;
       final SheetTotals? totals = _totals;
       if (sheet == null || totals == null) return;
-      _client?.sendSnapshot(_characterState(sheet, totals));
+      _client?.sendSnapshot(<String, Object?>{
+        ..._characterState(sheet, totals),
+        'sheet': sheet.toJson(),
+      });
     });
   }
 

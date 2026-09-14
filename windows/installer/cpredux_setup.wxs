@@ -3,14 +3,14 @@
   <Product Id="*"
            Name="CPRedux Desktop"
            Language="1040"
-           Version="0.2.2"
+           Version="0.2.3"
            Manufacturer="CPRedux Team"
            UpgradeCode="7E58F0C3-F078-4EA2-97EC-6B2DC266E851">
     
     <Package InstallerVersion="200"
              Compressed="yes"
              InstallScope="perUser"
-             Description="CPRedux Desktop v0.2.2 - Cyberpunk RED Suite Installer"
+             Description="CPRedux Desktop v0.2.3 - Cyberpunk RED Suite Installer"
              Comments="Installer ufficiale MSI per CPRedux Desktop" />
 
     <MajorUpgrade DowngradeErrorMessage="Una versione più recente di CPRedux Desktop è già installata." />

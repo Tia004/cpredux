@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../app/app_state.dart';
 import '../design/palette.dart';
 import '../design/typography.dart';
+import '../net/updater.dart';
+import '../version.dart';
 
 /// Barra del titolo personalizzata, integrata e immersa nell'interfaccia.
 ///
@@ -161,39 +163,92 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _buildRightStatus(AppState state) {
-    if (state.screen == AppScreen.sheet && state.sheet != null) {
-      final bool saved = !state.isDirty;
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: saved ? CprPalette.humanityIntact : CprPalette.yellow,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            saved ? 'SALVATO' : 'MODIFICATO',
-            style: CprType.caption.copyWith(
-              fontSize: 9,
-              letterSpacing: 0.5,
-              color: saved ? CprPalette.humanityIntact : CprPalette.yellow,
-            ),
-          ),
-        ],
-      );
-    }
+    final bool isChecking = state.updateStage == UpdateStage.checking;
+    final bool updateAvailable = state.updateStage == UpdateStage.available;
 
-    return Text(
-      'v0.2.0',
-      style: CprType.caption.copyWith(
-        fontSize: 9.5,
-        color: CprPalette.veil(CprPalette.inkMuted, 0.6),
-        letterSpacing: 0.5,
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        if (state.screen == AppScreen.sheet && state.sheet != null) ...<Widget>[
+          _buildSheetSaveStatus(state),
+          const SizedBox(width: 8),
+          Container(width: 1, height: 10, color: CprPalette.hairline),
+          const SizedBox(width: 8),
+        ],
+        Text(
+          'v$appVersion',
+          style: CprType.caption.copyWith(
+            fontSize: 9.5,
+            color: CprPalette.veil(CprPalette.inkMuted, 0.75),
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Tooltip(
+          message: updateAvailable
+              ? 'Aggiornamento disponibile!'
+              : isChecking
+                  ? 'Verifica in corso…'
+                  : 'Verifica aggiornamenti',
+          child: InkResponse(
+            onTap: isChecking
+                ? null
+                : () {
+                    if (updateAvailable) {
+                      state.goToSettings();
+                    } else {
+                      state.checkForUpdates(silent: false);
+                    }
+                  },
+            radius: 12,
+            child: Padding(
+              padding: const EdgeInsets.all(3.0),
+              child: isChecking
+                  ? const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: CprPalette.yellow,
+                      ),
+                    )
+                  : Icon(
+                      updateAvailable ? Icons.system_update_alt : Icons.sync,
+                      size: 13,
+                      color: updateAvailable
+                          ? CprPalette.yellow
+                          : CprPalette.veil(CprPalette.inkMuted, 0.75),
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSheetSaveStatus(AppState state) {
+    final bool saved = !state.isDirty;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: saved ? CprPalette.humanityIntact : CprPalette.yellow,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          saved ? 'SALVATO' : 'MODIFICATO',
+          style: CprType.caption.copyWith(
+            fontSize: 9,
+            letterSpacing: 0.5,
+            color: saved ? CprPalette.humanityIntact : CprPalette.yellow,
+          ),
+        ),
+      ],
     );
   }
 }

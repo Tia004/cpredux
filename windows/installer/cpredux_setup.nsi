@@ -6,7 +6,9 @@ Unicode True
 !include "FileFunc.nsh"
 
 !define PRODUCT_NAME "CPRedux Desktop"
-!define PRODUCT_VERSION "0.2.2"
+!ifndef PRODUCT_VERSION
+  !define PRODUCT_VERSION "0.2.3"
+!endif
 !define PRODUCT_PUBLISHER "CPRedux Team"
 !define PRODUCT_WEB_SITE "https://gitlab.com/Tia004/cpredux"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\CPRedux"
@@ -16,7 +18,7 @@ Unicode True
   !define BUILD_DIR "..\..\build\windows\x64\runner\Release"
 !endif
 !ifndef OUTPUT_EXE
-  !define OUTPUT_EXE "cpredux-v0.2.2-setup.exe"
+  !define OUTPUT_EXE "cpredux-v0.2.3-setup.exe"
 !endif
 !ifndef APP_ICON
   !define APP_ICON "..\runner\resources\app_icon.ico"
