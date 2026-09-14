@@ -38,6 +38,18 @@ abstract final class AppPaths {
     final String? override = _documentsOverride;
     if (override != null) return Directory(override);
 
+    // Se l'esecuzione avviene all'interno dell'ambiente di test e non e' stato
+    // impostato un override esplicito, reindirizziamo su una directory temporanea
+    // isolata per impedire categoricamente ai test di creare o cercare file nei
+    // veri Documenti dell'utente.
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      final Directory testDocs = Directory(
+        p.join(Directory.systemTemp.path, 'cpredux_test_sandbox', 'documenti'),
+      );
+      if (!testDocs.existsSync()) testDocs.createSync(recursive: true);
+      return testDocs;
+    }
+
     final String? home = _env('HOME') ?? _env('USERPROFILE');
     if (home != null) {
       final Directory docs = Directory(p.join(home, 'Documents'));
@@ -63,7 +75,7 @@ abstract final class AppPaths {
   static void overrideForTesting({String? config, String? data, String? documents}) {
     _configOverride = config;
     _dataOverride = data;
-    _documentsOverride = documents;
+    _documentsOverride = documents ?? data ?? config;
   }
 
   static void clearOverrides() {

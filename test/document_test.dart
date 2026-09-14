@@ -25,9 +25,13 @@ void main() {
   setUp(() {
     temp = Directory.systemTemp.createTempSync('cpredux_document_test');
     docs = Directory(p.join(temp.path, 'documenti'))..createSync(recursive: true);
-    // Le impostazioni finiscono nella cartella temporanea: i test non devono
-    // toccare la configurazione vera di chi li esegue.
-    AppPaths.overrideForTesting(config: temp.path, data: temp.path);
+    // Le impostazioni e i documenti finiscono nella cartella temporanea: i test non devono
+    // toccare la configurazione vera né i documenti di chi li esegue.
+    AppPaths.overrideForTesting(
+      config: temp.path,
+      data: temp.path,
+      documents: docs.path,
+    );
     state = AppState();
   });
 
