@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-v0.2.1-24d8e8?style=for-the-badge&logo=gitlab&logoColor=white" alt="Release v0.2.1">
+  <img src="https://img.shields.io/badge/release-v0.2.2-24d8e8?style=for-the-badge&logo=gitlab&logoColor=white" alt="Release v0.2.2">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-fcee0a?style=for-the-badge&logo=apple&logoColor=black" alt="Piattaforme">
   <img src="https://img.shields.io/badge/flutter-3.x-ff2e88?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter 3">
   <img src="https://img.shields.io/badge/license-MIT%20%2F%20Homebrew-blueviolet?style=for-the-badge" alt="Licenza">
@@ -25,7 +25,7 @@
   <img src="assets/branding/divider.svg" width="100%">
 </p>
 
-## Release v0.2.1
+## Release v0.2.2
 
 Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [GitLab Releases](https://gitlab.com/Tia004/cpredux/-/releases).
 
@@ -33,18 +33,22 @@ Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [Gi
 
 | Piattaforma | Architettura | Formato & Descrizione | Download Diretto |
 | :--- | :--- | :--- | :--- |
-| macOS | Apple Silicon (aarch64 / M1-M4) & Intel | Installer Disco Immagine (.dmg) | [Scarica Installer macOS DMG](https://gitlab.com/-/project/86426687/uploads/6fd0d4580c782277f48ec9c88fc58922/cpredux-v0.2.1-macos-arm64.dmg) |
-| macOS | Universal (Apple Silicon & Intel) | Applicazione Standalone .app (ZIP) | [Scarica cpredux-macos-arm64.zip](https://gitlab.com/-/project/86426687/uploads/c8a939fde4c3e252c42390acfaa5aafc/cpredux-v0.2.1-macos-arm64.zip) |
-| Windows | x64 (Windows 10 / 11) | Installer Setup Diretto (.exe) | [Scarica Installer Windows EXE](https://gitlab.com/-/project/86426687/uploads/ad6ccc2dd882980349ef2a0bdb14d023/cpredux-v0.2.1-setup.exe) |
-| Windows | x64 (Windows 10 / 11) | Pacchetto di Installazione Windows (.msi) | [Scarica Pacchetto Windows MSI](https://gitlab.com/-/project/86426687/uploads/0156cbe85cd903c83068a68b4203b748/cpredux-v0.2.1-setup.msi) |
-| Linux | x86_64 / Desktop | Pacchetto Tarball + Launcher .desktop (.tar.gz) | [Scarica Pacchetto Linux Tar.gz](https://gitlab.com/-/project/86426687/uploads/98c683016645bf58758615edf0bf993e/cpredux-v0.2.1-linux-x64.tar.gz) |
+| macOS | Apple Silicon (aarch64 / M1-M4) & Intel | Installer Disco Immagine (.dmg) | [Scarica Installer macOS DMG](https://gitlab.com/-/project/86426687/uploads/324cffde6104a5d091804d98e6eb9876/cpredux-v0.2.2-macos-arm64.dmg) |
+| macOS | Universal (Apple Silicon & Intel) | Applicazione Standalone .app (ZIP) | [Scarica cpredux-macos-arm64.zip](https://gitlab.com/-/project/86426687/uploads/d4d340d8a904c0da78f5639e2f311f45/cpredux-v0.2.2-macos-arm64.zip) |
+| Windows | x64 (Windows 10 / 11) | Installer Setup Diretto (.exe) | [Scarica Installer Windows EXE](https://gitlab.com/-/project/86426687/uploads/e695d891d296297fd487c2a0228df113/cpredux-v0.2.2-setup.exe) |
+| Windows | x64 (Windows 10 / 11) | Pacchetto di Installazione Windows (.msi) | [Scarica Pacchetto Windows MSI](https://gitlab.com/-/project/86426687/uploads/4e0d935ae832b52d4f5580dcffad4112/cpredux-v0.2.2-setup.msi) |
+| Linux | x86_64 / Desktop | Pacchetto Tarball + Launcher .desktop (.tar.gz) | [Scarica Pacchetto Linux Tar.gz](https://gitlab.com/-/project/86426687/uploads/e1aa4cdde0b1e18a0d2a49fa2b4a91b2/cpredux-v0.2.2-linux-x64.tar.gz) |
 | Tutte le Release | Multi-Platform | Elenco completo versioni e archivio | [Pagina Releases Ufficiale GitLab](https://gitlab.com/Tia004/cpredux/-/releases) |
-| Scheda Release v0.2.1 | Multi-Platform | Note di rilascio, novità e asset | [Release v0.2.1 Notes](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.1) |
-| Sorgenti (ZIP) | Multi-Platform | Archivio completo sorgenti v0.2.1 | [Scarica cpredux-v0.2.1.zip](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.1/cpredux-v0.2.1.zip) |
-| Sorgenti (Tar.gz) | Multi-Platform | Archivio compresso tarball v0.2.1 | [Scarica cpredux-v0.2.1.tar.gz](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.1/cpredux-v0.2.1.tar.gz) |
+| Scheda Release v0.2.2 | Multi-Platform | Note di rilascio, novità e asset | [Release v0.2.2 Notes](https://gitlab.com/Tia004/cpredux/-/releases/v0.2.2) |
+| Sorgenti (ZIP) | Multi-Platform | Archivio completo sorgenti v0.2.2 | [Scarica cpredux-v0.2.2.zip](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.2/cpredux-v0.2.2.zip) |
+| Sorgenti (Tar.gz) | Multi-Platform | Archivio compresso tarball v0.2.2 | [Scarica cpredux-v0.2.2.tar.gz](https://gitlab.com/Tia004/cpredux/-/archive/v0.2.2/cpredux-v0.2.2.tar.gz) |
 
 ### Novità introdotte
 
+- **Compilazione diretta scheda vuota**: Possibilità di compilare immediatamente tutti i campi della scheda personaggio partendo da zero (statistiche, abilità, anagrafica, note, ecc.) senza dipendere da un file precaricato.
+- **Guida e tooltip contestuali per la creazione personaggio**: Assistente integrato e tooltip informativi dettagliati che guidano passo-passo nell'assegnazione dei punti caratteristica, abilità e selezione del ruolo secondo le regole ufficiali di Cyberpunk RED.
+- **Persistenza automatica dimensioni e posizione finestra**: Memorizzazione continua delle dimensioni della finestra alla chiusura e ripristino al successivo avvio, con avvio iniziale ampio predefinito impostato a 1360x900.
+- **Sandboxing e protezione documenti utente**: Reindirizzamento rigoroso dei percorsi di test e archiviazione dati in sandbox temporanee di sistema, impedendo la scrittura di file o cartelle residue nella cartella Documenti reale dell'utente.
 - **Installer Windows Nativo (.exe / .msi)**: Rilasciato il programma di installazione guidata nativo per Windows (.exe con procedura guidata NSIS e pacchetto .msi) con creazione automatica dei collegamenti sul Desktop e nel Menu Start, registrazione in App e Funzionalità di Windows e procedura di disinstallazione pulita, eliminando qualsiasi script .bat.
 - **Dadi 3D poliedrici realistici**: Geometrie tridimensionali corrette per tutti i tipi di dadi:
   - D4: tetraedro regolare a 4 facce triangolari equilatere.
@@ -55,6 +59,7 @@ Tutti i pacchetti ufficiali e gli installer sono scaricabili direttamente da [Gi
   - D20: icosaedro regolare a 20 facce triangolari.
   - D100: zocchiedro sferico geodetico a 100 facce poligonali disposte su fasce di latitudine.
   - Moneta: cilindro 3D con bordo poligonale a 16 facce, simboli EB e croce, con fisica di flip verticale puro lungo l'asse X.
+- **Campi scheda allineati all'audit RED**: Campi anagrafici e attributi aggiuntivi sincronizzati con lo standard Cyberpunk RED (ruolo, reputazione, umanità attuale/massima, stili di vita, debiti e contatti).
 - **Tiro della Morte (Death Save)**: Modulo di tiro conforme al manuale di Cyberpunk RED (p. 186): valore base pari a Fisico (BODY), contatore delle penalità cumulative per turno da Morente (+1/round), pulsante di tiro rapido 1d10 e rilevamento istantaneo di sopravvivenza o decesso per fallimento critico (10 naturale).
 - **Riepilogo Rapido Armatura Equipaggiata**: Visualizzazione immediata di SP Testa, SP Corpo, SP Scudo e calcolo automatico delle penalità attive a Riflessi, Destrezza e Movimento.
 - **Avatar Personaggio in Anagrafica**: Visualizzazione e caricamento rapido dell'immagine del personaggio direttamente dal pannello di anagrafica principale.
