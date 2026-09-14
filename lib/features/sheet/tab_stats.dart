@@ -5,6 +5,7 @@ import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/enums.dart';
 import '../../domain/modifiers.dart';
+import '../../domain/sheet.dart';
 import '../../domain/skills.dart';
 import '../../domain/stats.dart';
 import '../../widgets/chamfer_panel.dart';
@@ -49,10 +50,7 @@ class _StatsTabState extends State<StatsTab> {
         children: <Widget>[
           ChamferPanel(
             title: 'Caratteristiche',
-            trailing: Text(
-              'base e valore calcolato',
-              style: CprType.caption.copyWith(color: CprPalette.inkFaint),
-            ),
+            trailing: _PointTracker(sheet: sheet),
             child: Column(
               children: <Widget>[
                 for (final Stat stat in Stat.values)
@@ -132,6 +130,37 @@ class _StatsTabState extends State<StatsTab> {
   }
 }
 
+class _PointTracker extends StatelessWidget {
+  const _PointTracker({required this.sheet});
+
+  final CharacterSheet sheet;
+
+  @override
+  Widget build(BuildContext context) {
+    final int spent = sheet.statBase.values.fold(0, (int a, int b) => a + b);
+    final int remaining = 62 - spent;
+    final Color color = spent == 62
+        ? CprPalette.success
+        : (spent > 62 ? CprPalette.danger : CprPalette.yellow);
+
+    return Tooltip(
+      message: 'Regola Cyberpunk RED: distribuisci 62 punti tra le 10 caratteristiche (da 2 a 8 per ciascuna a inizio gioco). Modifica i valori con + e -.',
+      waitDuration: const Duration(milliseconds: 200),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: CprPalette.veil(color, 0.12),
+          border: Border.all(color: color, width: 1),
+        ),
+        child: Text(
+          'PUNTI SPESI: $spent / 62 (${remaining >= 0 ? "$remaining rimasti" : "${-remaining} in eccesso"})',
+          style: CprType.label.copyWith(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}
+
 class _StatRow extends StatelessWidget {
   const _StatRow({
     required this.stat,
@@ -145,6 +174,19 @@ class _StatRow extends StatelessWidget {
   final int calculated;
   final ValueChanged<int> onChanged;
 
+  static const Map<Stat, String> _statDescriptions = <Stat, String>{
+    Stat.intelligence: 'INTELLIGENZA (INT): Capacità logica, percezione, calcolo e deduzione. Fondamentale per Netrunner, Tech e detective.',
+    Stat.reflexes: 'RIFLESSI (RIF): Prontezza neuromuscolare, tiro con armi a distanza e guida. Con RIF 8+ puoi schivare i proiettili a vista!',
+    Stat.dexterity: 'DESTREZZA (DES): Coordinazione atletica, arti marziali, combattimento in mischia e furtività.',
+    Stat.technique: 'TECNICA (TEC): Abilità manuale, riparazioni, cybertecnologia, pronto soccorso e manomissione.',
+    Stat.cool: 'CARISMA / COOL (CAR): Presenza scenica, fascino, persuasione e sangue freddo. Chiave per Rockerboy e Fixer.',
+    Stat.willpower: 'VOLONTÀ (VOL): Coraggio, determinazione e concentrazione. Insieme a FIS determina i Punti Vita (PV).',
+    Stat.luck: 'FORTUNA (FOR): Punti spendibili per aggiungere +1 a qualsiasi tiro (si ricaricano a inizio sessione).',
+    Stat.movement: 'VELOCITÀ (VEL): Distanza di corsa e movimento sul campo di battaglia in metri per turno.',
+    Stat.body: 'FISICO (FIS): Robustezza e massa muscolare. Determina i PV, la soglia ferita grave e il carico trasportabile.',
+    Stat.empathy: 'EMPATIA (EMP): Rapporto con gli altri ed equilibrio emotivo. Ogni punto vale 10 punti di Umanità iniziale.',
+  };
+
   @override
   Widget build(BuildContext context) {
     final int delta = calculated - base;
@@ -155,7 +197,15 @@ class _StatRow extends StatelessWidget {
         children: <Widget>[
           SizedBox(
             width: 130,
-            child: Text(stat.label, style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13)),
+            child: Tooltip(
+              message: _statDescriptions[stat] ?? stat.label,
+              waitDuration: const Duration(milliseconds: 150),
+              child: Text(
+                stat.label,
+                overflow: TextOverflow.ellipsis,
+                style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
+              ),
+            ),
           ),
           Expanded(child: _StatSegments(value: calculated, base: base)),
           const SizedBox(width: 12),
@@ -271,10 +321,14 @@ class _SkillRow extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Flexible(
-                  child: Text(
-                    skill.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
+                  child: Tooltip(
+                    message: '${skill.name}: Abilità legata a ${skill.stat.label.toUpperCase()}. Tiro = 1d10 + Base ($base) + Stat ($statValue) = Base $checkTotal.',
+                    waitDuration: const Duration(milliseconds: 250),
+                    child: Text(
+                      skill.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
+                    ),
                   ),
                 ),
                 if (skill.isDoubleCost) ...<Widget>[

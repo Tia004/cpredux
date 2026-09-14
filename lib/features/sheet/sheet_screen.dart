@@ -6,11 +6,9 @@ import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/enums.dart';
 import '../../domain/sheet.dart';
-import '../../domain/stats.dart';
 import '../../net/cloud_sync_service.dart';
 import '../../widgets/tech_button.dart';
 import '../map/map_section.dart';
-import 'sheet_wizard.dart';
 import 'tab_character.dart';
 import 'tab_cyberware.dart';
 import 'tab_dice.dart';
@@ -217,7 +215,7 @@ class _SheetHeader extends StatelessWidget {
               children: <Widget>[
                 Flexible(
                   child: Text(
-                    sheet.meta.name,
+                    sheet.identity.tag.trim().isNotEmpty ? sheet.identity.tag : sheet.meta.name,
                     overflow: TextOverflow.ellipsis,
                     style: CprType.body.copyWith(color: CprPalette.ink, fontWeight: FontWeight.w600),
                   ),
@@ -232,17 +230,7 @@ class _SheetHeader extends StatelessWidget {
                     ),
                   ),
                 ],
-                const SizedBox(width: 6),
-                // Matitina per modificare identita' e caratteristiche.
-                TechButton(
-                  label: '',
-                  icon: Icons.edit_outlined,
-                  variant: TechButtonVariant.ghost,
-                  compact: true,
-                  tooltip: 'Modifica scheda',
-                  onPressed: () => _openEditWizard(context, state, sheet),
-                ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 _SaveIndicator(dirty: state.isDirty, autosave: state.settings.autosave),
                 const SizedBox(width: 4),
                 _CloudSyncIndicator(sheet: sheet),
@@ -284,43 +272,6 @@ class _SheetHeader extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _openEditWizard(BuildContext context, AppState state, CharacterSheet sheet) async {
-    final SheetSetup setup = SheetSetup(
-      name: sheet.meta.name,
-      tag: sheet.identity.tag,
-      playerName: sheet.identity.playerName,
-      role: sheet.identity.role,
-      roleAbility: sheet.identity.roleAbility,
-      roleRank: sheet.identity.roleRank,
-      aliases: sheet.identity.aliases,
-      reputation: sheet.identity.reputation,
-      gameDate: sheet.identity.gameDate,
-      statBase: Map<Stat, int>.from(sheet.statBase),
-    );
-
-    final SheetSetup? result = await showSheetWizard(
-      context,
-      existingSetup: setup,
-      editMode: true,
-    );
-    if (result == null || !context.mounted) return;
-
-    state.mutate((CharacterSheet s) {
-      s.meta.name = result.name;
-      s.identity.tag = result.tag;
-      s.identity.playerName = result.playerName;
-      s.identity.role = result.role;
-      s.identity.roleAbility = result.roleAbility;
-      s.identity.roleRank = result.roleRank;
-      s.identity.aliases = result.aliases;
-      s.identity.reputation = result.reputation;
-      s.identity.gameDate = result.gameDate;
-      for (final Stat stat in Stat.values) {
-        s.statBase[stat] = result.statBase[stat] ?? s.statBase[stat] ?? 1;
-      }
-    });
   }
 }
 

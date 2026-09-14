@@ -52,7 +52,12 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "cpredux");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  gtk_window_set_default_size(window, 1360, 860);
+
+  GdkGeometry geometry;
+  geometry.min_width = 1024;
+  geometry.min_height = 700;
+  gtk_window_set_geometry_hints(window, nullptr, &geometry, GDK_HINT_MIN_SIZE);
 
   GError* icon_err = nullptr;
   gtk_window_set_icon_from_file(window, "cpredux.png", &icon_err);
