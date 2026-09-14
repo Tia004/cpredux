@@ -12,6 +12,9 @@ Unicode True
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\CPRedux"
 !define PRODUCT_DIR_REGKEY "Software\CPRedux"
 
+!ifndef BUILD_DIR
+  !define BUILD_DIR "..\..\build\windows\x64\runner\Release"
+!endif
 !ifndef OUTPUT_EXE
   !define OUTPUT_EXE "cpredux-v0.2.2-setup.exe"
 !endif
@@ -62,10 +65,9 @@ VIAddVersionKey "FileVersion" "${PRODUCT_VERSION}.0"
 Section "CPRedux Desktop" SecCore
   SetOutPath "$INSTDIR"
   
-  ; File Principali
-  File "/tmp/cpredux.exe"
+  ; File Principali dell'applicazione Flutter (cpredux.exe, flutter_windows.dll, cartella data, ecc.)
+  File /r "${BUILD_DIR}\*.*"
   File "${APP_ICON}"
-  File "/tmp/README.txt"
   
   SetOutPath "$INSTDIR\assets"
   File "${LOGO_IMAGE}"
@@ -105,10 +107,11 @@ Section "Uninstall"
 
   ; Rimozione File e Cartelle
   Delete "$INSTDIR\cpredux.exe"
+  Delete "$INSTDIR\flutter_windows.dll"
+  Delete "$INSTDIR\*.dll"
   Delete "$INSTDIR\app_icon.ico"
-  Delete "$INSTDIR\README.txt"
-  Delete "$INSTDIR\assets\CPReduxLogo.png"
-  RMDir "$INSTDIR\assets"
+  RMDir /r "$INSTDIR\data"
+  RMDir /r "$INSTDIR\assets"
   Delete "$INSTDIR\Uninstall CPRedux.exe"
   RMDir "$INSTDIR"
 

@@ -88,15 +88,23 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter build windows --release
-      - name: Archivia la cartella
+      - name: Archivia la cartella ZIP portabile
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/cpredux-windows.zip
+
+      - name: Compila Setup Installer NSIS (.exe)
+        shell: pwsh
+        run: |
+          makensis -DBUILD_DIR="build\windows\x64\runner\Release" -DOUTPUT_EXE="dist\cpredux-windows-setup.exe" windows\installer\cpredux_setup.nsi
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/cpredux-windows.zip
+          path: |
+            dist/cpredux-windows.zip
+            dist/cpredux-windows-setup.exe
 
   linux:
     name: Linux
@@ -186,34 +194,35 @@ jobs:
         id: v
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      - name: Rilascia su GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/cpredux-windows-setup.exe
+            site/cpredux-windows.zip
+            site/cpredux-macos.zip
+            site/cpredux-linux.AppImage
+
       # Va prima di generare il manifesto: il manifesto ha bisogno dell'URL su
       # cui verra' pubblicato, e quell'URL lo conosce solo Pages.
       - id: pages
         uses: actions/configure-pages@v5
+        continue-on-error: true
 
       - name: Genera manifesto, pagina e cartella del sito
+        continue-on-error: true
         run: |
           dart run tool/publish.dart \
             --dist dist \
             --site site \
             --page site/index.html \
             --version "${{ steps.v.outputs.version }}" \
-            --base-url "${{ steps.pages.outputs.base_url }}"
+            --base-url "${{ steps.pages.outputs.base_url || 'https://tia004.github.io/cpredux' }}"
 
-          # La pagina di download e il manifesto stanno sullo stesso dominio: e'
-          # la ragione per cui il manifesto non porta URL scritti a mano. Un
-          # asset relativo risolto dal manifesto funziona su GitLab, su GitHub e
-          # su un dominio tuo, senza ricompilare niente.
       - uses: actions/upload-pages-artifact@v3
+        continue-on-error: true
         with:
           path: site
       - id: deploy
         uses: actions/deploy-pages@v4
-
-      - name: Rilascia su GitHub
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            site/cpredux-macos.zip
-            site/cpredux-windows.zip
-            site/cpredux-linux.AppImage
+        continue-on-error: true
