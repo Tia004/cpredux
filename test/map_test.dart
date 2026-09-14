@@ -359,6 +359,10 @@ void main() {
       // Il master accetta: adesso si.
       master.masterAcceptWaypoint(master.mapProposals.single.id);
       await _waitUntil(
+        () => player.mapWaypoints.isNotEmpty && player.mapWaypoints.single.status == WaypointStatus.accepted,
+        reason: 'Lo stato della proposta non si e aggiornato sul giocatore',
+      );
+      await _waitUntil(
         () => lateJoiner.mapWaypoints.any((MapWaypoint w) => w.label == 'Tetto di Vik'),
         reason: 'La condivisione non e stata trasmessa',
       );

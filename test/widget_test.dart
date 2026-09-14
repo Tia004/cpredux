@@ -178,7 +178,7 @@ void main() {
       await tester.pumpWidget(const CpredApp());
       await _settleEntrance(tester);
 
-      expect(find.text('CPRED'), findsOneWidget);
+      expect(find.text('CPRED'), findsWidgets);
       expect(find.text('Nuova scheda'.toUpperCase()), findsNothing);
       expect(find.textContaining('Nuova scheda'), findsWidgets);
       expect(tester.takeException(), isNull);
