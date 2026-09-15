@@ -1,0 +1,37 @@
+{
+  "manifestVersion": 1,
+  "version": "0.2.5",
+  "releasedAt": "2026-09-15T00:45:24.000Z",
+  "url": "https://github.com/Tia004/cpredux/releases/tag/v0.2.5",
+  "notes": [
+    "Scheda rapida PNG dal token sulla mappa con calcolo penetrazione e ablazione SP",
+    "Ripristino completo della sessione e persistenza atomica del tavolo in .cpredux",
+    "Apertura diretta dei file .cpredux con doppio click su macOS e sistemi desktop",
+    "Trascrizione vocale continua (Voice to Text) con microfono sempre attivo e commit cronologico IA",
+    "Mappa completa di Night City integrata in tutte le sezioni cartografiche",
+    "Suite Cyberpunk RED: Iniziativa, Balistica DV, Incontri notturni, Loot, Screamsheet, Terapia Umanità e Debiti",
+    "Nuovo installer macOS DMG con sfondo personalizzato, logo e layout drag & drop"
+  ],
+  "assets": {
+    "macos": {
+      "url": "https://github.com/Tia004/cpredux/releases/download/v0.2.5/cpredux-macos.zip",
+      "sha256": "606f9634100cf21d33a24bb7bcf0778244dc7acd1dc2b5fae7d16652dcc8d99f",
+      "size": 27038667,
+      "fileName": "cpredux-macos.zip"
+    },
+    "macos_dmg": {
+      "url": "https://github.com/Tia004/cpredux/releases/download/v0.2.5/cpredux-macos.dmg",
+      "sha256": "2ece23bc099c99d3ba523457c9e7ba92f1c9aa353413a2c0bbf2d8fc19f22501",
+      "size": 27523208,
+      "fileName": "cpredux-macos.dmg"
+    },
+    "windows": {
+      "url": "https://github.com/Tia004/cpredux/releases/download/v0.2.5/cpredux-windows-setup.exe",
+      "fileName": "cpredux-windows-setup.exe"
+    },
+    "linux": {
+      "url": "https://github.com/Tia004/cpredux/releases/download/v0.2.5/cpredux-linux.AppImage",
+      "fileName": "cpredux-linux.AppImage"
+    }
+  }
+}

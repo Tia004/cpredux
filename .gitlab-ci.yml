@@ -48,9 +48,25 @@ release_job:
         - name: 'Windows Portable (.zip)'
           url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-windows.zip'
           link_type: 'package'
+        - name: 'macOS DMG Installer (.dmg)'
+          url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-macos.dmg'
+          link_type: 'package'
         - name: 'macOS Universal (.zip)'
           url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-macos.zip'
           link_type: 'package'
         - name: 'Linux AppImage (.AppImage)'
           url: 'https://github.com/Tia004/cpredux/releases/download/$CI_COMMIT_TAG/cpredux-linux.AppImage'
           link_type: 'package'
+
+pages:
+  stage: release
+  image: alpine:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
+  script:
+    - mkdir -p public
+    - cp -r site/* public/
+  artifacts:
+    paths:
+      - public

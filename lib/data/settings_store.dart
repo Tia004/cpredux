@@ -28,8 +28,14 @@ class AppSettings {
         gmRuleOverrides = gmRuleOverrides ?? <String, double>{},
         gmMacros = gmMacros ?? <DiceMacro>[];
 
-  /// Indirizzo predefinito del manifesto degli aggiornamenti su GitLab Pages.
-  static const String defaultUpdateFeedUrl = 'https://tia004.gitlab.io/cpredux/latest.json';
+  /// Indirizzo predefinito del manifesto degli aggiornamenti su GitHub raw.
+  static const String defaultUpdateFeedUrl = 'https://raw.githubusercontent.com/Tia004/cpredux/main/site/latest.json';
+
+  /// Indirizzo mirror su GitLab Pages.
+  static const String gitlabUpdateFeedUrl = 'https://tia004.gitlab.io/cpredux/latest.json';
+
+  /// Indirizzo mirror su GitHub raw.
+  static const String githubUpdateFeedUrl = 'https://raw.githubusercontent.com/Tia004/cpredux/main/site/latest.json';
 
   /// Application ID Discord ufficiale di CPRED Visualizer.
   static const String defaultDiscordClientId = '1541315898835472408';

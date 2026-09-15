@@ -184,27 +184,49 @@ class Updater {
       return const UpdateCheck.failed('L\'indirizzo degli aggiornamenti non e\' valido.');
     }
 
+    Object? firstError;
     try {
       final String body = await transport.getText(uri);
       final UpdateManifest? manifest = UpdateManifest.tryParse(body, baseUrl: uri.toString());
-      if (manifest == null) {
-        // Un manifesto illeggibile non e' "aggiornato": e' un problema. Dirlo
-        // come tale evita che un feed rotto resti invisibile per mesi.
-        return const UpdateCheck.failed(
-          'Il file degli aggiornamenti non e\' leggibile. Riprova piu\' tardi.',
-        );
+      if (manifest != null) {
+        if (compareVersions(manifest.version, currentVersion) <= 0) {
+          return UpdateCheck.upToDate(currentVersion);
+        }
+        return UpdateCheck.available(manifest);
       }
-      if (compareVersions(manifest.version, currentVersion) <= 0) {
-        return UpdateCheck.upToDate(currentVersion);
-      }
-      return UpdateCheck.available(manifest);
-    } on TimeoutException {
-      return const UpdateCheck.failed('Il server non ha risposto in tempo.');
-    } on SocketException catch (e) {
-      return UpdateCheck.failed('Nessuna connessione: ${e.osError?.message ?? e.message}');
     } catch (e) {
-      return UpdateCheck.failed('Controllo non riuscito: $e');
+      firstError = e;
     }
+
+    // Fallback automatico su GitHub raw se il feed principale fallisce o viene bloccato da bot protection
+    if (urlStr != AppSettings.githubUpdateFeedUrl) {
+      try {
+        final Uri fallbackUri = Uri.parse(AppSettings.githubUpdateFeedUrl);
+        final String fallbackBody = await transport.getText(fallbackUri);
+        final UpdateManifest? fallbackManifest =
+            UpdateManifest.tryParse(fallbackBody, baseUrl: fallbackUri.toString());
+        if (fallbackManifest != null) {
+          if (compareVersions(fallbackManifest.version, currentVersion) <= 0) {
+            return UpdateCheck.upToDate(currentVersion);
+          }
+          return UpdateCheck.available(fallbackManifest);
+        }
+      } catch (_) {}
+    }
+
+    if (firstError is TimeoutException) {
+      return const UpdateCheck.failed('Il server non ha risposto in tempo.');
+    }
+    if (firstError is SocketException) {
+      return UpdateCheck.failed('Nessuna connessione: ${firstError.osError?.message ?? firstError.message}');
+    }
+    if (firstError != null) {
+      return UpdateCheck.failed('Controllo non riuscito: $firstError');
+    }
+
+    return const UpdateCheck.failed(
+      'Il file degli aggiornamenti non e\' leggibile. Riprova piu\' tardi.',
+    );
   }
 
   /// Scarica l'archivio per la piattaforma corrente.
