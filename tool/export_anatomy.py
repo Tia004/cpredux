@@ -13,12 +13,15 @@ def layer_for(o):
     groups = {c.name for c in o.users_collection}
     if o.type not in {'MESH', 'CURVE'} or o.name.endswith(('.i', '.j')):
         return None
+    # Export the external body only as a very low-detail glow silhouette. The
+    # detailed skin and superficial muscle meshes are intentionally omitted
+    # from the desktop asset so the x-ray scanner stays responsive.
     if '9: Regions of human body' in groups and o.type == 'MESH':
-        return 'surface'
+        return 'aura'
     if '1: Skeletal system' in groups and o.type == 'MESH':
         return 'skeleton'
     if 'Superficial muscles' in groups and o.type == 'MESH':
-        return 'muscles'
+        return None
     if '5: Cardiovascular system' in groups:
         if 'Systemic veins' in groups or 'venous' in o.name.lower():
             return 'veins'
@@ -34,7 +37,7 @@ layers = defaultdict(lambda: [[], [], []])
 # views. Remove these before welding, otherwise overlapping inner walls cause
 # false facets and holes in the continuous external body.
 for o in list(bpy.data.objects):
-    if layer_for(o) == 'surface':
+    if layer_for(o) == 'aura':
         for modifier in list(o.modifiers):
             o.modifiers.remove(modifier)
 deps = bpy.context.evaluated_depsgraph_get()
@@ -63,8 +66,8 @@ for o in list(bpy.data.objects):
     names.append(o.name)
     ev.to_mesh_clear()
 
-budgets = dict(surface=22000, skeleton=30000, muscles=18000,
-               arteries=18000, veins=14000, nervous=22000)
+budgets = dict(aura=4000, skeleton=18000, arteries=5000,
+               veins=5000, nervous=11000)
 result = []
 for layer, (vertices, faces, names) in layers.items():
     mesh = bpy.data.meshes.new('CPRedux_' + layer)
@@ -80,10 +83,6 @@ for layer, (vertices, faces, names) in layers.items():
     bpy.context.scene.collection.objects.link(obj)
     # Render assets, not model source; cap complexity for native desktop drawing.
     tris = sum(len(p.vertices) - 2 for p in mesh.polygons)
-    if layer == 'surface':
-        smooth = obj.modifiers.new('Continuous skin', 'SUBSURF')
-        smooth.levels = 1
-        tris *= 4
     if tris > budgets[layer]:
         dec = obj.modifiers.new('Desktop LOD', 'DECIMATE')
         dec.ratio = budgets[layer] / tris

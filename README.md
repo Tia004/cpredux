@@ -222,8 +222,9 @@ Realizzato in piena conformità con la *Homebrew Content Policy* di R. Talsorian
 
 ### Scanner anatomico 3D (v0.2.7)
 
-La tab Cyberware include un corpo 3D locale con livelli Corpo, Scheletro, Muscoli,
-Vascolare, Nervoso e Tutti i sistemi. Trascina per ruotare, usa la rotella o i
+La tab Cyberware include un corpo 3D locale in modalità X-Ray con livelli X-Ray,
+Scheletro, Vascolare, Nervoso e Tutti i sistemi. Pelle e muscoli non vengono
+caricati: resta un alone azzurro leggero sopra le strutture interne. Trascina per ruotare, usa la rotella o i
 pulsanti per lo zoom, Shift + trascinamento per spostare l'inquadratura. Su
 trackpad/touch sono disponibili pinch e spostamento a due dita. Fronte, Profilo,
 Dorso e Ripristina vista riportano a un'inquadratura completa; con il focus sul

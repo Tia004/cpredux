@@ -72,9 +72,13 @@ class AnatomyFace {
 }
 
 class AnatomyFrame {
-  AnatomyFrame(this.faces, this.vertices);
+  AnatomyFrame(this.faces, this.vertices, {this.auraVertices});
   final List<AnatomyFace> faces;
   final ui.Vertices vertices;
+
+  /// A separate low-alpha copy of the body shell used to create the cyan
+  /// x-ray glow without hiding the anatomical systems underneath it.
+  final ui.Vertices? auraVertices;
 
   String? pick(Offset position) {
     double closest = -double.infinity;
@@ -104,23 +108,28 @@ class AnatomyFrame {
         math.min(size.height * .43, size.width * .84) * camera.zoom;
     final double centerX = size.width / 2 + camera.pan.dx;
     final double centerY = size.height * .49 + camera.pan.dy;
+    final List<double> auraPoints = <double>[];
+    final List<int> auraColors = <int>[];
     for (final AnatomyMesh mesh in model.meshes) {
-      final bool shell =
-          mesh.layer == 'surface' && layer != 'surface' && layer != 'zones';
-      final bool show =
+      // The exported model contains only a compact aura, skeleton, vessels
+      // and nerves. The aura is a glow-only silhouette; there is no skin or
+      // muscle mesh to paint over the anatomical systems.
+      final bool shell = mesh.layer == 'aura' || mesh.layer == 'surface';
+      final bool xray = layer == 'surface';
+      final bool showInternal =
+          (xray && mesh.layer != 'muscles') ||
+          layer == 'all' ||
           mesh.layer == layer ||
           (layer == 'vascular' &&
-              <String>{'arteries', 'veins'}.contains(mesh.layer)) ||
-          (layer == 'zones' && mesh.layer == 'surface') ||
-          (layer == 'all' && mesh.layer != 'muscles') ||
-          shell;
+              <String>{'arteries', 'veins'}.contains(mesh.layer));
+      final bool show = shell || (layer != 'zones' && showInternal);
       if (!show) continue;
       final Float32List p = mesh.positions;
       final Float32List n = mesh.normals;
       final Float32List projected = Float32List(p.length);
       final Int32List colors = Int32List(p.length ~/ 3);
       final Color base = switch (mesh.layer) {
-        'surface' => const Color(0xFFB1C5C4),
+        'aura' || 'surface' => const Color(0xFF59E9FF),
         'skeleton' => const Color(0xFFE6D5BA),
         'muscles' => const Color(0xFFC98079),
         'arteries' => const Color(0xFFFF637A),
@@ -148,8 +157,15 @@ class AnatomyFrame {
                 .toDouble() *
             .48;
         final double brightness = .19 + .72 * key;
+        final int alpha = switch (mesh.layer) {
+          'aura' || 'surface' => 18,
+          'muscles' => layer == 'surface' ? 0 : 145,
+          'skeleton' => 220,
+          'arteries' || 'veins' || 'nervous' => 235,
+          _ => 220,
+        };
         colors[i ~/ 3] = Color.fromARGB(
-          shell ? 22 : 255,
+          alpha,
           ((base.r * brightness + spec + rim * .05) * 255).round().clamp(
             0,
             255,
@@ -177,11 +193,10 @@ class AnatomyFrame {
         final int zone = mesh.zones[i ~/ 3];
         final String id = CyberBodyZone.values[zone].id;
         final bool selected =
-            selectedZone == id ||
-            (selectedZone == 'skin' && mesh.layer == 'surface');
+            selectedZone == id || (selectedZone == 'skin' && shell);
         final bool installed =
             installedZones.contains(id) ||
-            (installedZones.contains('skin') && mesh.layer == 'surface');
+            (installedZones.contains('skin') && shell);
         int tint(int raw) {
           if (!selected && !(layer == 'zones' && installed)) return raw;
           final Color original = Color(raw);
@@ -210,6 +225,15 @@ class AnatomyFrame {
             shell,
           ),
         );
+        if (shell) {
+          // Keep a second, additive copy for the soft blue diagnostic aura.
+          auraPoints.addAll(<double>[ax, ay, bx, by, cx, cY]);
+          auraColors.addAll(<int>[
+            const Color(0x463EDFFF).toARGB32(),
+            const Color(0x463EDFFF).toARGB32(),
+            const Color(0x463EDFFF).toARGB32(),
+          ]);
+        }
       }
     }
     faces.sort((AnatomyFace a, AnatomyFace b) {
@@ -233,6 +257,13 @@ class AnatomyFrame {
     return AnatomyFrame(
       faces,
       ui.Vertices.raw(ui.VertexMode.triangles, points, colors: colors),
+      auraVertices: auraPoints.isEmpty
+          ? null
+          : ui.Vertices.raw(
+              ui.VertexMode.triangles,
+              Float32List.fromList(auraPoints),
+              colors: Int32List.fromList(auraColors),
+            ),
     );
   }
 }
@@ -245,7 +276,20 @@ class AnatomyPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.clipRect(Offset.zero & size);
+    final ui.Vertices? aura = frame.auraVertices;
+    if (aura != null) {
+      canvas.drawVertices(
+        aura,
+        BlendMode.plus,
+        Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+      );
+    }
     canvas.drawVertices(frame.vertices, BlendMode.srcOver, Paint());
+    if (aura != null) {
+      // A second, lighter pass keeps the cyan silhouette readable over dense
+      // anatomy without turning the organs into an opaque body.
+      canvas.drawVertices(aura, BlendMode.plus, Paint());
+    }
     canvas.restore();
   }
 

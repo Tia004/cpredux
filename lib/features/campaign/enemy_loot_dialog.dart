@@ -42,7 +42,6 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
 
   // Advanced Mode State
   late final TextEditingController _advancedPromptCtrl;
-  int _advancedQuality = 6;
   bool _isAiGenerating = false;
 
   // Manual Mode State
@@ -127,7 +126,9 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
     final AiAssistantService service = AiAssistantService.instance;
     final AiLootResult res = await service.generateLootWithAi(
       prompt: prompt,
-      quality: _advancedQuality,
+      // La modalità avanzata ricava il bottino dal contesto del prompt;
+      // il livello standard resta interno e non appare come selettore.
+      quality: 6,
     );
 
     if (!mounted) return;
@@ -135,7 +136,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
       _isAiGenerating = false;
       _eurodollars = res.eurodollars;
       _entries = List<LootEntry>.from(res.entries);
-      _generationSource = 'Avanzata (${res.source}, Q: $_advancedQuality/10)';
+      _generationSource = 'Avanzata (${res.source})';
       _manualEbCtrl.text = '$_eurodollars';
     });
   }
@@ -423,23 +424,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Text('QUALITÀ DELLA LOOT TABLE: ', style: CprType.label.copyWith(fontSize: 11)),
-              Text(_qualityLabel(_advancedQuality), style: CprType.caption.copyWith(color: CprPalette.magenta, fontWeight: FontWeight.w600)),
-            ],
-          ),
-          Slider(
-            value: _advancedQuality.toDouble(),
-            min: 0,
-            max: 10,
-            divisions: 10,
-            activeColor: CprPalette.magenta,
-            inactiveColor: CprPalette.hairline,
-            onChanged: (double v) => setState(() => _advancedQuality = v.round()),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
           TechButton(
             label: _isAiGenerating ? 'GENERAZIONE IN CORSO...' : 'GENERA LOOT CON IA (REROLL INDIPENDENTE)',
             icon: Icons.auto_awesome,

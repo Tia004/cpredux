@@ -32,15 +32,18 @@ void main() {
     );
   });
 
-  test('all six offline anatomical layers contain bounded real geometry', () {
+  test('compact offline x-ray layers contain bounded real geometry', () {
     expect(model.meshes.map((m) => m.layer).toSet(), <String>{
-      'surface',
+      'aura',
       'skeleton',
-      'muscles',
       'arteries',
       'veins',
       'nervous',
     });
+    expect(
+      model.meshes.fold<int>(0, (sum, mesh) => sum + mesh.triangles.length ~/ 3),
+      lessThan(50000),
+    );
     for (final AnatomyMesh mesh in model.meshes) {
       expect(mesh.triangles.length, greaterThan(3000));
       expect(
@@ -209,7 +212,6 @@ void main() {
         'SCHELETRO',
         'VASCOLARE',
         'NERVOSO',
-        'MUSCOLI',
         'TUTTI I SISTEMI',
       ]) {
         await tester.tap(find.text(layer).first);

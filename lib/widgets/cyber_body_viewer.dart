@@ -12,10 +12,9 @@ import 'anatomy/anatomy_scene.dart';
 import 'tech_button.dart';
 
 enum BodyScanLayer {
-  surface('Corpo', Icons.person_outline, 'surface'),
+  surface('X-Ray', Icons.person_outline, 'surface'),
   all('Tutti i sistemi', Icons.layers_outlined, 'all'),
   skeleton('Scheletro', Icons.accessibility_new, 'skeleton'),
-  muscles('Muscoli', Icons.fitness_center, 'muscles'),
   vascular('Vascolare', Icons.favorite_border, 'vascular'),
   nervous('Nervoso', Icons.bolt, 'nervous'),
   zones('Zone cyber', Icons.grid_view, 'zones');
