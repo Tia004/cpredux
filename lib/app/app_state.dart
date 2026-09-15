@@ -14,7 +14,9 @@ import '../data/document_upgrade.dart';
 import '../data/migrator.dart';
 import '../data/settings_store.dart';
 import '../domain/campaign.dart';
+import '../domain/campaign_combat.dart';
 import '../domain/catalog_item.dart';
+import '../features/campaign/session_transcriber.dart';
 import '../domain/dice_expression.dart';
 import '../domain/gm/gm_calculators.dart';
 import '../domain/gm/gm_rules.dart';
@@ -33,6 +35,7 @@ import '../net/discord_rpc.dart';
 import '../net/update_installer.dart';
 import '../net/update_manifest.dart';
 import '../net/updater.dart';
+import '../version.dart';
 
 enum AppScreen { home, sheet, campaign, settings, compare, cloud, gm }
 
@@ -413,6 +416,7 @@ class AppState extends ChangeNotifier {
         _screen = AppScreen.gm;
     }
     notifyListeners();
+    refreshPresence();
   }
 
   void closeTab(int index) {
@@ -1510,18 +1514,64 @@ class AppState extends ChangeNotifier {
 
     final String details;
     final String state;
-    if (_sheet != null) {
-      details = 'Scheda: ${_sheet!.meta.name}';
-      state = _sheet!.identity.role.trim().isEmpty
-          ? 'Gestione personaggio'
-          : _sheet!.identity.role;
-    } else if (_campaign != null) {
-      final int connected = _campaign!.players.where((CampaignPlayer p) => p.isConnected).length;
-      details = 'Campagna: ${_campaign!.meta.name}';
-      state = isHosting ? 'Master · $connected al tavolo' : 'Giocatore';
-    } else {
-      details = 'Menu principale';
-      state = 'Cyberpunk RED';  
+    String? smallText;
+    int? partySize;
+    int? partyMax;
+
+    switch (_screen) {
+      case AppScreen.sheet:
+        if (_sheet != null) {
+          final String name = _sheet!.meta.name.trim().isNotEmpty
+              ? _sheet!.meta.name
+              : 'Senza nome';
+          final String role = _sheet!.identity.role.trim().isNotEmpty
+              ? _sheet!.identity.role
+              : 'Cyberpunk';
+          final int hp = _sheet!.identity.currentHp;
+          final int hpMax = _totals?.maxHitPoints ?? hp;
+          details = 'Scheda: $name';
+          state = '$role · $hp/$hpMax HP';
+          smallText = 'Umanità: ${_sheet!.identity.currentHumanity}';
+        } else {
+          details = 'Scheda del Personaggio';
+          state = 'Configurazione Cyberpunk';
+        }
+      case AppScreen.campaign:
+        if (_campaign != null) {
+          final int connected =
+              _campaign!.players.where((CampaignPlayer p) => p.isConnected).length;
+          final String campName = _campaign!.meta.name.trim().isNotEmpty
+              ? _campaign!.meta.name
+              : 'Night City';
+          details = 'Campagna: $campName';
+          if (isHosting) {
+            state = 'Master · $connected al tavolo';
+            partySize = connected + 1;
+            partyMax = 8;
+          } else {
+            state = 'Giocatore al tavolo';
+          }
+          smallText = 'Tavolo P2P';
+        } else {
+          details = 'Tavolo di Campagna';
+          state = 'Sessione di Gioco';
+        }
+      case AppScreen.gm:
+        details = 'Schermo del Master';
+        state = 'Gestione Combattimento & Incontri';
+        smallText = 'Master Screen';
+      case AppScreen.compare:
+        details = 'Confronto & Diff';
+        state = 'Revisione Schede P2P';
+      case AppScreen.settings:
+        details = 'Impostazioni di Sistema';
+        state = 'Configurazione Cyberdeck';
+      case AppScreen.cloud:
+        details = 'CyberCloud Storage';
+        state = 'Archivio Schede & Campagne';
+      case AppScreen.home:
+        details = 'Menu Principale';
+        state = 'Cyberpunk RED Visualizer';
     }
 
     await _discord.update(
@@ -1529,6 +1579,17 @@ class AppState extends ChangeNotifier {
       details: details,
       state: state,
       startTimeIso: _sessionStartedAt.toIso8601String(),
+      largeImage: 'main',
+      largeText: 'CPRedux v$appVersion',
+      smallText: smallText,
+      partySize: partySize,
+      partyMax: partyMax,
+      buttons: const <Map<String, String>>[
+        <String, String>{
+          'label': 'Scarica CPRedux',
+          'url': 'https://tia004.github.io/cpredux/',
+        },
+      ],
     );
     notifyListeners();
   }
@@ -1787,6 +1848,7 @@ class AppState extends ChangeNotifier {
         description: "Tavolo aperto sulla porta ${host.port}",
         delta: 'SESSIONE',
       );
+      SessionVoiceTranscriber.instance.startLiveListening(speaker: 'Master');
       _scheduleSave();
     } on SocketException catch (e) {
       // La porta occupata e' l'errore piu' comune e ha una causa precisa:
@@ -1801,9 +1863,22 @@ class AppState extends ChangeNotifier {
     final CampaignHost? host = _host;
     if (host == null) return;
     _host = null;
+    SessionVoiceTranscriber.instance.stopLiveListening();
     await host.stop();
     _appendSession(description: 'Tavolo chiuso', delta: 'SESSIONE');
   }
+
+  /// Invia la richiesta di termine sessione e avvio Voice-to-Text a tutti i partecipanti.
+  void broadcastSessionEnd({String? sessionTitle}) {
+    if (!isHosting) return;
+    _host?.broadcast(<String, Object?>{
+      't': SessionMessage.sessionEndRequest,
+      'sessionTitle': sessionTitle ?? '',
+    });
+  }
+
+  /// Trascrizioni e riepiloghi vocali accumulati dai singoli giocatori durante la sessione.
+  final Map<String, PlayerSessionSummary> pendingPlayerSummaries = <String, PlayerSessionSummary>{};
 
   void _onPlayerHello(HostedPlayer player) {
     final Campaign? campaign = _campaign;
@@ -2090,6 +2165,17 @@ class AppState extends ChangeNotifier {
         campaign.waypoints.remove(w);
         _appendSession(description: 'Proposta ritirata: ${w.label}', delta: 'MAPPA', persist: false);
         _scheduleSave();
+
+      case SessionMessage.sessionPlayerTranscript:
+        final String pId = '${message['playerId'] ?? player.id}';
+        final String pName = '${message['playerName'] ?? (player.characterName.isNotEmpty ? player.characterName : (player.playerName.isNotEmpty ? player.playerName : 'Giocatore'))}';
+        final String pTranscript = '${message['transcript'] ?? ''}';
+        pendingPlayerSummaries[pId] = PlayerSessionSummary(
+          playerId: pId,
+          playerName: pName,
+          transcript: pTranscript,
+        );
+        notifyListeners();
 
       case SessionMessage.ping:
         _host?.sendTo(player.id, <String, Object?>{'t': SessionMessage.pong});
@@ -2532,6 +2618,7 @@ class AppState extends ChangeNotifier {
     final CampaignClient? client = _client;
     if (client == null) return;
     _client = null;
+    SessionVoiceTranscriber.instance.stopLiveListening();
     await client.close();
     _tableWaypoints.clear();
     _appendSession(description: 'Hai lasciato il tavolo', delta: 'SESSIONE', persist: false);
@@ -2546,6 +2633,28 @@ class AppState extends ChangeNotifier {
           delta: 'BENVENUTO',
           persist: false,
         );
+        final String localCharName = _sheet?.meta.name.isNotEmpty == true
+            ? _sheet!.meta.name
+            : (_sheet?.identity.playerName.isNotEmpty == true
+                ? _sheet!.identity.playerName
+                : 'Giocatore');
+        SessionVoiceTranscriber.instance.startLiveListening(
+          speaker: localCharName,
+        );
+
+      case SessionMessage.sessionEndRequest:
+        final String pTranscript = SessionVoiceTranscriber.instance.endSessionAndExport();
+        final String localCharName = _sheet?.meta.name.isNotEmpty == true
+            ? _sheet!.meta.name
+            : (_sheet?.identity.playerName.isNotEmpty == true
+                ? _sheet!.identity.playerName
+                : 'Giocatore');
+        _client?.channel.send(<String, Object?>{
+          't': SessionMessage.sessionPlayerTranscript,
+          'playerId': _sheet?.meta.id ?? '',
+          'playerName': localCharName,
+          'transcript': pTranscript,
+        });
 
       case SessionMessage.players:
         final List<CampaignPlayer> updatedPlayers = (message['players'] is List

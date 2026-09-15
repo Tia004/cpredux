@@ -20,6 +20,7 @@ import '../../domain/sheet.dart';
 import '../sheet/chat_rich_tools.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/cyber_help_tooltip.dart';
+import '../../widgets/dice_3d_table.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
@@ -334,20 +335,25 @@ class _CampaignHeader extends StatelessWidget {
                     compact: true,
                     variant: TechButtonVariant.primary,
                     tooltip: 'Compila trascrizioni vocali, genera commit con note e riassunto IA',
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => EndSessionSummaryDialog(
-                        campaign: campaign,
-                        onSaveCommit: (CampaignSessionCommit commit) {
-                          state.mutateCampaign((Campaign c) {
-                            c.sessionCommits.add(commit);
-                          });
-                          state.appendSessionEvent(
-                            description: 'Master: Sessione archiviata: ${commit.title} (ID: ${commit.id})',
-                          );
-                        },
-                      ),
-                    ),
+                    onPressed: () {
+                      state.broadcastSessionEnd();
+                      showDialog<void>(
+                        context: context,
+                        builder: (_) => EndSessionSummaryDialog(
+                          campaign: campaign,
+                          initialPlayerSummaries: state.pendingPlayerSummaries.values.toList(),
+                          onSaveCommit: (CampaignSessionCommit commit) {
+                            state.mutateCampaign((Campaign c) {
+                              c.sessionCommits.add(commit);
+                            });
+                            state.pendingPlayerSummaries.clear();
+                            state.appendSessionEvent(
+                              description: 'Master: Sessione archiviata: ${commit.title} (ID: ${commit.id})',
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -2818,6 +2824,7 @@ class _DiceSectionState extends State<_DiceSection> {
   int _count = 1;
   int _modifier = 0;
   DiceRoll? _last;
+  String _lastLabel = '1D10';
   int _reveal = 0;
 
   void _roll(AppState state) {
@@ -2831,6 +2838,7 @@ class _DiceSectionState extends State<_DiceSection> {
 
     setState(() {
       _last = roll;
+      _lastLabel = label;
       _reveal++;
     });
 
@@ -2853,50 +2861,56 @@ class _DiceSectionState extends State<_DiceSection> {
       padding: const EdgeInsets.all(20),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
+          constraints: const BoxConstraints(maxWidth: 820),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               ChamferPanel(
-                title: 'Ultimo tiro',
+                title: 'Tavolo dei Dadi 3D',
                 accent: _last == null
-                    ? CprPalette.inkFaint
+                    ? CprPalette.cyan
                     : (_last!.isCritical
                         ? CprPalette.success
                         : _last!.isFumble
                             ? CprPalette.danger
                             : CprPalette.yellow),
-                child: SizedBox(
-                  height: 110,
-                  child: Center(
-                    child: _last == null
-                        ? Text(
-                            'Nessun tiro',
-                            style: CprType.body.copyWith(color: CprPalette.inkFaint),
-                          )
-                        : TweenAnimationBuilder<double>(
-                            key: ValueKey<int>(_reveal),
-                            tween: Tween<double>(begin: 0, end: 1),
-                            duration: CprMotion.slow,
-                            curve: CprMotion.enter,
-                            builder: (BuildContext context, double t, Widget? child) => Opacity(
-                              opacity: t.clamp(0, 1),
-                              child: Transform.scale(scale: 0.85 + 0.15 * t, child: child),
-                            ),
-                            child: Text(
-                              '${_last!.total}',
-                              style: CprType.display.copyWith(
-                                fontSize: 68,
-                                color: _last!.isCritical
-                                    ? CprPalette.success
-                                    : _last!.isFumble
-                                        ? CprPalette.danger
-                                        : CprPalette.yellow,
+                child: _last == null
+                    ? Container(
+                        height: 280,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A0E12),
+                          border: Border.all(color: CprPalette.hairline),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              Icon(Icons.casino_outlined, size: 48, color: CprPalette.veil(CprPalette.cyan, 0.4)),
+                              const SizedBox(height: 12),
+                              Text(
+                                'TAVOLO DEI DADI 3D PRONTO',
+                                style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 11, letterSpacing: 1.0),
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Seleziona i dadi e lancia per il tavolo della campagna',
+                                style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+                              ),
+                            ],
                           ),
-                  ),
-                ),
+                        ),
+                      )
+                    : Dice3DTable(
+                        die: _die,
+                        results: _last!.individualResults.isEmpty ? <int>[_last!.total] : _last!.individualResults,
+                        total: _last!.total,
+                        label: _lastLabel,
+                        modifier: _modifier,
+                        isCritical: _last!.isCritical,
+                        isFumble: _last!.isFumble,
+                        revealKey: _reveal,
+                        tableHeight: 285.0,
+                      ),
               ),
               const SizedBox(height: 14),
               ChamferPanel(
@@ -3075,9 +3089,267 @@ class _NotebookSection extends StatelessWidget {
                         ),
                       ),
               ),
+              const SizedBox(height: 14),
+              ChamferPanel(
+                title: 'Diario delle Sessioni & Riepiloghi IA (${campaign.sessionCommits.length})',
+                accent: CprPalette.yellow,
+                trailing: TechButton(
+                  label: 'Nuovo Riepilogo Sessione',
+                  icon: Icons.add_circle_outline,
+                  variant: TechButtonVariant.primary,
+                  compact: true,
+                  onPressed: () {
+                    state.broadcastSessionEnd();
+                    showDialog<void>(
+                      context: context,
+                      builder: (_) => EndSessionSummaryDialog(
+                        campaign: campaign,
+                        initialPlayerSummaries: state.pendingPlayerSummaries.values.toList(),
+                        onSaveCommit: (CampaignSessionCommit commit) {
+                          state.mutateCampaign((Campaign c) {
+                            c.sessionCommits.add(commit);
+                          });
+                          state.pendingPlayerSummaries.clear();
+                          state.appendSessionEvent(
+                            description: 'Master: Sessione archiviata: ${commit.title} (ID: ${commit.id})',
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+                child: campaign.sessionCommits.isEmpty
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                        alignment: Alignment.center,
+                        child: Column(
+                          children: <Widget>[
+                            Icon(Icons.history_edu, size: 40, color: CprPalette.veil(CprPalette.yellow, 0.5)),
+                            const SizedBox(height: 10),
+                            Text(
+                              'NESSUNA SESSIONE REGISTRATA NEL DIARIO',
+                              style: CprType.label.copyWith(fontSize: 11, color: CprPalette.yellow),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Quando termini una sessione con il pulsante in alto a destra o da qui, '
+                              'la trascrizione vocale di ciascun giocatore e il riassunto dell\'IA '
+                              'verranno archiviati qui con data, ora e titolo personalizzato.',
+                              textAlign: TextAlign.center,
+                              style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          for (final CampaignSessionCommit commit in campaign.sessionCommits.reversed)
+                            _SessionCommitCard(commit: commit),
+                        ],
+                      ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SessionCommitCard extends StatelessWidget {
+  const _SessionCommitCard({required this.commit});
+
+  final CampaignSessionCommit commit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: CprPalette.surfaceRaised,
+        border: Border.all(color: CprPalette.yellow.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        collapsedIconColor: CprPalette.yellow,
+        iconColor: CprPalette.yellow,
+        title: Row(
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: CprPalette.yellow.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: CprPalette.yellow),
+              ),
+              child: Text(
+                '#${commit.sessionIndex}',
+                style: CprType.label.copyWith(fontSize: 10, color: CprPalette.yellow, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                commit.title,
+                style: CprType.title.copyWith(fontSize: 13, color: CprPalette.ink),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: CprPalette.surfaceSunken,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(Icons.schedule, size: 12, color: CprPalette.cyan),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${commit.date} · ${commit.time}',
+                    style: CprType.caption.copyWith(fontSize: 10, color: CprPalette.cyan),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                // Riepilogo Principale IA
+                if (commit.aiSummary.isNotEmpty) ...<Widget>[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CprPalette.surfaceSunken,
+                      border: Border.all(color: CprPalette.cyan.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            const Icon(Icons.smart_toy_outlined, size: 14, color: CprPalette.cyan),
+                            const SizedBox(width: 6),
+                            Text(
+                              'RIEPILOGO PRINCIPALE DELLA SESSIONE (IA)',
+                              style: CprType.label.copyWith(fontSize: 10, color: CprPalette.cyan, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          commit.aiSummary,
+                          style: CprType.body.copyWith(fontSize: 11.5, color: CprPalette.ink, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Note del Master
+                if (commit.masterNotes.isNotEmpty) ...<Widget>[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CprPalette.surfaceSunken,
+                      border: Border.all(color: CprPalette.yellow.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            const Icon(Icons.edit_note, size: 16, color: CprPalette.yellow),
+                            const SizedBox(width: 6),
+                            Text(
+                              'NOTE PERSONALI DEL MASTER',
+                              style: CprType.label.copyWith(fontSize: 10, color: CprPalette.yellow, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          commit.masterNotes,
+                          style: CprType.body.copyWith(fontSize: 11.5, color: CprPalette.ink, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Riepiloghi dei Singoli Giocatori
+                if (commit.playerSummaries.isNotEmpty) ...<Widget>[
+                  Text(
+                    'COSA HANNO DETTO E FATTO I GIOCATORI (${commit.playerSummaries.length}):',
+                    style: CprType.label.copyWith(fontSize: 10, color: CprPalette.inkMuted, letterSpacing: 0.8),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final PlayerSessionSummary player in commit.playerSummaries)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F141A),
+                        border: Border.all(color: CprPalette.hairline),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              const Icon(Icons.person_pin, size: 14, color: CprPalette.cyan),
+                              const SizedBox(width: 6),
+                              Text(
+                                player.playerName.toUpperCase(),
+                                style: CprType.label.copyWith(fontSize: 10.5, color: CprPalette.cyan, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            player.aiSummary.isNotEmpty ? player.aiSummary : player.transcript,
+                            style: CprType.body.copyWith(fontSize: 11, color: CprPalette.inkMuted, height: 1.35),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                ],
+
+                // Trascrizione integrale
+                if (commit.fullTranscript.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TechButton(
+                      label: 'Copia Trascrizione Integrale',
+                      icon: Icons.copy_all_outlined,
+                      compact: true,
+                      variant: TechButtonVariant.ghost,
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: commit.fullTranscript));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Trascrizione integrale copiata negli appunti')),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

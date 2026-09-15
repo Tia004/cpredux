@@ -172,6 +172,9 @@ class _CyberwareTabState extends State<CyberwareTab> {
                     selectedZone: _selectedZone,
                     onZoneSelected: (String? z) => setState(() => _selectedZone = z),
                     onInstallInZone: (String zoneId) => _add(context, state, initialZone: zoneId),
+                    humanity: sheet.identity.currentHumanity,
+                    maxHumanity: totals.maxHumanity,
+                    isCyberpsychotic: sheet.identity.currentEmpathy <= 0 && sheet.identity.currentHumanity < 10,
                   )
                 : InkWell(
                     onTap: () => setState(() => _viewerExpanded = true),

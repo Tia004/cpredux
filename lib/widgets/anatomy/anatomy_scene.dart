@@ -72,13 +72,27 @@ class AnatomyFace {
 }
 
 class AnatomyFrame {
-  AnatomyFrame(this.faces, this.vertices, {this.auraVertices});
+  AnatomyFrame(
+    this.faces,
+    this.vertices, {
+    this.auraVertices,
+    this.zoneAnchors = const <String, Offset>{},
+    this.headCenter,
+    this.headRadius = 40.0,
+  });
   final List<AnatomyFace> faces;
   final ui.Vertices vertices;
 
-  /// A separate low-alpha copy of the body shell used to create the cyan
-  /// x-ray glow without hiding the anatomical systems underneath it.
+  /// A separate glowing copy of the body shell used to create the luminous
+  /// cyan holographic aura without hiding the anatomical systems underneath it.
   final ui.Vertices? auraVertices;
+
+  /// Projected 2D screen coordinates for each body zone.
+  final Map<String, Offset> zoneAnchors;
+
+  /// Projected center of the head for cyberpsychosis effects.
+  final Offset? headCenter;
+  final double headRadius;
 
   String? pick(Offset position) {
     double closest = -double.infinity;
@@ -110,10 +124,11 @@ class AnatomyFrame {
     final double centerY = size.height * .49 + camera.pan.dy;
     final List<double> auraPoints = <double>[];
     final List<int> auraColors = <int>[];
+    final Map<String, double> sumX = <String, double>{};
+    final Map<String, double> sumY = <String, double>{};
+    final Map<String, int> counts = <String, int>{};
+
     for (final AnatomyMesh mesh in model.meshes) {
-      // The exported model contains only a compact aura, skeleton, vessels
-      // and nerves. The aura is a glow-only silhouette; there is no skin or
-      // muscle mesh to paint over the anatomical systems.
       final bool shell = mesh.layer == 'aura' || mesh.layer == 'surface';
       final bool xray = layer == 'surface';
       final bool showInternal =
@@ -128,13 +143,14 @@ class AnatomyFrame {
       final Float32List n = mesh.normals;
       final Float32List projected = Float32List(p.length);
       final Int32List colors = Int32List(p.length ~/ 3);
+      // Stile Cyberpunk: titanio cromato per lo scheletro, neon vibrante per arterie/vene/nervi.
       final Color base = switch (mesh.layer) {
-        'aura' || 'surface' => const Color(0xFF59E9FF),
-        'skeleton' => const Color(0xFFE6D5BA),
+        'aura' || 'surface' => const Color(0xFF00F0FF),
+        'skeleton' => const Color(0xFFD6F0FF),
         'muscles' => const Color(0xFFC98079),
-        'arteries' => const Color(0xFFFF637A),
-        'veins' => const Color(0xFF50B4ED),
-        _ => const Color(0xFFF3D78A),
+        'arteries' => const Color(0xFFFF1E46),
+        'veins' => const Color(0xFF00E5FF),
+        _ => const Color(0xFFFFDE59),
       };
       for (int i = 0; i < p.length; i += 3) {
         final double rx = cy * p[i] + sy * p[i + 2];
@@ -150,34 +166,22 @@ class AnatomyFrame {
         final double ny = cp * n[i + 1] - sp * nz0;
         final double nz = sp * n[i + 1] + cp * nz0;
         final double key = math.max(0, -.42 * nx + .57 * ny + .71 * nz);
-        final double rim = math.pow(1 - nz.abs().clamp(0, 1), 3).toDouble();
+        final double rim = math.pow(1 - nz.abs().clamp(0, 1), 2.2).toDouble();
         final double spec =
-            math
-                .pow(math.max(0, -.22 * nx + .29 * ny + .93 * nz), 24)
-                .toDouble() *
-            .48;
-        final double brightness = .19 + .72 * key;
+            math.pow(math.max(0, -.22 * nx + .29 * ny + .93 * nz), 18).toDouble() * .70;
+        final double brightness = .22 + .78 * key;
         final int alpha = switch (mesh.layer) {
-          'aura' || 'surface' => 18,
-          'muscles' => layer == 'surface' ? 0 : 145,
-          'skeleton' => 220,
-          'arteries' || 'veins' || 'nervous' => 235,
-          _ => 220,
+          'aura' || 'surface' => 38,
+          'muscles' => layer == 'surface' ? 0 : 150,
+          'skeleton' => 245,
+          'arteries' || 'veins' || 'nervous' => 250,
+          _ => 235,
         };
         colors[i ~/ 3] = Color.fromARGB(
           alpha,
-          ((base.r * brightness + spec + rim * .05) * 255).round().clamp(
-            0,
-            255,
-          ),
-          ((base.g * brightness + spec + rim * .22) * 255).round().clamp(
-            0,
-            255,
-          ),
-          ((base.b * brightness + spec + rim * .24) * 255).round().clamp(
-            0,
-            255,
-          ),
+          ((base.r * brightness + spec * .9 + rim * .25) * 255).round().clamp(0, 255),
+          ((base.g * brightness + spec * .9 + rim * .45) * 255).round().clamp(0, 255),
+          ((base.b * brightness + spec * .9 + rim * .55) * 255).round().clamp(0, 255),
         ).toARGB32();
       }
       final Uint32List indices = mesh.triangles;
@@ -192,6 +196,12 @@ class AnatomyFrame {
         if ((bx - ax) * (cY - ay) - (by - ay) * (cx - ax) >= 0) continue;
         final int zone = mesh.zones[i ~/ 3];
         final String id = CyberBodyZone.values[zone].id;
+        final double midX = (ax + bx + cx) / 3.0;
+        final double midY = (ay + by + cY) / 3.0;
+        sumX[id] = (sumX[id] ?? 0) + midX;
+        sumY[id] = (sumY[id] ?? 0) + midY;
+        counts[id] = (counts[id] ?? 0) + 1;
+
         final bool selected =
             selectedZone == id || (selectedZone == 'skin' && shell);
         final bool installed =
@@ -202,9 +212,9 @@ class AnatomyFrame {
           final Color original = Color(raw);
           return Color.lerp(
             original,
-            selected ? const Color(0xFF51F5D4) : const Color(0xFFDCB46C),
-            selected ? .53 : .28,
-          )!.withValues(alpha: shell ? (selected ? .24 : .09) : 1).toARGB32();
+            selected ? const Color(0xFF00FFFF) : const Color(0xFFFF9900),
+            selected ? .60 : .35,
+          )!.withValues(alpha: shell ? (selected ? .35 : .12) : 1).toARGB32();
         }
 
         faces.add(
@@ -226,12 +236,12 @@ class AnatomyFrame {
           ),
         );
         if (shell) {
-          // Keep a second, additive copy for the soft blue diagnostic aura.
+          // Copia additiva per l'alone corporeo azzurro cyberpunk.
           auraPoints.addAll(<double>[ax, ay, bx, by, cx, cY]);
           auraColors.addAll(<int>[
-            const Color(0x463EDFFF).toARGB32(),
-            const Color(0x463EDFFF).toARGB32(),
-            const Color(0x463EDFFF).toARGB32(),
+            const Color(0x6600E5FF).toARGB32(),
+            const Color(0x6600E5FF).toARGB32(),
+            const Color(0x6600E5FF).toARGB32(),
           ]);
         }
       }
@@ -254,6 +264,15 @@ class AnatomyFrame {
       ]);
       colors.setRange(i * 3, i * 3 + 3, <int>[f.ca, f.cb, f.cc]);
     }
+
+    final Map<String, Offset> zoneAnchors = <String, Offset>{};
+    for (final String id in sumX.keys) {
+      final int c = counts[id] ?? 1;
+      zoneAnchors[id] = Offset(sumX[id]! / c, sumY[id]! / c);
+    }
+    final Offset? headCenter = zoneAnchors['head'];
+    final double headRadius = 38.0 * (scale / (size.height * 0.43)).clamp(0.5, 3.0);
+
     return AnatomyFrame(
       faces,
       ui.Vertices.raw(ui.VertexMode.triangles, points, colors: colors),
@@ -264,6 +283,9 @@ class AnatomyFrame {
               Float32List.fromList(auraPoints),
               colors: Int32List.fromList(auraColors),
             ),
+      zoneAnchors: zoneAnchors,
+      headCenter: headCenter,
+      headRadius: headRadius,
     );
   }
 }
@@ -278,16 +300,20 @@ class AnatomyPainter extends CustomPainter {
     canvas.clipRect(Offset.zero & size);
     final ui.Vertices? aura = frame.auraVertices;
     if (aura != null) {
+      // Glow olografico azzurro cyberpunk a doppio stadio
       canvas.drawVertices(
         aura,
         BlendMode.plus,
-        Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+        Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+      );
+      canvas.drawVertices(
+        aura,
+        BlendMode.plus,
+        Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
       );
     }
     canvas.drawVertices(frame.vertices, BlendMode.srcOver, Paint());
     if (aura != null) {
-      // A second, lighter pass keeps the cyan silhouette readable over dense
-      // anatomy without turning the organs into an opaque body.
       canvas.drawVertices(aura, BlendMode.plus, Paint());
     }
     canvas.restore();

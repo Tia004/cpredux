@@ -183,7 +183,7 @@ class _HealthHeartState extends State<HealthHeart> with TickerProviderStateMixin
                   ];
 
                   return Align(
-                    alignment: const Alignment(0, 0.30),
+                    alignment: const Alignment(0, 0.02),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
@@ -412,9 +412,9 @@ class _HeartPainter extends CustomPainter {
     final double w = size.width;
     final double h = size.height;
     return Path()
-      ..moveTo(w * 0.5, h * 0.94)
-      ..cubicTo(w * -0.06, h * 0.60, w * 0.10, h * 0.04, w * 0.5, h * 0.30)
-      ..cubicTo(w * 0.90, h * 0.04, w * 1.06, h * 0.60, w * 0.5, h * 0.94)
+      ..moveTo(w * 0.5, h * 0.92)
+      ..cubicTo(w * -0.08, h * 0.54, w * 0.08, h * -0.10, w * 0.5, h * 0.20)
+      ..cubicTo(w * 0.92, h * -0.10, w * 1.08, h * 0.54, w * 0.5, h * 0.92)
       ..close();
   }
 

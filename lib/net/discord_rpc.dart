@@ -17,18 +17,24 @@ import 'dart:typed_data';
 class DiscordRpc {
   static const int _opHandshake = 0;
   static const int _opFrame = 1;
+  static const int _opClose = 2;
+  static const int _opPing = 3;
+  static const int _opPong = 4;
 
   /// Discord apre fino a dieci socket, uno per istanza avviata.
   static const int _maxClients = 10;
 
   Socket? _socket;
+  final BytesBuilder _readBuffer = BytesBuilder(copy: false);
   bool _handshaken = false;
   String? _clientId;
   Map<String, Object?>? _activity;
   DateTime _lastUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   bool _connecting = false;
+  String? _discordUsername;
 
   bool get isConnected => _handshaken && _socket != null;
+  String? get discordUsername => _discordUsername;
 
   /// Collega (se serve) e imposta l'attivita'.
   ///
@@ -39,6 +45,13 @@ class DiscordRpc {
     required String details,
     required String state,
     String? startTimeIso,
+    String? largeImage,
+    String? largeText,
+    String? smallImage,
+    String? smallText,
+    int? partySize,
+    int? partyMax,
+    List<Map<String, String>>? buttons,
   }) async {
     final String id = clientId.trim();
     if (id.isEmpty) {
@@ -46,18 +59,32 @@ class DiscordRpc {
       return;
     }
 
-    _activity = <String, Object?>{
+    final Map<String, Object?> activityData = <String, Object?>{
       'details': _clip(details, 128),
       'state': _clip(state, 128),
       'timestamps': <String, Object?>{
         'start': DateTime.tryParse(startTimeIso ?? '')?.millisecondsSinceEpoch ??
             DateTime.now().millisecondsSinceEpoch,
       },
-      'assets': const <String, Object?>{
-        'large_image': 'main',
-        'large_text': 'Cyberpunk RED Visualizer',
+      'assets': <String, Object?>{
+        'large_image': largeImage ?? 'main',
+        'large_text': _clip(largeText ?? 'Cyberpunk RED Visualizer', 128),
+        if (smallImage != null && smallImage.isNotEmpty) 'small_image': smallImage,
+        if (smallText != null && smallText.isNotEmpty) 'small_text': _clip(smallText, 128),
       },
+      if (partySize != null && partySize > 0)
+        'party': <String, Object?>{
+          'id': 'cpredux_party_$pid',
+          'size': <int>[partySize, partyMax ?? partySize],
+        },
+      if (buttons != null && buttons.isNotEmpty)
+        'buttons': buttons.take(2).map((b) => <String, String>{
+          'label': _clip(b['label'] ?? 'CPRedux', 32),
+          'url': b['url'] ?? 'https://tia004.github.io/cpredux/',
+        }).toList(),
     };
+
+    _activity = activityData;
 
     if (!isConnected || _clientId != id) {
       _clientId = id;
@@ -86,16 +113,14 @@ class DiscordRpc {
         return;
       }
       _socket = socket;
+      _readBuffer.clear();
       socket.listen(
-        (_) {},
+        _onSocketData,
         onError: (Object _) => _disposeSocket(),
         onDone: _disposeSocket,
         cancelOnError: true,
       );
       _send(<String, Object?>{'v': 1, 'client_id': _clientId ?? ''}, opcode: _opHandshake);
-      _handshaken = true;
-      onConnectionChanged?.call(true);
-      _sendActivity();
     } catch (_) {
       // Discord chiuso: si resta in silenzio e si riprovera' al prossimo
       // aggiornamento.
@@ -106,6 +131,76 @@ class DiscordRpc {
       }
     } finally {
       _connecting = false;
+    }
+  }
+
+  void _onSocketData(List<int> chunk) {
+    _readBuffer.add(chunk);
+    while (true) {
+      final Uint8List bytes = _readBuffer.toBytes();
+      if (bytes.length < 8) break;
+      final ByteData bd = ByteData.sublistView(bytes);
+      final int opcode = bd.getInt32(0, Endian.little);
+      final int length = bd.getInt32(4, Endian.little);
+      if (bytes.length < 8 + length) break;
+
+      final Uint8List payloadBytes = bytes.sublist(8, 8 + length);
+      final Uint8List remaining = bytes.sublist(8 + length);
+      _readBuffer.clear();
+      if (remaining.isNotEmpty) {
+        _readBuffer.add(remaining);
+      }
+
+      _handleIncomingFrame(opcode, payloadBytes);
+    }
+  }
+
+  void _handleIncomingFrame(int opcode, Uint8List payload) {
+    if (opcode == _opPing) {
+      _sendRaw(payload, opcode: _opPong);
+      return;
+    }
+    if (opcode == _opClose) {
+      _disposeSocket();
+      return;
+    }
+    if (opcode != _opFrame) return;
+
+    try {
+      final String jsonStr = utf8.decode(payload);
+      final dynamic decoded = jsonDecode(jsonStr);
+      if (decoded is Map<String, Object?>) {
+        final Object? evt = decoded['evt'];
+        final Object? cmd = decoded['cmd'];
+        if (evt == 'READY' || cmd == 'DISPATCH') {
+          _handshaken = true;
+          final dynamic data = decoded['data'];
+          if (data is Map<String, Object?>) {
+            final dynamic user = data['user'];
+            if (user is Map<String, Object?>) {
+              final String? globalName = user['global_name'] as String?;
+              final String? username = user['username'] as String?;
+              _discordUsername = globalName ?? username;
+            }
+          }
+          onConnectionChanged?.call(true);
+          _sendActivity();
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _sendRaw(List<int> body, {required int opcode}) {
+    final Socket? socket = _socket;
+    if (socket == null) return;
+    try {
+      final BytesBuilder builder = BytesBuilder()
+        ..add(_int32(opcode))
+        ..add(_int32(body.length))
+        ..add(body);
+      socket.add(builder.takeBytes());
+    } on SocketException {
+      _disposeSocket();
     }
   }
 
@@ -180,18 +275,7 @@ class DiscordRpc {
   }
 
   void _send(Map<String, Object?> payload, {required int opcode}) {
-    final Socket? socket = _socket;
-    if (socket == null) return;
-    try {
-      final List<int> body = utf8.encode(jsonEncode(payload));
-      final BytesBuilder builder = BytesBuilder()
-        ..add(_int32(opcode))
-        ..add(_int32(body.length))
-        ..add(body);
-      socket.add(builder.takeBytes());
-    } on SocketException {
-      _disposeSocket();
-    }
+    _sendRaw(utf8.encode(jsonEncode(payload)), opcode: opcode);
   }
 
   List<int> _int32(int value) =>

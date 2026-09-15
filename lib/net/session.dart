@@ -76,6 +76,13 @@ abstract final class SessionMessage {
 
   /// Un veicolo tolto dalla strada.
   static const String transportRemove = 'transportRemove';
+
+  /// Comando del Master a tutti i client di terminare la registrazione audio,
+  /// avviare il voice-to-text ed esportare la trascrizione al tavolo.
+  static const String sessionEndRequest = 'sessionEndRequest';
+
+  /// Invio dal client al master della trascrizione vocale del singolo giocatore.
+  static const String sessionPlayerTranscript = 'sessionPlayerTranscript';
 }
 
 /// Una connessione in stile "un messaggio JSON per riga".

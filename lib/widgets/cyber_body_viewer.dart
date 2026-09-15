@@ -36,6 +36,9 @@ class CyberBodyViewer extends StatefulWidget {
     this.onInstallInZone,
     this.height = 560,
     this.model,
+    this.humanity,
+    this.maxHumanity,
+    this.isCyberpsychotic = false,
   });
   final List<Cyberware> cyberware;
   final String? selectedZone;
@@ -43,12 +46,16 @@ class CyberBodyViewer extends StatefulWidget {
   final ValueChanged<String>? onInstallInZone;
   final double height;
   final AnatomyModel? model;
+  final int? humanity;
+  final int? maxHumanity;
+  final bool isCyberpsychotic;
 
   @override
   State<CyberBodyViewer> createState() => _CyberBodyViewerState();
 }
 
-class _CyberBodyViewerState extends State<CyberBodyViewer> {
+class _CyberBodyViewerState extends State<CyberBodyViewer>
+    with SingleTickerProviderStateMixin {
   AnatomyModel? _model;
   bool _failed = false;
   BodyScanLayer _layer = BodyScanLayer.surface;
@@ -57,10 +64,27 @@ class _CyberBodyViewerState extends State<CyberBodyViewer> {
   final FocusNode _focus = FocusNode(debugLabel: 'Anatomy 3D camera');
   AnatomyFrame? _frame;
   Size? _frameSize;
+  late final AnimationController _anim;
+
+  double get _strainRatio {
+    double strain = (widget.cyberware.length / 8.0).clamp(0.0, 1.0);
+    if (widget.humanity != null && widget.maxHumanity != null && widget.maxHumanity! > 0) {
+      final double lost = (1.0 - widget.humanity! / widget.maxHumanity!).clamp(0.0, 1.0);
+      strain = math.max(strain, lost);
+    }
+    return strain;
+  }
+
+  bool get _isPsychotic =>
+      widget.isCyberpsychotic || (widget.humanity != null && widget.humanity! < 10);
 
   @override
   void initState() {
     super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
     _model = widget.model;
     if (_model == null) _load();
   }
@@ -90,6 +114,7 @@ class _CyberBodyViewerState extends State<CyberBodyViewer> {
 
   @override
   void dispose() {
+    _anim.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -442,86 +467,119 @@ class _CyberBodyViewerState extends State<CyberBodyViewer> {
                 cursor: SystemMouseCursors.grab,
                 child: Semantics(
                   label: 'Corpo anatomico 3D. Trascina per ruotare, scorri per zoomare. Frecce e tasti più e meno disponibili.',
-                  child: ClipRect(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: <Widget>[
-                        const CustomPaint(painter: _ScannerBackdrop()),
-                        if (_frame != null)
-                          RepaintBoundary(
-                            child: CustomPaint(
-                              painter: AnatomyPainter(_frame!),
+                  child: AnimatedBuilder(
+                    animation: _anim,
+                    builder: (BuildContext context, _) {
+                      return ClipRect(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: <Widget>[
+                            CustomPaint(
+                              painter: _CyberAnimatedBackdrop(phase: _anim.value),
                             ),
-                          ),
-                        if (_model == null)
-                          Center(
-                            child: _failed
-                                ? Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: <Widget>[
-                                      const Text(
-                                        'Modello anatomico non disponibile',
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          setState(() => _failed = false);
-                                          _load();
-                                        },
-                                        child: const Text('Riprova'),
-                                      ),
-                                    ],
-                                  )
-                                : const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                          ),
-                        Positioned(
-                          top: 12,
-                          left: 18,
-                          child: IgnorePointer(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  'ANATOMIA / 3D',
-                                  style: CprType.label.copyWith(
-                                    color: CprPalette.cyan,
-                                    fontSize: 9,
-                                    letterSpacing: 2,
-                                  ),
+                            if (_frame != null)
+                              RepaintBoundary(
+                                child: CustomPaint(
+                                  painter: AnatomyPainter(_frame!),
                                 ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  _layer.label.toUpperCase(),
+                              ),
+                            if (_strainRatio > 0.01)
+                              CustomPaint(
+                                painter: _RedStrainOverlay(
+                                  strain: _strainRatio,
+                                  phase: _anim.value,
+                                ),
+                              ),
+                            if (_frame != null)
+                              CustomPaint(
+                                painter: _CyberwareNodesPainter(
+                                  frame: _frame!,
+                                  cyberware: widget.cyberware,
+                                  selectedZone: widget.selectedZone,
+                                  phase: _anim.value,
+                                ),
+                              ),
+                            if (_isPsychotic &&
+                                _frame != null &&
+                                _frame!.headCenter != null)
+                              CustomPaint(
+                                painter: _HeadGlitchPainter(
+                                  center: _frame!.headCenter!,
+                                  radius: _frame!.headRadius,
+                                  phase: _anim.value,
+                                ),
+                              ),
+                            if (_model == null)
+                              Center(
+                                child: _failed
+                                    ? Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: <Widget>[
+                                          const Text(
+                                            'Modello anatomico non disponibile',
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              setState(() => _failed = false);
+                                              _load();
+                                            },
+                                            child: const Text('Riprova'),
+                                          ),
+                                        ],
+                                      )
+                                    : const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                              ),
+                            Positioned(
+                              top: 12,
+                              left: 18,
+                              child: IgnorePointer(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      'ANATOMIA / 3D SCANNER',
+                                      style: CprType.label.copyWith(
+                                        color: CprPalette.cyan,
+                                        fontSize: 9,
+                                        letterSpacing: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      _layer.label.toUpperCase(),
+                                      style: CprType.label.copyWith(
+                                        color: CprPalette.inkFaint,
+                                        fontSize: 8,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 12,
+                              right: 14,
+                              child: IgnorePointer(
+                                child: Text(
+                                  'ORBITA 360°  /  ${(_camera.zoom * 100).round()}%',
                                   style: CprType.label.copyWith(
                                     color: CprPalette.inkFaint,
                                     fontSize: 8,
+                                    letterSpacing: 1,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 12,
-                          right: 14,
-                          child: IgnorePointer(
-                            child: Text(
-                              'ORBITA 360°  /  ${(_camera.zoom * 100).round()}%',
-                              style: CprType.label.copyWith(
-                                color: CprPalette.inkFaint,
-                                fontSize: 8,
-                                letterSpacing: 1,
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -696,50 +754,299 @@ class _CyberBodyViewerState extends State<CyberBodyViewer> {
   }
 }
 
-class _ScannerBackdrop extends CustomPainter {
-  const _ScannerBackdrop();
+class _CyberAnimatedBackdrop extends CustomPainter {
+  const _CyberAnimatedBackdrop({required this.phase});
+  final double phase;
+
   @override
   void paint(Canvas canvas, Size size) {
     final Rect bounds = Offset.zero & size;
+    // Sfondo profondo cyberpunk con gradiente radiale
     canvas.drawRect(
       bounds,
       Paint()
         ..shader = const RadialGradient(
-          colors: <Color>[Color(0xFF19343A), Color(0xFF091316)],
-          radius: .75,
+          colors: <Color>[Color(0xFF0D2228), Color(0xFF040A0D)],
+          radius: 0.85,
         ).createShader(bounds),
     );
-    final Paint fine = Paint()
-      ..color = const Color(0x1438989F)
-      ..strokeWidth = .6;
-    for (double x = 24; x < size.width; x += 32) {
-      for (double y = 24; y < size.height; y += 32) {
-        canvas.drawCircle(Offset(x, y), .6, fine);
-      }
+
+    // Griglia cibernetica a punti e linee sottili
+    final Paint gridPaint = Paint()
+      ..color = const Color(0x1200F0FF)
+      ..strokeWidth = 0.6;
+    for (double x = 20; x < size.width; x += 32) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
-    final double floor = size.height * .95;
-    for (final double fraction in <double>[.23, .32, .41]) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(size.width / 2, floor),
-          width: size.width * fraction,
-          height: size.width * fraction * .16,
-        ),
-        fine,
+    for (double y = 20; y < size.height; y += 32) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    // Laser scanline di scansione biometrica che scorre dall'alto in basso (nessuna pedana!)
+    final double scanY = (phase * (size.height + 60)) - 30;
+    if (scanY >= -20 && scanY <= size.height + 20) {
+      // Glow della scanline
+      final Rect scanRect = Rect.fromLTRB(0, math.max(0, scanY - 35), size.width, scanY);
+      canvas.drawRect(
+        scanRect,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: const <Color>[
+              Colors.transparent,
+              Color(0x2200F0FF),
+            ],
+          ).createShader(scanRect),
+      );
+      // Linea laser luminosa
+      canvas.drawLine(
+        Offset(0, scanY),
+        Offset(size.width, scanY),
+        Paint()
+          ..color = const Color(0xAA00F0FF)
+          ..strokeWidth = 1.6
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
       );
     }
-    final Paint ticks = Paint()
-      ..color = const Color(0x304D898D)
-      ..strokeWidth = 1;
-    for (double y = 50; y < size.height - 40; y += 20) {
-      canvas.drawLine(
-        Offset(size.width - 10, y),
-        Offset(size.width - (y % 50 == 0 ? 20 : 15), y),
-        ticks,
+
+    // Indicatori di telemetria laterali
+    final Paint tickPaint = Paint()
+      ..color = const Color(0x2800F0FF)
+      ..strokeWidth = 1.0;
+    for (double y = 40; y < size.height - 40; y += 20) {
+      final double len = (y % 60 == 0) ? 14 : 7;
+      canvas.drawLine(Offset(10, y), Offset(10 + len, y), tickPaint);
+      canvas.drawLine(Offset(size.width - 10, y), Offset(size.width - 10 - len, y), tickPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CyberAnimatedBackdrop old) => old.phase != phase;
+}
+
+class _RedStrainOverlay extends CustomPainter {
+  const _RedStrainOverlay({required this.strain, required this.phase});
+  final double strain;
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (strain <= 0.01) return;
+    final Rect bounds = Offset.zero & size;
+    final double pulse = 0.85 + math.sin(phase * math.pi * 4) * 0.15;
+    final double intensity = (strain * pulse).clamp(0.0, 1.0);
+
+    // Gradiente radiale rosso cremisi dai bordi verso l'interno (sovraccarico d'umanità)
+    final Paint vignette = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 0.90,
+        colors: <Color>[
+          Colors.transparent,
+          Color.lerp(Colors.transparent, const Color(0x66FF003C), intensity)!,
+          Color.lerp(Colors.transparent, const Color(0xAAFF0022), intensity)!,
+        ],
+        stops: const <double>[0.35, 0.75, 1.0],
+      ).createShader(bounds)
+      ..blendMode = BlendMode.screen;
+    canvas.drawRect(bounds, vignette);
+
+    // Riflesso termico della spina dorsale/nucleo centrale
+    if (strain > 0.35) {
+      final double coreAlpha = ((strain - 0.35) / 0.65 * 0.35 * pulse).clamp(0.0, 1.0);
+      final Rect spineRect = Rect.fromCenter(
+        center: Offset(size.width / 2, size.height * 0.48),
+        width: size.width * 0.28,
+        height: size.height * 0.65,
+      );
+      canvas.drawOval(
+        spineRect,
+        Paint()
+          ..color = const Color(0xFFFF003C).withValues(alpha: coreAlpha)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24)
+          ..blendMode = BlendMode.plus,
       );
     }
   }
 
   @override
-  bool shouldRepaint(_ScannerBackdrop oldDelegate) => false;
+  bool shouldRepaint(_RedStrainOverlay old) =>
+      old.strain != strain || old.phase != phase;
+}
+
+class _CyberwareNodesPainter extends CustomPainter {
+  const _CyberwareNodesPainter({
+    required this.frame,
+    required this.cyberware,
+    required this.selectedZone,
+    required this.phase,
+  });
+  final AnatomyFrame frame;
+  final List<Cyberware> cyberware;
+  final String? selectedZone;
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Map<String, List<Cyberware>> grouped = <String, List<Cyberware>>{};
+    for (final Cyberware c in cyberware) {
+      grouped.putIfAbsent(CyberBodyZone.fromId(c.bodyZone).id, () => <Cyberware>[]).add(c);
+    }
+
+    final double pulse = 0.5 + 0.5 * math.sin(phase * math.pi * 2);
+
+    for (final MapEntry<String, List<Cyberware>> entry in grouped.entries) {
+      final String zoneId = entry.key;
+      final Offset? anchor = frame.zoneAnchors[zoneId];
+      if (anchor == null) continue;
+      if (anchor.dx < 10 || anchor.dx > size.width - 10 || anchor.dy < 10 || anchor.dy > size.height - 10) continue;
+
+      final bool isSelected = selectedZone == zoneId;
+      final Color nodeColor = isSelected ? const Color(0xFF00FFFF) : const Color(0xFFFF9900);
+
+      // 1. Alone e cerchio pulsante
+      canvas.drawCircle(
+        anchor,
+        4.0 + pulse * 3.0,
+        Paint()
+          ..color = nodeColor.withValues(alpha: 0.35 * pulse)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+
+      // 2. Nodo centrale
+      canvas.drawCircle(
+        anchor,
+        3.0,
+        Paint()..color = nodeColor,
+      );
+
+      // 3. Reticolo di targeting se selezionato
+      if (isSelected) {
+        const double r = 16.0;
+        final Paint reticlePaint = Paint()
+          ..color = const Color(0xFF00FFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4;
+        canvas.drawArc(Rect.fromCircle(center: anchor, radius: r), -0.5, 1.0, false, reticlePaint);
+        canvas.drawArc(Rect.fromCircle(center: anchor, radius: r), math.pi - 0.5, 1.0, false, reticlePaint);
+      }
+
+      // 4. Linea guida tech verso badge cyberware
+      final bool onRight = anchor.dx < size.width / 2;
+      final double tagX = onRight ? anchor.dx - 36 : anchor.dx + 36;
+      final double tagY = anchor.dy;
+
+      final Path linePath = Path()
+        ..moveTo(anchor.dx, anchor.dy)
+        ..lineTo(tagX, tagY);
+      canvas.drawPath(
+        linePath,
+        Paint()
+          ..color = nodeColor.withValues(alpha: 0.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+      );
+
+      // Disegna l'etichetta [xN]
+      final TextSpan span = TextSpan(
+        text: 'x${entry.value.length}',
+        style: TextStyle(
+          color: nodeColor,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'monospace',
+        ),
+      );
+      final TextPainter tp = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(tagX - (onRight ? tp.width + 4 : -4), tagY - tp.height / 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CyberwareNodesPainter old) =>
+      old.frame != frame ||
+      old.selectedZone != selectedZone ||
+      old.phase != phase ||
+      old.cyberware.length != cyberware.length;
+}
+
+class _HeadGlitchPainter extends CustomPainter {
+  const _HeadGlitchPainter({
+    required this.center,
+    required this.radius,
+    required this.phase,
+  });
+  final Offset center;
+  final double radius;
+  final double phase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Rect headBounds = Rect.fromCircle(center: center, radius: radius * 1.35);
+    final math.Random rng = math.Random((phase * 1000).floor());
+
+    canvas.save();
+    canvas.clipRect(headBounds);
+
+    // 1. Linee orizzontali di distorsione e jitter
+    for (int i = 0; i < 16; i++) {
+      final double y = headBounds.top + rng.nextDouble() * headBounds.height;
+      final double h = 2.0 + rng.nextDouble() * 5.0;
+      final double shift = (rng.nextDouble() - 0.5) * 28.0;
+
+      // Slice con aberrazione cromatica (Rosso a destra, Ciano a sinistra)
+      canvas.drawRect(
+        Rect.fromLTWH(headBounds.left + shift, y, headBounds.width, h),
+        Paint()..color = const Color(0x66FF003C),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(headBounds.left - shift * 0.7, y, headBounds.width, h),
+        Paint()..color = const Color(0x5500F0FF),
+      );
+    }
+
+    // 2. Neve statica / rumore digitale
+    final Paint noisePaint = Paint()..strokeWidth = 1.2;
+    for (int i = 0; i < 45; i++) {
+      final double nx = headBounds.left + rng.nextDouble() * headBounds.width;
+      final double ny = headBounds.top + rng.nextDouble() * headBounds.height;
+      final double len = 1.5 + rng.nextDouble() * 6.0;
+      final Color c = rng.nextBool()
+          ? const Color(0xAAFFFFFF)
+          : (rng.nextBool() ? const Color(0xAAFF003C) : const Color(0xAA00F0FF));
+      noisePaint.color = c;
+      canvas.drawLine(Offset(nx, ny), Offset(nx + len, ny), noisePaint);
+    }
+
+    canvas.restore();
+
+    // 3. Ticker di allerta cyberpsicosi sopra la testa
+    final TextSpan warningSpan = TextSpan(
+      text: '⚠ CYBERPSICOSI ⚠',
+      style: TextStyle(
+        color: rng.nextBool() ? const Color(0xFFFF003C) : const Color(0xFFFFCC00),
+        fontSize: 9,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.5,
+        shadows: const <Shadow>[
+          Shadow(color: Color(0xFFFF003C), blurRadius: 8),
+        ],
+      ),
+    );
+    final TextPainter tp = TextPainter(
+      text: warningSpan,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(center.dx - tp.width / 2, headBounds.top - 18));
+  }
+
+  @override
+  bool shouldRepaint(_HeadGlitchPainter old) =>
+      old.center != center || old.radius != radius || old.phase != phase;
 }

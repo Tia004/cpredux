@@ -103,7 +103,9 @@ class SettingsScreen extends StatelessWidget {
                                     !state.settings.enableDiscordRichPresence
                                         ? 'Integrazione disattivata.'
                                         : (state.discord.isConnected
-                                            ? 'Collegato a Discord: presenza attiva.'
+                                            ? (state.discord.discordUsername != null
+                                                ? 'Collegato a Discord come ${state.discord.discordUsername}: presenza attiva.'
+                                                : 'Collegato a Discord: presenza attiva.')
                                             : 'Ricerca client Discord in corso (assicurati che Discord sia aperto)...'),
                                     style: CprType.caption.copyWith(
                                       color: state.discord.isConnected

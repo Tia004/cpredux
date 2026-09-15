@@ -24,7 +24,7 @@ if command -v create-dmg >/dev/null 2>&1; then
     --window-pos 200 120 --window-size 660 400 --icon-size 128 \
     --text-size 12 --icon cpredux.app 175 190 \
     --hide-extension cpredux.app --app-drop-link 485 190 \
-    --no-internet-enable "${OPTIONS[@]}" "$OUT" "$STAGING"; then
+    --no-internet-enable ${OPTIONS[@]+"${OPTIONS[@]}"} "$OUT" "$STAGING"; then
     rm -f "$OUT"
   fi
 fi

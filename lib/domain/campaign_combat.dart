@@ -126,6 +126,39 @@ class QuickNpcSheet {
       );
 }
 
+/// Sintesi vocale e analisi IA per il parlato e le azioni di un singolo giocatore.
+class PlayerSessionSummary {
+  PlayerSessionSummary({
+    required this.playerId,
+    required this.playerName,
+    this.transcript = '',
+    this.aiSummary = '',
+    this.keyActions = const <String>[],
+  });
+
+  final String playerId;
+  final String playerName;
+  String transcript;
+  String aiSummary;
+  List<String> keyActions;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'playerId': playerId,
+        'playerName': playerName,
+        'transcript': transcript,
+        'aiSummary': aiSummary,
+        'keyActions': keyActions,
+      };
+
+  static PlayerSessionSummary fromJson(Map<String, Object?> json) => PlayerSessionSummary(
+        playerId: readString(json['playerId']),
+        playerName: readString(json['playerName']),
+        transcript: readString(json['transcript']),
+        aiSummary: readString(json['aiSummary']),
+        keyActions: readStringList(json['keyActions']),
+      );
+}
+
 /// Riepilogo archiviato di una sessione di gioco con trascrizione vocale e note.
 class CampaignSessionCommit {
   CampaignSessionCommit({
@@ -139,7 +172,8 @@ class CampaignSessionCommit {
     this.masterNotes = '',
     this.eddiesCirculated = 0,
     this.keyEvents = const <String>[],
-  });
+    List<PlayerSessionSummary>? playerSummaries,
+  }) : playerSummaries = playerSummaries ?? <PlayerSessionSummary>[];
 
   final String id;
   final int sessionIndex;
@@ -151,6 +185,7 @@ class CampaignSessionCommit {
   String masterNotes;
   int eddiesCirculated;
   List<String> keyEvents;
+  List<PlayerSessionSummary> playerSummaries;
 
   Map<String, Object?> toJson() => <String, Object?>{
         'id': id,
@@ -163,6 +198,7 @@ class CampaignSessionCommit {
         'masterNotes': masterNotes,
         'eddiesCirculated': eddiesCirculated,
         'keyEvents': keyEvents,
+        'playerSummaries': playerSummaries.map((PlayerSessionSummary p) => p.toJson()).toList(),
       };
 
   static CampaignSessionCommit fromJson(Map<String, Object?> json) => CampaignSessionCommit(
@@ -176,6 +212,9 @@ class CampaignSessionCommit {
         masterNotes: readString(json['masterNotes']),
         eddiesCirculated: readInt(json['eddiesCirculated']),
         keyEvents: readStringList(json['keyEvents']),
+        playerSummaries: readObjectList(json['playerSummaries'])
+            .map(PlayerSessionSummary.fromJson)
+            .toList(),
       );
 }
 

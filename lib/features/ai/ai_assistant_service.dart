@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../../data/app_paths.dart';
+import '../../domain/campaign_combat.dart';
 import '../../domain/gm/gm_generators.dart';
 
 /// Risultato di una generazione di bottino (IA o euristica avanzata).
@@ -250,6 +251,101 @@ class AiAssistantService extends ChangeNotifier {
     }
 
     return _localSessionSummary(sessionIndex, source);
+  }
+
+  /// Genera il riassunto IA specifico per ciò che ha detto e fatto un singolo giocatore.
+  Future<String> generatePlayerSessionSummary({
+    required String playerName,
+    required String transcript,
+  }) async {
+    final String source = transcript.trim();
+    final String bounded = source.length > 4000 ? source.substring(0, 4000) : source;
+    final String prompt = 'Sei l\'assistente IA del tavolo di Cyberpunk RED.\n'
+        'Ecco la trascrizione audio/vocale del giocatore "$playerName":\n$bounded\n\n'
+        'Genera un riepilogo conciso (3-4 punti elenco) focalizzato esclusivamente su "$playerName":\n'
+        '- Cosa ha dichiarato e fatto durante la sessione\n'
+        '- Eventuali prove, tiri o dialoghi chiave\n'
+        '- Equipaggiamento o risorse utilizzate\n'
+        'Mantieni uno stile cyberpunk sintetico in italiano.';
+
+    if (hasGeminiKey) {
+      try {
+        return await _callGeminiApi(prompt);
+      } catch (_) {}
+    }
+
+    return _localPlayerSummary(playerName, source);
+  }
+
+  /// Genera il riassunto principale unificato che fonde tutti i riepiloghi dei giocatori e le note del master.
+  Future<String> generateMasterMergedSessionSummary({
+    required int sessionIndex,
+    required String sessionTitle,
+    required List<PlayerSessionSummary> playerSummaries,
+    required String masterNotes,
+    required String fullTranscript,
+  }) async {
+    final StringBuffer teamDetails = StringBuffer();
+    for (final PlayerSessionSummary p in playerSummaries) {
+      teamDetails.writeln('• ${p.playerName}: ${p.aiSummary.isNotEmpty ? p.aiSummary : p.transcript}');
+    }
+
+    final String prompt = 'Sei l\'IA cronista di Night City per Cyberpunk RED.\n'
+        'Sessione #$sessionIndex: "$sessionTitle"\n\n'
+        'RIEPILOGHI DEI GIOCATORI:\n${teamDetails.toString()}\n\n'
+        'NOTE PERSONALI DEL MASTER:\n$masterNotes\n\n'
+        'TRASCRIZIONE INTEGRALE:\n${fullTranscript.length > 4000 ? fullTranscript.substring(0, 4000) : fullTranscript}\n\n'
+        'Sintetizza un riepilogo generale e organico della sessione per il diario di campagna con:\n'
+        '1. CRONACA GENERALE DEGLI EVENTI\n'
+        '2. AZIONI CHIAVE DELLA SQUADRA (evidenziando i singoli personaggi)\n'
+        '3. SCONTRI, MINACCE E CONSEGUENZE\n'
+        '4. SVILUPPI E GANCI NARRATIVI PER LA PROSSIMA SESSIONE\n'
+        'Non inserire preamboli, rispondi in italiano in stile Cyberpunk RED.';
+
+    if (hasGeminiKey) {
+      try {
+        return await _callGeminiApi(prompt);
+      } catch (_) {}
+    }
+
+    return _localMergedSummary(sessionIndex, sessionTitle, playerSummaries, masterNotes);
+  }
+
+  String _localPlayerSummary(String playerName, String transcript) {
+    if (transcript.isEmpty) {
+      return 'Nessun intervento registrato per $playerName in questa sessione.';
+    }
+    final List<String> lines = transcript
+        .split('\n')
+        .where((String l) => l.trim().isNotEmpty)
+        .take(4)
+        .toList();
+    final String points = lines.map((String l) => '• $l').join('\n');
+    return 'RIEPILOGO EDGERUNNER ($playerName):\n'
+        '• Azioni e comunicazioni registrate al tavolo.\n'
+        '$points';
+  }
+
+  String _localMergedSummary(
+    int sessionIndex,
+    String sessionTitle,
+    List<PlayerSessionSummary> playerSummaries,
+    String masterNotes,
+  ) {
+    final StringBuffer sb = StringBuffer();
+    sb.writeln('CRONACA GENERALE DI NIGHT CITY — $sessionTitle (Sessione #$sessionIndex):');
+    sb.writeln('• Missione e contesto: La crew è scesa in strada operando nei distretti di Night City.');
+    if (playerSummaries.isNotEmpty) {
+      sb.writeln('• Contributo della squadra:');
+      for (final PlayerSessionSummary p in playerSummaries) {
+        sb.writeln('  - ${p.playerName}: contributi registrati e sincronizzati nel log.');
+      }
+    }
+    if (masterNotes.trim().isNotEmpty) {
+      sb.writeln('• Note del Master integrate: ${masterNotes.trim()}');
+    }
+    sb.writeln('• Ganci narrativi: Conseguenze e fili aperti archiviati nel quaderno di campagna.');
+    return sb.toString();
   }
 
   String _localSessionSummary(int sessionIndex, String transcript) {
