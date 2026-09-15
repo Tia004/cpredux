@@ -219,3 +219,23 @@ flutter run -d linux    # su Linux
 Questo software è un progetto amatoriale **non ufficiale** creato da appassionati per appassionati.
 Cyberpunk RED è un marchio registrato di **R. Talsorian Games, Inc.**. Tutti i diritti sui contenuti di gioco, ambientazione e manuali appartengono a R. Talsorian Games e CD PROJEKT S.A.
 Realizzato in piena conformità con la *Homebrew Content Policy* di R. Talsorian Games.
+
+### Scanner anatomico 3D (v0.2.7)
+
+La tab Cyberware include un corpo 3D locale con livelli Corpo, Scheletro, Muscoli,
+Vascolare, Nervoso e Tutti i sistemi. Trascina per ruotare, usa la rotella o i
+pulsanti per lo zoom, Shift + trascinamento per spostare l'inquadratura. Su
+trackpad/touch sono disponibili pinch e spostamento a due dita. Fronte, Profilo,
+Dorso e Ripristina vista riportano a un'inquadratura completa; con il focus sul
+modello si possono usare frecce, `+`, `-` e Home.
+
+Le zone sono selezionate sulle geometrie proiettate, anche dopo rotazione e zoom.
+Braccia, mani e gambe hanno lati destro e sinistro distinti, dal punto di vista del
+personaggio. Gli impianti precedenti senza lato restano esplicitamente non
+assegnati: modificarli nell'editor per scegliere il lato, senza perdere dati.
+L'indicatore Umanità è la stessa testa a riempimento nella prima tab e in Cyberware.
+
+Le geometrie anatomiche adattate da Z-Anatomy / BodyParts3D sono incluse negli
+asset e funzionano offline. Licenza, attribuzioni e procedura di esportazione:
+[assets/anatomy/LICENSE.md](assets/anatomy/LICENSE.md). Le build normali non
+richiedono Blender o download di modelli.

@@ -901,6 +901,7 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
       : defaultFoundationSlotsFor(_category, widget.existing?.name);
   late int _slotsRequired = widget.existing?.slotsRequired ?? 1;
   late String? _parentFoundationId = widget.existing?.parentFoundationId ?? widget.initialParentFoundationId;
+  late bool _bodyZoneExplicit = widget.existing != null || widget.initialBodyZone != null;
   late String _bodyZone = widget.existing?.bodyZone ?? widget.initialBodyZone ?? defaultBodyZoneFor(_category, widget.existing?.name);
   late String _description = widget.existing?.description ?? '';
   late String? _imagePath = widget.existing?.imagePath;
@@ -1023,7 +1024,7 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
             onChanged: (CyberwareCategory c) => setState(() {
               _category = c;
               if (widget.existing == null) {
-                _bodyZone = defaultBodyZoneFor(c, _name);
+                if (!_bodyZoneExplicit) _bodyZone = defaultBodyZoneFor(c, _name);
                 if (_foundational) {
                   _optionSlots = defaultFoundationSlotsFor(c, _name);
                 }
@@ -1218,7 +1219,7 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
               items: CyberBodyZone.values,
               labelOf: (CyberBodyZone z) => z.label,
               accent: CprPalette.magenta,
-              onChanged: (CyberBodyZone z) => setState(() => _bodyZone = z.id),
+              onChanged: (CyberBodyZone z) => setState(() { _bodyZone = z.id; _bodyZoneExplicit = true; }),
             ),
           ),
           const SizedBox(height: 6),
@@ -1259,7 +1260,7 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
               items: CyberBodyZone.values,
               labelOf: (CyberBodyZone z) => z.label,
               accent: CprPalette.cyan,
-              onChanged: (CyberBodyZone z) => setState(() => _bodyZone = z.id),
+              onChanged: (CyberBodyZone z) => setState(() { _bodyZone = z.id; _bodyZoneExplicit = true; }),
             ),
           ),
           const SizedBox(height: 10),
@@ -1281,7 +1282,14 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
                 return '${f.name} ($used/${f.optionSlots} slot occupati)';
               },
               accent: isSlotOvercapacity ? CprPalette.danger : CprPalette.cyan,
-              onChanged: (String? val) => setState(() => _parentFoundationId = val),
+              onChanged: (String? val) => setState(() {
+                _parentFoundationId = val;
+                final Cyberware? base = foundations.where((Cyberware c) => c.id == val).firstOrNull;
+                if (base != null) {
+                  _bodyZone = base.bodyZone;
+                  _bodyZoneExplicit = true;
+                }
+              }),
             ),
             if (isSlotOvercapacity && selectedFoundation != null) ...<Widget>[
               const SizedBox(height: 10),

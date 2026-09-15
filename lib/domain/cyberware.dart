@@ -141,16 +141,29 @@ enum CyberBodyZone {
   eyes('eyes', 'Occhi', 'Cyberottica e visori digitali'),
   ears('ears', 'Orecchie', 'Cyberaudio e trasmettitori'),
   torso('torso', 'Busto', 'Organi sintetici e impianti interni'),
-  arms('arms', 'Braccia', 'Cyberarti superiori e innesti muscolari'),
-  hands('hands', 'Mani', 'Prese neurali, connettori e artigli'),
+  arms('arms', 'Braccia · lato non assegnato', 'Cyberarti superiori e innesti muscolari'),
+  hands('hands', 'Mani · lato non assegnato', 'Prese neurali, connettori e artigli'),
   groin('groin', 'Bacino', 'Supporti biomeccanici e sintetici'),
-  legs('legs', 'Gambe', 'Cyberarti inferiori e propulsori'),
-  skin('skin', 'Pelle', 'Rivestimento dermico e fashionware');
+  legs('legs', 'Gambe · lato non assegnato', 'Cyberarti inferiori e propulsori'),
+  skin('skin', 'Pelle', 'Rivestimento dermico e fashionware'),
+  leftArm('left_arm', 'Braccio SX', 'Cyberbraccio sinistro'),
+  rightArm('right_arm', 'Braccio DX', 'Cyberbraccio destro'),
+  leftHand('left_hand', 'Mano SX', 'Cybermano sinistra e connettori'),
+  rightHand('right_hand', 'Mano DX', 'Cybermano destra e connettori'),
+  leftLeg('left_leg', 'Gamba SX', 'Cybergamba sinistra'),
+  rightLeg('right_leg', 'Gamba DX', 'Cybergamba destra');
 
   const CyberBodyZone(this.id, this.label, this.description);
   final String id;
   final String label;
   final String description;
+
+  bool get hasUnassignedSide => this == arms || this == hands || this == legs;
+
+  /// The renderer and new installs use explicit sides. Legacy ids are retained
+  /// in saved sheets until the player assigns a side in the implant editor.
+  static List<CyberBodyZone> get selectable => values.where(
+      (CyberBodyZone zone) => !zone.hasUnassignedSide).toList(growable: false);
 
   static CyberBodyZone fromId(String? id) {
     if (id == null) return CyberBodyZone.torso;
@@ -186,6 +199,13 @@ int defaultFoundationSlotsFor(CyberwareCategory category, [String? name]) {
 /// Riconosce la zona corporea idonea per la categoria/nome dell'impianto.
 String defaultBodyZoneFor(CyberwareCategory category, [String? name]) {
   final String lower = (name ?? '').toLowerCase();
+  final String? side = lower.contains('sinistr') || RegExp(r'\b(left|sx)\b').hasMatch(lower)
+      ? 'left' : lower.contains('destr') || RegExp(r'\b(right|dx)\b').hasMatch(lower) ? 'right' : null;
+  if (side != null) {
+    if (lower.contains('mano') || lower.contains('hand') || lower.contains('artigl')) return '${side}_hand';
+    if (lower.contains('braccio') || lower.contains('arm')) return '${side}_arm';
+    if (lower.contains('gamba') || lower.contains('leg') || lower.contains('piede') || lower.contains('foot')) return '${side}_leg';
+  }
   if (lower.contains('gamba') || lower.contains('leg') || lower.contains('piede') || lower.contains('foot')) return 'legs';
   if (lower.contains('mano') || lower.contains('hand') || lower.contains('artigl') || lower.contains('claw')) return 'hands';
   if (lower.contains('braccio') || lower.contains('arm')) return 'arms';

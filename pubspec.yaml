@@ -1,7 +1,7 @@
 name: cpredux
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.2.6+1
+version: 0.2.7+1
 
 environment:
   sdk: ^3.13.3
@@ -34,6 +34,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/anatomy/
     # Catalogo oggetti in sola lettura, spedito con l'app.
     # Si rigenera con: dart run tool/build_catalog.dart
     - assets/catalog/catalog.sqlite

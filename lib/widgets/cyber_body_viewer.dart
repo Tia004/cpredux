@@ -1,33 +1,33 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../design/palette.dart';
 import '../design/typography.dart';
 import '../domain/cyberware.dart';
+import 'anatomy/anatomy_model.dart';
+import 'anatomy/anatomy_scene.dart';
 import 'tech_button.dart';
 
-/// Modalità di visualizzazione dei layer anatomici
 enum BodyScanLayer {
-  all('Tutti i Sistemi', Icons.layers),
-  skeleton('Scheletro', Icons.accessibility),
-  vascular('Vascolare', Icons.favorite_border),
-  nervous('Nervoso', Icons.bolt),
-  zones('Zone Cyber', Icons.grid_view);
+  surface('Corpo', Icons.person_outline, 'surface'),
+  all('Tutti i sistemi', Icons.layers_outlined, 'all'),
+  skeleton('Scheletro', Icons.accessibility_new, 'skeleton'),
+  muscles('Muscoli', Icons.fitness_center, 'muscles'),
+  vascular('Vascolare', Icons.favorite_border, 'vascular'),
+  nervous('Nervoso', Icons.bolt, 'nervous'),
+  zones('Zone cyber', Icons.grid_view, 'zones');
 
-  const BodyScanLayer(this.label, this.icon);
+  const BodyScanLayer(this.label, this.icon, this.id);
   final String label;
   final IconData icon;
+  final String id;
 }
 
-/// Visualizzatore interattivo del corpo umano cyberpunk con 4 layer anatomici:
-/// 1. Silhouette corporea
-/// 2. Scheletro
-/// 3. Sistema vascolare
-/// 4. Sistema nervoso
-///
-/// Dispone di zone corporee interattive con bagliore neon proporzionale
-/// al numero di cyberware installati in ciascuna parte del corpo.
+/// An offline, native 3D scanner. Mesh projection and picking share the same
+/// camera, so selections continue to follow the body while orbiting and zooming.
 class CyberBodyViewer extends StatefulWidget {
   const CyberBodyViewer({
     super.key,
@@ -35,369 +35,317 @@ class CyberBodyViewer extends StatefulWidget {
     this.selectedZone,
     this.onZoneSelected,
     this.onInstallInZone,
-    this.height = 420,
+    this.height = 560,
+    this.model,
   });
-
   final List<Cyberware> cyberware;
   final String? selectedZone;
   final ValueChanged<String?>? onZoneSelected;
-  final void Function(String zoneId)? onInstallInZone;
+  final ValueChanged<String>? onInstallInZone;
   final double height;
+  final AnatomyModel? model;
 
   @override
   State<CyberBodyViewer> createState() => _CyberBodyViewerState();
 }
 
-class _CyberBodyViewerState extends State<CyberBodyViewer> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController;
-  BodyScanLayer _activeLayer = BodyScanLayer.all;
-  String? _hoveredZone;
+class _CyberBodyViewerState extends State<CyberBodyViewer> {
+  AnatomyModel? _model;
+  bool _failed = false;
+  BodyScanLayer _layer = BodyScanLayer.surface;
+  AnatomyCamera _camera = const AnatomyCamera();
+  double _gestureZoom = 1;
+  final FocusNode _focus = FocusNode(debugLabel: 'Anatomy 3D camera');
+  AnatomyFrame? _frame;
+  Size? _frameSize;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..repeat();
+    _model = widget.model;
+    if (_model == null) _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final AnatomyModel model = await AnatomyModel.load();
+      if (mounted) {
+        setState(() {
+          _model = model;
+          _failed = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(CyberBodyViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.model != widget.model && widget.model != null) {
+      _model = widget.model;
+    }
+    _frame = null;
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
-  Map<String, List<Cyberware>> get _zoneCyberwareMap {
-    final Map<String, List<Cyberware>> map = <String, List<Cyberware>>{};
-    for (final CyberBodyZone zone in CyberBodyZone.values) {
-      map[zone.id] = <Cyberware>[];
-    }
+  void _view(AnatomyCamera camera) => setState(() {
+    _camera = camera;
+    _frame = null;
+  });
+  void _select(String? zone) =>
+      widget.onZoneSelected?.call(widget.selectedZone == zone ? null : zone);
+
+  Map<String, List<Cyberware>> get _zones {
+    final Map<String, List<Cyberware>> result = <String, List<Cyberware>>{
+      for (final CyberBodyZone z in CyberBodyZone.values) z.id: <Cyberware>[],
+    };
     for (final Cyberware c in widget.cyberware) {
-      final String z = c.bodyZone.toLowerCase();
-      if (map.containsKey(z)) {
-        map[z]!.add(c);
-      } else {
-        map['torso']!.add(c);
-      }
+      result[CyberBodyZone.fromId(c.bodyZone).id]!.add(c);
     }
-    return map;
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, List<Cyberware>> zoneMap = _zoneCyberwareMap;
-    final String? effectiveSelected = widget.selectedZone;
-    final CyberBodyZone? selectedZoneObj = effectiveSelected != null
-        ? CyberBodyZone.fromId(effectiveSelected)
-        : null;
-
-    final List<Cyberware> selectedList = effectiveSelected != null
-        ? (zoneMap[effectiveSelected] ?? const <Cyberware>[])
-        : const <Cyberware>[];
-
-    final int selectedHumanity = selectedList.fold<int>(0, (int s, Cyberware c) => s + c.humanityLost);
-
-    return Container(
+    final Map<String, List<Cyberware>> zones = _zones;
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: CprPalette.surfaceRaised,
+        color: const Color(0xFF091316),
         border: Border.all(color: CprPalette.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          // Header / Layer Toolbar
-          _buildToolbar(),
-
-          // Main Visualizer Stage (Canvas + Callouts)
-          SizedBox(
-            height: widget.height,
-            child: Stack(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
+            child: Row(
               children: <Widget>[
-                // Background Cyber Grid
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _CyberGridPainter(),
+                const Icon(
+                  Icons.biotech_outlined,
+                  size: 18,
+                  color: CprPalette.cyan,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'DIAGNOSTICA CORPOREA // BIO-CYBER SCANNER',
+                    style: CprType.label.copyWith(
+                      fontSize: 10,
+                      color: CprPalette.ink,
+                      letterSpacing: 1,
+                    ),
                   ),
                 ),
-
-                // Anatomical Multi-Layer Canvas
-                Positioned.fill(
-                  child: AnimatedBuilder(
-                    animation: _pulseController,
-                    builder: (BuildContext context, _) {
-                      return CustomPaint(
-                        painter: _BodyAnatomyPainter(
-                          activeLayer: _activeLayer,
-                          zoneCounts: zoneMap.map((String k, List<Cyberware> v) => MapEntry<String, int>(k, v.length)),
-                          selectedZone: effectiveSelected,
-                          hoveredZone: _hoveredZone,
-                          pulsePhase: _pulseController.value,
-                        ),
-                      );
-                    },
+                const SizedBox(width: 8),
+                Text(
+                  'ONLINE',
+                  style: CprType.label.copyWith(
+                    fontSize: 8,
+                    color: CprPalette.cyan,
                   ),
-                ),
-
-                // Interactive Hit Boxes Overlay
-                Positioned.fill(
-                  child: LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints constraints) {
-                      return _buildHitAreas(constraints.biggest);
-                    },
-                  ),
-                ),
-
-                // Left Callouts
-                Positioned(
-                  left: 12,
-                  top: 12,
-                  bottom: 12,
-                  child: _buildCalloutsColumn(
-                    zones: const <CyberBodyZone>[
-                      CyberBodyZone.head,
-                      CyberBodyZone.eyes,
-                      CyberBodyZone.ears,
-                      CyberBodyZone.torso,
-                      CyberBodyZone.skin,
-                    ],
-                    zoneMap: zoneMap,
-                    selectedZone: effectiveSelected,
-                    alignment: CrossAxisAlignment.start,
-                  ),
-                ),
-
-                // Right Callouts
-                Positioned(
-                  right: 12,
-                  top: 12,
-                  bottom: 12,
-                  child: _buildCalloutsColumn(
-                    zones: const <CyberBodyZone>[
-                      CyberBodyZone.arms,
-                      CyberBodyZone.hands,
-                      CyberBodyZone.groin,
-                      CyberBodyZone.legs,
-                    ],
-                    zoneMap: zoneMap,
-                    selectedZone: effectiveSelected,
-                    alignment: CrossAxisAlignment.end,
-                  ),
-                ),
-
-                // Corner Reticles
-                const Positioned(
-                  top: 8,
-                  left: 8,
-                  child: _CornerReticle(isTop: true, isLeft: true),
-                ),
-                const Positioned(
-                  top: 8,
-                  right: 8,
-                  child: _CornerReticle(isTop: true, isLeft: false),
-                ),
-                const Positioned(
-                  bottom: 8,
-                  left: 8,
-                  child: _CornerReticle(isTop: false, isLeft: true),
-                ),
-                const Positioned(
-                  bottom: 8,
-                  right: 8,
-                  child: _CornerReticle(isTop: false, isLeft: false),
                 ),
               ],
             ),
           ),
-
-          // Bottom Zone Details & Actions Bar
-          if (selectedZoneObj != null)
-            _buildSelectionBottomBar(selectedZoneObj, selectedList, selectedHumanity)
-          else
-            _buildIdleBottomBar(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolbar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: CprPalette.surface,
-        border: Border(bottom: BorderSide(color: CprPalette.hairline)),
-      ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: <Widget>[
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(Icons.biotech, size: 16, color: CprPalette.cyan),
-              const SizedBox(width: 8),
-              Text(
-                'DIAGNOSTICA CORPOREA // BIO-CYBER SCANNER',
-                style: CprType.label.copyWith(color: CprPalette.ink, letterSpacing: 1.1, fontSize: 11),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: CprPalette.veil(CprPalette.cyan, 0.15),
-                  border: Border.all(color: CprPalette.cyan, width: 0.8),
-                ),
-                child: Text(
-                  'ONLINE',
-                  style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 8.5),
-                ),
-              ),
-            ],
-          ),
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: <Widget>[
-              for (final BodyScanLayer layer in BodyScanLayer.values)
-                InkWell(
-                  onTap: () => setState(() => _activeLayer = layer),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _activeLayer == layer
-                          ? CprPalette.veil(CprPalette.cyan, 0.2)
-                          : CprPalette.surfaceSunken,
-                      border: Border.all(
-                        color: _activeLayer == layer ? CprPalette.cyan : CprPalette.hairline,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(
-                          layer.icon,
-                          size: 11,
-                          color: _activeLayer == layer ? CprPalette.cyan : CprPalette.inkMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          layer.label.toUpperCase(),
-                          style: CprType.label.copyWith(
-                            color: _activeLayer == layer ? CprPalette.cyan : CprPalette.inkMuted,
-                            fontSize: 8.5,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: Wrap(
+              spacing: 5,
+              runSpacing: 6,
+              children: <Widget>[
+                for (final BodyScanLayer layer in BodyScanLayer.values)
+                  Semantics(
+                    selected: _layer == layer,
+                    button: true,
+                    child: Tooltip(
+                      message: 'Isola ${layer.label.toLowerCase()}',
+                      child: InkWell(
+                        onTap: () => setState(() {
+                          _layer = layer;
+                          _frame = null;
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _layer == layer
+                                ? CprPalette.cyan.withValues(alpha: .12)
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: _layer == layer
+                                  ? CprPalette.cyan
+                                  : CprPalette.hairline,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(
+                                layer.icon,
+                                size: 13,
+                                color: _layer == layer
+                                    ? CprPalette.cyan
+                                    : CprPalette.inkMuted,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                layer.label.toUpperCase(),
+                                style: CprType.label.copyWith(
+                                  fontSize: 9,
+                                  color: _layer == layer
+                                      ? CprPalette.cyan
+                                      : CprPalette.inkMuted,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool wide = constraints.maxWidth >= 650;
+              return Column(
+                children: <Widget>[
+                  SizedBox(
+                    height: widget.height,
+                    child: Row(
+                      children: <Widget>[
+                        if (wide)
+                          SizedBox(
+                            width: 184,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: <Widget>[
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: 14,
+                                      left: 8,
+                                    ),
+                                    child: Text(
+                                      'REGIONI / 12',
+                                      style: CprType.label.copyWith(
+                                        fontSize: 8,
+                                        color: CprPalette.inkFaint,
+                                      ),
+                                    ),
+                                  ),
+                                  for (final CyberBodyZone zone
+                                      in CyberBodyZone.selectable)
+                                    Expanded(
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: _zoneButton(
+                                          zone,
+                                          zones[zone.id]!.length,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        Expanded(child: _viewport(zones)),
                       ],
                     ),
                   ),
-                ),
-            ],
+                  if (!wide)
+                    Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: <Widget>[
+                          for (final CyberBodyZone zone
+                              in CyberBodyZone.selectable)
+                            _zoneButton(zone, zones[zone.id]!.length),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
+          if (zones.entries.any(
+            (e) =>
+                CyberBodyZone.fromId(e.key).hasUnassignedSide &&
+                e.value.isNotEmpty,
+          ))
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: <Widget>[
+                  for (final CyberBodyZone zone in CyberBodyZone.values.where(
+                    (z) => z.hasUnassignedSide && zones[z.id]!.isNotEmpty,
+                  ))
+                    _zoneButton(zone, zones[zone.id]!.length),
+                ],
+              ),
+            ),
+          _controls(),
+          _details(zones),
         ],
       ),
     );
   }
 
-  Widget _buildCalloutsColumn({
-    required List<CyberBodyZone> zones,
-    required Map<String, List<Cyberware>> zoneMap,
-    required String? selectedZone,
-    required CrossAxisAlignment alignment,
-  }) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      crossAxisAlignment: alignment,
-      children: <Widget>[
-        for (final CyberBodyZone zone in zones)
-          _buildZoneCalloutItem(
-            zone: zone,
-            count: (zoneMap[zone.id] ?? const <Cyberware>[]).length,
-            isSelected: selectedZone == zone.id,
-            isHovered: _hoveredZone == zone.id,
-          ),
-      ],
-    );
-  }
-
-  Widget _buildZoneCalloutItem({
-    required CyberBodyZone zone,
-    required int count,
-    required bool isSelected,
-    required bool isHovered,
-  }) {
-    final Color badgeColor = count > 2
-        ? CprPalette.magenta
-        : count > 0
-            ? CprPalette.cyan
-            : CprPalette.inkMuted;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hoveredZone = zone.id),
-      onExit: (_) => setState(() => _hoveredZone = null),
-      child: GestureDetector(
-        onTap: () {
-          final String? next = widget.selectedZone == zone.id ? null : zone.id;
-          widget.onZoneSelected?.call(next);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+  Widget _zoneButton(CyberBodyZone zone, int count) {
+    final bool selected = widget.selectedZone == zone.id;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: () => _select(zone.id),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected
-                ? CprPalette.veil(badgeColor, 0.25)
-                : isHovered
-                    ? CprPalette.veil(badgeColor, 0.12)
-                    : CprPalette.surface.withValues(alpha: 0.8),
-            border: Border.all(
-              color: isSelected
-                  ? badgeColor
-                  : isHovered
-                      ? CprPalette.veil(badgeColor, 0.6)
-                      : CprPalette.hairline,
-              width: isSelected ? 1.5 : 1,
+            color: selected
+                ? CprPalette.cyan.withValues(alpha: .09)
+                : Colors.transparent,
+            border: Border(
+              left: BorderSide(
+                color: selected ? CprPalette.cyan : CprPalette.hairline,
+                width: 2,
+              ),
             ),
-            boxShadow: isSelected
-                ? <BoxShadow>[
-                    BoxShadow(
-                      color: CprPalette.veil(badgeColor, 0.3),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
-                zone.label.toUpperCase(),
-                style: CprType.label.copyWith(
-                  color: isSelected || isHovered ? badgeColor : CprPalette.ink,
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              Flexible(
+                child: Text(
+                  zone.label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: CprType.label.copyWith(
+                    fontSize: 10,
+                    color: selected ? CprPalette.cyan : CprPalette.inkMuted,
+                  ),
                 ),
               ),
-              const SizedBox(width: 7),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: count > 0 ? CprPalette.veil(badgeColor, 0.25) : CprPalette.surfaceSunken,
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(
-                    color: count > 0 ? badgeColor : CprPalette.hairline,
-                    width: 0.8,
-                  ),
-                ),
-                child: Text(
-                  '$count',
-                  style: CprType.numeralSmall.copyWith(
-                    color: count > 0 ? badgeColor : CprPalette.inkFaint,
-                    fontSize: 10,
-                  ),
+              const SizedBox(width: 10),
+              Text(
+                '$count'.padLeft(2, '0'),
+                style: CprType.numeralSmall.copyWith(
+                  fontSize: 10,
+                  color: count > 0 ? CprPalette.cyan : CprPalette.inkFaint,
                 ),
               ),
             ],
@@ -407,141 +355,340 @@ class _CyberBodyViewerState extends State<CyberBodyViewer> with SingleTickerProv
     );
   }
 
-  Widget _buildHitAreas(Size size) {
-    // Relative coordinates of body zones on the canvas
-    final Map<String, Rect> relativeAreas = <String, Rect>{
-      'head': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.14), width: 70, height: 55),
-      'eyes': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.13), width: 34, height: 16),
-      'ears': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.16), width: 56, height: 18),
-      'torso': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.35), width: 90, height: 95),
-      'arms': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.38), width: 170, height: 90),
-      'hands': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.53), width: 190, height: 50),
-      'groin': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.50), width: 70, height: 45),
-      'legs': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.74), width: 100, height: 140),
-      'skin': Rect.fromCenter(center: Offset(size.width * 0.50, size.height * 0.24), width: 120, height: 40),
-    };
-
-    return Stack(
-      children: <Widget>[
-        for (final MapEntry<String, Rect> entry in relativeAreas.entries)
-          Positioned.fromRect(
-            rect: entry.value,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              onEnter: (_) => setState(() => _hoveredZone = entry.key),
-              onExit: (_) => setState(() => _hoveredZone = null),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  final String? next = widget.selectedZone == entry.key ? null : entry.key;
-                  widget.onZoneSelected?.call(next);
-                },
+  Widget _viewport(Map<String, List<Cyberware>> zones) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final Size size = constraints.biggest;
+        if (_model != null && (_frame == null || _frameSize != size)) {
+          _frame = AnatomyFrame.project(
+            model: _model!,
+            size: size,
+            camera: _camera,
+            layer: _layer.id,
+            selectedZone: widget.selectedZone,
+            installedZones: zones.entries
+                .where(
+                  (MapEntry<String, List<Cyberware>> e) => e.value.isNotEmpty,
+                )
+                .map((e) => e.key)
+                .toSet(),
+          );
+          _frameSize = size;
+        }
+        return Focus(
+          focusNode: _focus,
+          onKeyEvent: (FocusNode node, KeyEvent event) {
+            if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+              return KeyEventResult.ignored;
+            }
+            final LogicalKeyboardKey k = event.logicalKey;
+            if (k == LogicalKeyboardKey.arrowLeft) {
+              _view(_camera.orbit(-10, 0));
+            } else if (k == LogicalKeyboardKey.arrowRight) {
+              _view(_camera.orbit(10, 0));
+            } else if (k == LogicalKeyboardKey.arrowUp) {
+              _view(_camera.orbit(0, -10));
+            } else if (k == LogicalKeyboardKey.arrowDown) {
+              _view(_camera.orbit(0, 10));
+            } else if (k == LogicalKeyboardKey.equal ||
+                k == LogicalKeyboardKey.add) {
+              _view(_camera.magnify(_camera.zoom * 1.15));
+            } else if (k == LogicalKeyboardKey.minus ||
+                k == LogicalKeyboardKey.numpadSubtract) {
+              _view(_camera.magnify(_camera.zoom / 1.15));
+            } else if (k == LogicalKeyboardKey.home) {
+              _view(const AnatomyCamera());
+            } else {
+              return KeyEventResult.ignored;
+            }
+            return KeyEventResult.handled;
+          },
+          child: Listener(
+            onPointerSignal: (PointerSignalEvent event) {
+              if (event is PointerScrollEvent) {
+                GestureBinding.instance.pointerSignalResolver.register(event, (
+                  PointerSignalEvent e,
+                ) {
+                  _view(
+                    _camera.magnify(
+                      _camera.zoom * math.exp(-event.scrollDelta.dy * .002),
+                    ),
+                  );
+                });
+              }
+            },
+            child: GestureDetector(
+              key: const ValueKey<String>('anatomy-viewport'),
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (TapUpDetails details) {
+                _focus.requestFocus();
+                _select(_frame?.pick(details.localPosition));
+              },
+              onScaleStart: (_) {
+                _focus.requestFocus();
+                _gestureZoom = _camera.zoom;
+              },
+              onScaleUpdate: (ScaleUpdateDetails details) {
+                final Offset delta = details.focalPointDelta;
+                AnatomyCamera camera = _camera;
+                if (details.pointerCount > 1 ||
+                    HardwareKeyboard.instance.isShiftPressed) {
+                  camera = camera.move(delta);
+                } else {
+                  camera = camera.orbit(delta.dx, delta.dy);
+                }
+                _view(camera.magnify(_gestureZoom * details.scale));
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.grab,
+                child: Semantics(
+                  label: 'Corpo anatomico 3D. Trascina per ruotare, scorri per zoomare. Frecce e tasti più e meno disponibili.',
+                  child: ClipRect(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: <Widget>[
+                        const CustomPaint(painter: _ScannerBackdrop()),
+                        if (_frame != null)
+                          RepaintBoundary(
+                            child: CustomPaint(
+                              painter: AnatomyPainter(_frame!),
+                            ),
+                          ),
+                        if (_model == null)
+                          Center(
+                            child: _failed
+                                ? Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      const Text(
+                                        'Modello anatomico non disponibile',
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          setState(() => _failed = false);
+                                          _load();
+                                        },
+                                        child: const Text('Riprova'),
+                                      ),
+                                    ],
+                                  )
+                                : const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                          ),
+                        Positioned(
+                          top: 12,
+                          left: 18,
+                          child: IgnorePointer(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'ANATOMIA / 3D',
+                                  style: CprType.label.copyWith(
+                                    color: CprPalette.cyan,
+                                    fontSize: 9,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  _layer.label.toUpperCase(),
+                                  style: CprType.label.copyWith(
+                                    color: CprPalette.inkFaint,
+                                    fontSize: 8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 12,
+                          right: 14,
+                          child: IgnorePointer(
+                            child: Text(
+                              'ORBITA 360°  /  ${(_camera.zoom * 100).round()}%',
+                              style: CprType.label.copyWith(
+                                color: CprPalette.inkFaint,
+                                fontSize: 8,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildSelectionBottomBar(
-    CyberBodyZone zone,
-    List<Cyberware> items,
-    int humanity,
-  ) {
+  Widget _controls() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      border: Border(top: BorderSide(color: CprPalette.hairline)),
+    ),
+    child: Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 6,
+      children: <Widget>[
+        Wrap(
+          spacing: 2,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            TextButton(
+              onPressed: () => _view(const AnatomyCamera(yaw: 0)),
+              child: const Text('Fronte'),
+            ),
+            TextButton(
+              onPressed: () => _view(const AnatomyCamera(yaw: math.pi / 2)),
+              child: const Text('Profilo'),
+            ),
+            TextButton(
+              onPressed: () => _view(const AnatomyCamera(yaw: math.pi)),
+              child: const Text('Dorso'),
+            ),
+            IconButton(
+              tooltip: 'Zoom indietro',
+              onPressed: () => _view(_camera.magnify(_camera.zoom / 1.2)),
+              icon: const Icon(Icons.remove, size: 17),
+            ),
+            IconButton(
+              tooltip: 'Zoom avanti',
+              onPressed: () => _view(_camera.magnify(_camera.zoom * 1.2)),
+              icon: const Icon(Icons.add, size: 17),
+            ),
+            IconButton(
+              tooltip: 'Ripristina vista',
+              onPressed: () => _view(const AnatomyCamera()),
+              icon: const Icon(Icons.center_focus_strong, size: 17),
+            ),
+          ],
+        ),
+        Text(
+          'Trascina: ruota · Rotella: zoom · Shift + trascina: sposta',
+          style: CprType.caption.copyWith(
+            fontSize: 9,
+            color: CprPalette.inkFaint,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _details(Map<String, List<Cyberware>> zones) {
+    final String? selected = widget.selectedZone;
+    final CyberBodyZone? zone = selected == null
+        ? null
+        : CyberBodyZone.fromId(selected);
+    final List<Cyberware> items = zone == null
+        ? <Cyberware>[]
+        : zones[zone.id]!;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: CprPalette.surface,
-        border: Border(top: BorderSide(color: CprPalette.hairline)),
-      ),
+      padding: const EdgeInsets.all(12),
+      color: CprPalette.surface,
       child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
+        spacing: 16,
+        runSpacing: 10,
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: <Widget>[
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: CprPalette.veil(CprPalette.cyan, 0.15),
-                  border: Border.all(color: CprPalette.cyan),
-                ),
-                child: const Icon(Icons.my_location, size: 14, color: CprPalette.cyan),
+          if (zone == null)
+            Text(
+              'Seleziona una parte del corpo per vedere gli impianti.',
+              style: CprType.caption.copyWith(
+                color: CprPalette.inkMuted,
+                fontSize: 11,
               ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        'ZONA: ${zone.label.toUpperCase()}',
-                        style: CprType.body.copyWith(
-                          color: CprPalette.cyan,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '(${items.length} impianti · -$humanity Umanità)',
-                        style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 10.5),
-                      ),
-                    ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'ZONA: ${zone.label.toUpperCase()}',
+                  style: CprType.label.copyWith(
+                    color: CprPalette.cyan,
+                    fontSize: 11,
                   ),
-                  Text(
-                    zone.description,
-                    style: CprType.caption.copyWith(color: CprPalette.inkFaint, fontSize: 10),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${items.length} impianti · ${items.fold<int>(0, (int n, Cyberware c) => n + c.humanityLost)} umanità persa',
+                  style: CprType.caption.copyWith(
+                    color: CprPalette.inkMuted,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          if (zone != null)
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: <Widget>[
+                TechButton(
+                  label: 'Installa in ${zone.label}',
+                  icon: Icons.add,
+                  compact: true,
+                  onPressed: widget.onInstallInZone == null
+                      ? null
+                      : () => widget.onInstallInZone!(zone.id),
+                ),
+                TechButton(
+                  label: 'Mostra tutti',
+                  icon: Icons.close,
+                  compact: true,
+                  variant: TechButtonVariant.secondary,
+                  onPressed: () => widget.onZoneSelected?.call(null),
+                ),
+              ],
+            ),
+          TextButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (BuildContext context) => AlertDialog(
+                title: const Text('Modelli anatomici'),
+                content: const SingleChildScrollView(
+                  child: SelectableText(
+                    'Z-Anatomy — The libre 3D atlas of anatomy — CC BY-SA 4.0.\n'
+                    'Gauthier Kervyn e collaboratori.\n\n'
+                    'BodyParts3D — The Database Center for Life Science — CC BY-SA 2.1 Japan. Kousaku Okubo.\n\n'
+                    'Riferimenti del progetto: Brainder / University of Washington; '
+                    'Cranial Nerves and Foramina — University of Dundee, CAHID — CC BY 4.0.\n\n'
+                    'Geometrie selezionate, semplificate e normalizzate per CPRedux; adattamento CC BY-SA 4.0.\n'
+                    'https://github.com/Z-Anatomy/Models-of-human-anatomy\n'
+                    'https://creativecommons.org/licenses/by-sa/4.0/\n\n'
+                    'Visualizzazione di gioco, non uno strumento clinico.',
+                  ),
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Chiudi'),
                   ),
                 ],
               ),
-            ],
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              TechButton(
-                label: 'Installa in ${zone.label}',
-                icon: Icons.add,
-                variant: TechButtonVariant.primary,
-                compact: true,
-                onPressed: () => widget.onInstallInZone?.call(zone.id),
-              ),
-              const SizedBox(width: 8),
-              TechButton(
-                label: 'Mostra tutti',
-                icon: Icons.close,
-                variant: TechButtonVariant.secondary,
-                compact: true,
-                onPressed: () => widget.onZoneSelected?.call(null),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIdleBottomBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: CprPalette.surface,
-        border: Border(top: BorderSide(color: CprPalette.hairline)),
-      ),
-      child: Row(
-        children: <Widget>[
-          const Icon(Icons.touch_app_outlined, size: 14, color: CprPalette.inkMuted),
-          const SizedBox(width: 8),
-          Expanded(
+            ),
             child: Text(
-              'Clicca su una zona del corpo anatomico o sulle etichette per filtrare gli impianti o visualizzare la concentrazione di cyberware.',
-              style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 10.5),
+              'Crediti anatomia',
+              style: CprType.caption.copyWith(
+                fontSize: 9,
+                color: CprPalette.inkFaint,
+              ),
             ),
           ),
         ],
@@ -550,525 +697,50 @@ class _CyberBodyViewerState extends State<CyberBodyViewer> with SingleTickerProv
   }
 }
 
-/// Disegna la griglia e gli assi di scansione
-class _CyberGridPainter extends CustomPainter {
+class _ScannerBackdrop extends CustomPainter {
+  const _ScannerBackdrop();
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint gridPaint = Paint()
-      ..color = CprPalette.hairline.withValues(alpha: 0.35)
-      ..strokeWidth = 0.5;
-
-    const double step = 28.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    // Assi centrali
-    final Paint axisPaint = Paint()
-      ..color = CprPalette.cyan.withValues(alpha: 0.20)
-      ..strokeWidth = 1.0;
-    canvas.drawLine(Offset(size.width / 2, 0), Offset(size.width / 2, size.height), axisPaint);
-
-    // Cerchi olografici di scansione di fondo
-    final Paint circlePaint = Paint()
-      ..color = CprPalette.cyan.withValues(alpha: 0.08)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
-    canvas.drawCircle(Offset(size.width / 2, size.height * 0.45), 110, circlePaint);
-    canvas.drawCircle(Offset(size.width / 2, size.height * 0.45), 160, circlePaint);
-  }
-
-  @override
-  bool shouldRepaint(_CyberGridPainter oldDelegate) => false;
-}
-
-/// Disegna i 4 layer anatomici completi: Silhouette, Scheletro, Vascolare, Nervoso + Zone Glow
-class _BodyAnatomyPainter extends CustomPainter {
-  _BodyAnatomyPainter({
-    required this.activeLayer,
-    required this.zoneCounts,
-    required this.selectedZone,
-    required this.hoveredZone,
-    required this.pulsePhase,
-  });
-
-  final BodyScanLayer activeLayer;
-  final Map<String, int> zoneCounts;
-  final String? selectedZone;
-  final String? hoveredZone;
-  final double pulsePhase;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double cx = size.width / 2;
-    final double cy = size.height * 0.08;
-    // Scale factor to fit anatomical body neatly inside the canvas height
-    final double s = (size.height / 420.0).clamp(0.65, 1.4);
-
-    final double pulse = 0.5 + 0.5 * math.sin(pulsePhase * math.pi * 2);
-
-    // 1. Silhouette del corpo umano (Sempre visibile o evidenziata)
-    _drawBodySilhouette(canvas, cx, cy, s);
-
-    // 2. Zone Glow dinamico (basato sui cyberware installati)
-    _drawZoneGlows(canvas, cx, cy, s, pulse);
-
-    // 3. Layer Scheletro
-    if (activeLayer == BodyScanLayer.all || activeLayer == BodyScanLayer.skeleton) {
-      _drawSkeleton(canvas, cx, cy, s);
-    }
-
-    // 4. Layer Vascolare (Vene & Arterie con sangue sintetico pulsante)
-    if (activeLayer == BodyScanLayer.all || activeLayer == BodyScanLayer.vascular) {
-      _drawVascular(canvas, cx, cy, s, pulse);
-    }
-
-    // 5. Layer Nervoso (Midollo, Nervi & Sinapsi fluorescenti)
-    if (activeLayer == BodyScanLayer.all || activeLayer == BodyScanLayer.nervous) {
-      _drawNervous(canvas, cx, cy, s, pulse);
-    }
-
-    // 6. Evidenziazione zona selezionata/hover
-    _drawTargetReticles(canvas, cx, cy, s, pulse);
-  }
-
-  void _drawBodySilhouette(Canvas canvas, double cx, double cy, double s) {
-    final Path body = Path();
-
-    // Testa / Cranio
-    body.addOval(Rect.fromCenter(center: Offset(cx, cy + 24 * s), width: 34 * s, height: 44 * s));
-
-    // Collo, Spalle, Torso, Bacino, Gambe, Braccia (Postura anatomica cyberpunk)
-    final Path contour = Path();
-    contour.moveTo(cx - 7 * s, cy + 44 * s); // Collo sx
-    contour.lineTo(cx - 28 * s, cy + 54 * s); // Spalla sx
-    contour.lineTo(cx - 52 * s, cy + 100 * s); // Bicipite sx
-    contour.lineTo(cx - 70 * s, cy + 155 * s); // Avambraccio sx
-    contour.lineTo(cx - 82 * s, cy + 195 * s); // Mano sx
-    contour.lineTo(cx - 74 * s, cy + 195 * s);
-    contour.lineTo(cx - 60 * s, cy + 155 * s);
-    contour.lineTo(cx - 44 * s, cy + 104 * s); // Ascella sx
-    contour.lineTo(cx - 30 * s, cy + 120 * s); // Torace sx
-    contour.lineTo(cx - 24 * s, cy + 150 * s); // Vita sx
-    contour.lineTo(cx - 28 * s, cy + 175 * s); // Anca sx
-    contour.lineTo(cx - 26 * s, cy + 240 * s); // Coscia sx
-    contour.lineTo(cx - 24 * s, cy + 295 * s); // Ginocchio sx
-    contour.lineTo(cx - 20 * s, cy + 355 * s); // Polpaccio sx
-    contour.lineTo(cx - 22 * s, cy + 380 * s); // Caviglia / Piede sx
-    contour.lineTo(cx - 10 * s, cy + 380 * s);
-    contour.lineTo(cx - 8 * s, cy + 345 * s);
-    contour.lineTo(cx - 8 * s, cy + 285 * s);
-    contour.lineTo(cx - 2 * s, cy + 200 * s); // Cavallo
-
-    // Lato Dx simmetrico
-    contour.lineTo(cx + 2 * s, cy + 200 * s);
-    contour.lineTo(cx + 8 * s, cy + 285 * s);
-    contour.lineTo(cx + 8 * s, cy + 345 * s);
-    contour.lineTo(cx + 10 * s, cy + 380 * s);
-    contour.lineTo(cx + 22 * s, cy + 380 * s); // Caviglia / Piede dx
-    contour.lineTo(cx + 20 * s, cy + 355 * s);
-    contour.lineTo(cx + 24 * s, cy + 295 * s); // Ginocchio dx
-    contour.lineTo(cx + 26 * s, cy + 240 * s); // Coscia dx
-    contour.lineTo(cx + 28 * s, cy + 175 * s); // Anca dx
-    contour.lineTo(cx + 24 * s, cy + 150 * s); // Vita dx
-    contour.lineTo(cx + 30 * s, cy + 120 * s); // Torace dx
-    contour.lineTo(cx + 44 * s, cy + 104 * s); // Ascella dx
-    contour.lineTo(cx + 60 * s, cy + 155 * s);
-    contour.lineTo(cx + 74 * s, cy + 195 * s);
-    contour.lineTo(cx + 82 * s, cy + 195 * s); // Mano dx
-    contour.lineTo(cx + 70 * s, cy + 155 * s); // Avambraccio dx
-    contour.lineTo(cx + 52 * s, cy + 100 * s); // Bicipite dx
-    contour.lineTo(cx + 28 * s, cy + 54 * s); // Spalla dx
-    contour.lineTo(cx + 7 * s, cy + 44 * s); // Collo dx
-    contour.close();
-
-    // Riempimento base sagoma
-    final Paint fill = Paint()
-      ..color = CprPalette.surfaceSunken.withValues(alpha: 0.70)
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(body, fill);
-    canvas.drawPath(contour, fill);
-
-    // Contorno neon azzurro scuro
-    final Paint stroke = Paint()
-      ..color = CprPalette.cyan.withValues(alpha: 0.28)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0 * s;
-    canvas.drawPath(body, stroke);
-    canvas.drawPath(contour, stroke);
-  }
-
-  void _drawZoneGlows(Canvas canvas, double cx, double cy, double s, double pulse) {
-    // Coordinate centrali per ciascuna zona anatomica
-    final Map<String, Offset> zoneCenters = <String, Offset>{
-      'head': Offset(cx, cy + 24 * s),
-      'eyes': Offset(cx, cy + 20 * s),
-      'ears': Offset(cx, cy + 24 * s),
-      'torso': Offset(cx, cy + 115 * s),
-      'arms': Offset(cx, cy + 125 * s),
-      'hands': Offset(cx, cy + 185 * s),
-      'groin': Offset(cx, cy + 185 * s),
-      'legs': Offset(cx, cy + 290 * s),
-      'skin': Offset(cx, cy + 100 * s),
-    };
-
-    final Map<String, double> zoneRadii = <String, double>{
-      'head': 24 * s,
-      'eyes': 14 * s,
-      'ears': 20 * s,
-      'torso': 38 * s,
-      'arms': 65 * s,
-      'hands': 80 * s,
-      'groin': 22 * s,
-      'legs': 38 * s,
-      'skin': 48 * s,
-    };
-
-    for (final MapEntry<String, Offset> entry in zoneCenters.entries) {
-      final String zId = entry.key;
-      final Offset center = entry.value;
-      final double baseRadius = zoneRadii[zId] ?? 25 * s;
-      final int count = zoneCounts[zId] ?? 0;
-      final bool isSelected = selectedZone == zId;
-      final bool isHovered = hoveredZone == zId;
-
-      if (count > 0 || isSelected || isHovered) {
-        // Colore dinamico: Magenta se sovraccarico (3+), Giallo se 2, Ciano se 1
-        final Color glowColor = count >= 3
-            ? CprPalette.magenta
-            : count == 2
-                ? CprPalette.yellow
-                : CprPalette.cyan;
-
-        final double glowBlur = (count * 6.0 + 8.0) * s;
-        final double glowOpacity = (0.20 + (count * 0.15) + (pulse * 0.12)).clamp(0.2, 0.85);
-
-        // Bagliore sfumato
-        final Paint glowPaint = Paint()
-          ..color = glowColor.withValues(alpha: isSelected ? 0.9 : glowOpacity)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = (2.0 + count * 1.5) * s
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, glowBlur);
-
-        if (zId == 'arms') {
-          // Glow separato su entrambe le braccia
-          canvas.drawCircle(Offset(cx - 58 * s, cy + 130 * s), 20 * s, glowPaint);
-          canvas.drawCircle(Offset(cx + 58 * s, cy + 130 * s), 20 * s, glowPaint);
-        } else if (zId == 'hands') {
-          // Glow su entrambe le mani
-          canvas.drawCircle(Offset(cx - 76 * s, cy + 185 * s), 16 * s, glowPaint);
-          canvas.drawCircle(Offset(cx + 76 * s, cy + 185 * s), 16 * s, glowPaint);
-        } else if (zId == 'legs') {
-          // Glow su entrambe le gambe
-          canvas.drawCircle(Offset(cx - 18 * s, cy + 280 * s), 20 * s, glowPaint);
-          canvas.drawCircle(Offset(cx + 18 * s, cy + 280 * s), 20 * s, glowPaint);
-        } else {
-          canvas.drawCircle(center, baseRadius, glowPaint);
-        }
-
-        // Anello luminoso definito se selezionata
-        if (isSelected || isHovered) {
-          final Paint selectPaint = Paint()
-            ..color = glowColor.withValues(alpha: 0.85)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4 * s;
-          canvas.drawCircle(center, baseRadius + 4 * s, selectPaint);
-        }
+    final Rect bounds = Offset.zero & size;
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: <Color>[Color(0xFF19343A), Color(0xFF091316)],
+          radius: .75,
+        ).createShader(bounds),
+    );
+    final Paint fine = Paint()
+      ..color = const Color(0x1438989F)
+      ..strokeWidth = .6;
+    for (double x = 24; x < size.width; x += 32) {
+      for (double y = 24; y < size.height; y += 32) {
+        canvas.drawCircle(Offset(x, y), .6, fine);
       }
     }
-  }
-
-  void _drawSkeleton(Canvas canvas, double cx, double cy, double s) {
-    final Paint bonePaint = Paint()
-      ..color = CprPalette.ink.withValues(alpha: 0.65)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3 * s;
-
-    final Paint jointPaint = Paint()
-      ..color = CprPalette.cyan.withValues(alpha: 0.80)
-      ..style = PaintingStyle.fill;
-
-    // Cranio scheletrico
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, cy + 24 * s), width: 26 * s, height: 32 * s),
-      bonePaint,
-    );
-    // Orbite oculari
-    canvas.drawCircle(Offset(cx - 5 * s, cy + 22 * s), 3 * s, bonePaint);
-    canvas.drawCircle(Offset(cx + 5 * s, cy + 22 * s), 3 * s, bonePaint);
-
-    // Colonna vertebrale (vertebre)
-    for (int i = 0; i < 11; i++) {
-      final double vy = cy + (48 + i * 11) * s;
-      canvas.drawLine(Offset(cx - 4 * s, vy), Offset(cx + 4 * s, vy), bonePaint);
-    }
-
-    // Clavicole
-    canvas.drawLine(Offset(cx - 28 * s, cy + 56 * s), Offset(cx + 28 * s, cy + 56 * s), bonePaint);
-
-    // Gabbia toracica (costole curvate)
-    for (int i = 0; i < 5; i++) {
-      final double ry = cy + (65 + i * 11) * s;
-      final double rw = (14 + i * 2.5) * s;
-      canvas.drawArc(
-        Rect.fromCenter(center: Offset(cx, ry), width: rw * 2, height: 12 * s),
-        math.pi * 0.1,
-        math.pi * 0.8,
-        false,
-        bonePaint,
+    final double floor = size.height * .95;
+    for (final double fraction in <double>[.23, .32, .41]) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(size.width / 2, floor),
+          width: size.width * fraction,
+          height: size.width * fraction * .16,
+        ),
+        fine,
       );
     }
-
-    // Pelvi / Bacino
-    final Path pelvis = Path()
-      ..moveTo(cx - 24 * s, cy + 172 * s)
-      ..cubicTo(cx - 16 * s, cy + 160 * s, cx + 16 * s, cy + 160 * s, cx + 24 * s, cy + 172 * s)
-      ..lineTo(cx + 16 * s, cy + 195 * s)
-      ..lineTo(cx - 16 * s, cy + 195 * s)
-      ..close();
-    canvas.drawPath(pelvis, bonePaint);
-
-    // Ossa Braccia (Omeri, Radio, Ulna)
-    // Braccio sx
-    canvas.drawLine(Offset(cx - 28 * s, cy + 56 * s), Offset(cx - 52 * s, cy + 104 * s), bonePaint);
-    canvas.drawLine(Offset(cx - 52 * s, cy + 104 * s), Offset(cx - 72 * s, cy + 160 * s), bonePaint);
-    // Braccio dx
-    canvas.drawLine(Offset(cx + 28 * s, cy + 56 * s), Offset(cx + 52 * s, cy + 104 * s), bonePaint);
-    canvas.drawLine(Offset(cx + 52 * s, cy + 104 * s), Offset(cx + 72 * s, cy + 160 * s), bonePaint);
-
-    // Ossa Gambe (Femori, Tibie)
-    // Gamba sx
-    canvas.drawLine(Offset(cx - 18 * s, cy + 195 * s), Offset(cx - 22 * s, cy + 285 * s), bonePaint);
-    canvas.drawLine(Offset(cx - 22 * s, cy + 285 * s), Offset(cx - 16 * s, cy + 365 * s), bonePaint);
-    // Gamba dx
-    canvas.drawLine(Offset(cx + 18 * s, cy + 195 * s), Offset(cx + 22 * s, cy + 285 * s), bonePaint);
-    canvas.drawLine(Offset(cx + 22 * s, cy + 285 * s), Offset(cx + 16 * s, cy + 365 * s), bonePaint);
-
-    // Giunti articolari luminosi (Spalle, Gomiti, Fianchi, Ginocchia)
-    final List<Offset> joints = <Offset>[
-      Offset(cx - 28 * s, cy + 56 * s),
-      Offset(cx + 28 * s, cy + 56 * s),
-      Offset(cx - 52 * s, cy + 104 * s),
-      Offset(cx + 52 * s, cy + 104 * s),
-      Offset(cx - 18 * s, cy + 195 * s),
-      Offset(cx + 18 * s, cy + 195 * s),
-      Offset(cx - 22 * s, cy + 285 * s),
-      Offset(cx + 22 * s, cy + 285 * s),
-    ];
-    for (final Offset j in joints) {
-      canvas.drawCircle(j, 2.5 * s, jointPaint);
-    }
-  }
-
-  void _drawVascular(Canvas canvas, double cx, double cy, double s, double pulse) {
-    // Arterie (Rosso/Magenta) e Vene (Ciano/Azzurro)
-    final Paint arteryPaint = Paint()
-      ..color = CprPalette.danger.withValues(alpha: 0.70)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1 * s;
-
-    final Paint veinPaint = Paint()
-      ..color = CprPalette.cyan.withValues(alpha: 0.65)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0 * s;
-
-    // Cuore sintetico
-    final Offset heartPos = Offset(cx - 5 * s, cy + 86 * s);
-    canvas.drawCircle(
-      heartPos,
-      4.5 * s,
-      Paint()
-        ..color = CprPalette.danger
-        ..style = PaintingStyle.fill
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.5 * s),
-    );
-
-    // Arteria Aorta discendente & carotidi
-    final Path aorta = Path();
-    aorta.moveTo(heartPos.dx, heartPos.dy);
-    aorta.lineTo(heartPos.dx + 4 * s, heartPos.dy - 12 * s);
-    aorta.lineTo(cx, heartPos.dy - 28 * s); // Carotidi collo
-    aorta.lineTo(cx, cy + 32 * s); // Cervello
-    aorta.moveTo(heartPos.dx, heartPos.dy);
-    aorta.lineTo(cx - 2 * s, cy + 180 * s); // Aorta addominale
-    canvas.drawPath(aorta, arteryPaint);
-
-    // Vene e arterie braccia
-    canvas.drawLine(heartPos, Offset(cx - 52 * s, cy + 104 * s), arteryPaint);
-    canvas.drawLine(Offset(cx - 52 * s, cy + 104 * s), Offset(cx - 72 * s, cy + 160 * s), arteryPaint);
-    canvas.drawLine(Offset(heartPos.dx + 6 * s, heartPos.dy), Offset(cx + 52 * s, cy + 104 * s), veinPaint);
-    canvas.drawLine(Offset(cx + 52 * s, cy + 104 * s), Offset(cx + 72 * s, cy + 160 * s), veinPaint);
-
-    // Vasi femorali arti inferiori
-    canvas.drawLine(Offset(cx - 2 * s, cy + 180 * s), Offset(cx - 18 * s, cy + 285 * s), arteryPaint);
-    canvas.drawLine(Offset(cx - 18 * s, cy + 285 * s), Offset(cx - 15 * s, cy + 360 * s), arteryPaint);
-    canvas.drawLine(Offset(cx + 2 * s, cy + 180 * s), Offset(cx + 18 * s, cy + 285 * s), veinPaint);
-    canvas.drawLine(Offset(cx + 18 * s, cy + 285 * s), Offset(cx + 15 * s, cy + 360 * s), veinPaint);
-
-    // Particella pulsante di flusso sanguigno
-    final double flowY = cy + (60 + (pulse * 260)) * s;
-    canvas.drawCircle(
-      Offset(cx - 2 * s, flowY),
-      1.8 * s,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.fill
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.5 * s),
-    );
-  }
-
-  void _drawNervous(Canvas canvas, double cx, double cy, double s, double pulse) {
-    final Paint nervePaint = Paint()
-      ..color = CprPalette.yellow.withValues(alpha: 0.70)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0 * s;
-
-    // Encefalo / Tronco
-    final Path brain = Path();
-    brain.addOval(Rect.fromCenter(center: Offset(cx, cy + 22 * s), width: 18 * s, height: 20 * s));
-    canvas.drawPath(brain, nervePaint);
-
-    // Midollo spinale
-    final Path cord = Path()
-      ..moveTo(cx, cy + 32 * s)
-      ..lineTo(cx, cy + 175 * s);
-    canvas.drawPath(cord, nervePaint);
-
-    // Plesso brachiale verso le mani
-    final Path nervesArms = Path();
-    nervesArms.moveTo(cx, cy + 60 * s);
-    nervesArms.lineTo(cx - 50 * s, cy + 102 * s);
-    nervesArms.lineTo(cx - 70 * s, cy + 155 * s);
-    nervesArms.lineTo(cx - 78 * s, cy + 185 * s); // Terminazioni palmo sx
-
-    nervesArms.moveTo(cx, cy + 60 * s);
-    nervesArms.lineTo(cx + 50 * s, cy + 102 * s);
-    nervesArms.lineTo(cx + 70 * s, cy + 155 * s);
-    nervesArms.lineTo(cx + 78 * s, cy + 185 * s); // Terminazioni palmo dx
-    canvas.drawPath(nervesArms, nervePaint);
-
-    // Nervi sciatici verso piedi
-    final Path nervesLegs = Path();
-    nervesLegs.moveTo(cx, cy + 175 * s);
-    nervesLegs.lineTo(cx - 20 * s, cy + 285 * s);
-    nervesLegs.lineTo(cx - 16 * s, cy + 365 * s);
-
-    nervesLegs.moveTo(cx, cy + 175 * s);
-    nervesLegs.lineTo(cx + 20 * s, cy + 285 * s);
-    nervesLegs.lineTo(cx + 16 * s, cy + 365 * s);
-    canvas.drawPath(nervesLegs, nervePaint);
-
-    // Nodi di scarica sinaptica
-    final List<Offset> nodes = <Offset>[
-      Offset(cx, cy + 22 * s),
-      Offset(cx, cy + 60 * s),
-      Offset(cx, cy + 115 * s),
-      Offset(cx, cy + 175 * s),
-      Offset(cx - 78 * s, cy + 185 * s),
-      Offset(cx + 78 * s, cy + 185 * s),
-    ];
-
-    for (final Offset n in nodes) {
-      canvas.drawCircle(
-        n,
-        2.0 * s,
-        Paint()
-          ..color = CprPalette.yellow.withValues(alpha: 0.6 + 0.4 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.0 * s),
+    final Paint ticks = Paint()
+      ..color = const Color(0x304D898D)
+      ..strokeWidth = 1;
+    for (double y = 50; y < size.height - 40; y += 20) {
+      canvas.drawLine(
+        Offset(size.width - 10, y),
+        Offset(size.width - (y % 50 == 0 ? 20 : 15), y),
+        ticks,
       );
     }
   }
 
-  void _drawTargetReticles(Canvas canvas, double cx, double cy, double s, double pulse) {
-    if (selectedZone == null && hoveredZone == null) return;
-    final String active = (selectedZone ?? hoveredZone)!;
-
-    final Map<String, Offset> targets = <String, Offset>{
-      'head': Offset(cx, cy + 24 * s),
-      'eyes': Offset(cx, cy + 20 * s),
-      'ears': Offset(cx, cy + 24 * s),
-      'torso': Offset(cx, cy + 115 * s),
-      'arms': Offset(cx - 58 * s, cy + 130 * s),
-      'hands': Offset(cx - 76 * s, cy + 185 * s),
-      'groin': Offset(cx, cy + 185 * s),
-      'legs': Offset(cx - 18 * s, cy + 280 * s),
-      'skin': Offset(cx, cy + 100 * s),
-    };
-
-    final Offset? target = targets[active];
-    if (target == null) return;
-
-    final Paint reticlePaint = Paint()
-      ..color = CprPalette.cyan.withValues(alpha: 0.85)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0 * s;
-
-    final double r = 18 * s + pulse * 4 * s;
-    canvas.drawCircle(target, r, reticlePaint);
-
-    // Mirino a croce
-    canvas.drawLine(Offset(target.dx - r - 6 * s, target.dy), Offset(target.dx - r, target.dy), reticlePaint);
-    canvas.drawLine(Offset(target.dx + r, target.dy), Offset(target.dx + r + 6 * s, target.dy), reticlePaint);
-    canvas.drawLine(Offset(target.dx, target.dy - r - 6 * s), Offset(target.dx, target.dy - r), reticlePaint);
-    canvas.drawLine(Offset(target.dx, target.dy + r), Offset(target.dx, target.dy + r + 6 * s), reticlePaint);
-  }
-
   @override
-  bool shouldRepaint(_BodyAnatomyPainter oldDelegate) =>
-      oldDelegate.activeLayer != activeLayer ||
-      oldDelegate.selectedZone != selectedZone ||
-      oldDelegate.hoveredZone != hoveredZone ||
-      oldDelegate.pulsePhase != pulsePhase ||
-      oldDelegate.zoneCounts != zoneCounts;
-}
-
-/// Angoli del visualizzatore in stile HUD
-class _CornerReticle extends StatelessWidget {
-  const _CornerReticle({required this.isTop, required this.isLeft});
-
-  final bool isTop;
-  final bool isLeft;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 12,
-      height: 12,
-      child: CustomPaint(
-        painter: _ReticlePainter(isTop: isTop, isLeft: isLeft),
-      ),
-    );
-  }
-}
-
-class _ReticlePainter extends CustomPainter {
-  const _ReticlePainter({required this.isTop, required this.isLeft});
-
-  final bool isTop;
-  final bool isLeft;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint p = Paint()
-      ..color = CprPalette.cyan.withValues(alpha: 0.6)
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-
-    final double x = isLeft ? 0 : size.width;
-    final double y = isTop ? 0 : size.height;
-    final double dx = isLeft ? 10 : -10;
-    final double dy = isTop ? 10 : -10;
-
-    final Path path = Path()
-      ..moveTo(x, y + dy)
-      ..lineTo(x, y)
-      ..lineTo(x + dx, y);
-    canvas.drawPath(path, p);
-  }
-
-  @override
-  bool shouldRepaint(_ReticlePainter oldDelegate) => false;
+  bool shouldRepaint(_ScannerBackdrop oldDelegate) => false;
 }

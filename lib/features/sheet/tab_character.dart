@@ -15,6 +15,7 @@ import '../../widgets/chamfer_panel.dart';
 import '../../widgets/cyber_gauges.dart';
 import '../../widgets/cyber_help_tooltip.dart';
 import '../../widgets/health_heart.dart';
+import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 import '../files/file_browser.dart';
@@ -148,7 +149,7 @@ class _VitalsPanel extends StatelessWidget {
                 message:
                     'Umanità: Inizia a Empatia × 10. Si riduce installando Cyberware. Sotto i 10 punti rischi la Cyberpsicosi!',
                 waitDuration: const Duration(milliseconds: 200),
-                child: HumanityFillGauge(
+                child: HumanityGauge(
                   current: identity.currentHumanity,
                   max: totals.maxHumanity,
                   size: 156,
