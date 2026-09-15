@@ -259,23 +259,6 @@ class _Root extends StatelessWidget {
                             ),
                         ],
                       ),
-                      if (!state.isAiAssistantOpen)
-                        Positioned(
-                          right: 0,
-                          top: 120,
-                          child: _AiFloatingTab(
-                            onTap: state.toggleAiAssistant,
-                          ),
-                        ),
-                      // La linguetta del Master è visibile solo al Master della campagna
-                      if (!state.isGmPanelOpen && state.isMaster)
-                        Positioned(
-                          right: 0,
-                          top: 196,
-                          child: GmFloatingTab(
-                            onTap: state.toggleGmPanel,
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -350,52 +333,3 @@ class _ErrorBar extends StatelessWidget {
     );
   }
 }
-
-class _AiFloatingTab extends StatelessWidget {
-  const _AiFloatingTab({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
-        decoration: BoxDecoration(
-          color: CprPalette.surfaceRaised,
-          borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
-          border: Border.all(color: CprPalette.cyan.withValues(alpha: 0.5)),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: CprPalette.cyan.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(-2, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            const Icon(Icons.smart_toy_outlined, size: 14, color: CprPalette.cyan),
-            const SizedBox(height: 5),
-            RotatedBox(
-              quarterTurns: 3,
-              child: Text(
-                'AI NET',
-                style: CprType.label.copyWith(
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
-                  color: CprPalette.cyan,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-

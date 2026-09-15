@@ -39,7 +39,7 @@ enum CampaignSection {
   map('Mappa', Icons.map_outlined, CprPalette.info),
   netrun('Mappa NET', Icons.hub_outlined, CprPalette.cyan),
   table('Tavolo', Icons.forum_outlined, CprPalette.yellow),
-  aiBots('IA & Servizi', Icons.smart_toy_outlined, CprPalette.magenta),
+  aiBots('IA del gioco', Icons.smart_toy_outlined, CprPalette.magenta),
   dice('Dadi', Icons.casino_outlined, CprPalette.yellow),
   notebook('Quaderno', Icons.menu_book_outlined, CprPalette.violet),
   gmTools('Strumenti GM', Icons.dashboard_customize_outlined, CprPalette.violet, masterOnly: true),
