@@ -16,6 +16,14 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag della release da completare (es. v0.2.6)'
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 permissions:
   contents: read
@@ -26,6 +34,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verifica versione richiesta
+        run: |
+          VERSION=$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)
+          test "$RELEASE_TAG" = "v$VERSION"
+          git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG"
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -73,33 +86,8 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/dist"
           ditto -c -k --keepParent cpredux.app "$GITHUB_WORKSPACE/dist/cpredux-macos.zip"
 
-      - name: Crea DMG Installer macOS con sfondo personalizzato e logo
-        run: |
-          brew install create-dmg || true
-          swift tool/generate_dmg_background.swift
-          swift tool/generate_dmg_icon.swift
-          mkdir -p dmg_staging
-          rm -rf dmg_staging/*
-          cp -R build/macos/Build/Products/Release/cpredux.app dmg_staging/
-          create-dmg \
-            --volname "CPRedux" \
-            --volicon "assets/branding/dmg_logo.icns" \
-            --background "assets/branding/dmg_background.png" \
-            --window-pos 200 120 \
-            --window-size 660 400 \
-            --icon-size 128 \
-            --text-size 12 \
-            --icon "cpredux.app" 175 190 \
-            --hide-extension "cpredux.app" \
-            --app-drop-link 485 190 \
-            --no-internet-enable \
-            --overwrite \
-            "dist/cpredux-macos.dmg" \
-            "dmg_staging" || true
-          # Se create-dmg fallisce a causa dell'ambiente headless di CI, crea DMG compatibile con hdiutil
-          if [ ! -f "dist/cpredux-macos.dmg" ]; then
-            hdiutil create -volname "CPRedux" -srcfolder "dmg_staging" -ov -format UDZO "dist/cpredux-macos.dmg"
-          fi
+      - name: Crea e verifica DMG macOS
+        run: bash tool/build_dmg.sh
 
       - uses: actions/upload-artifact@v4
         with:
@@ -137,7 +125,7 @@ jobs:
             $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           }
           $root = (Get-Location).Path
-          $ver = $env:GITHUB_REF_NAME -replace '^v',''
+          $ver = $env:RELEASE_TAG -replace '^v',''
           if (-not $ver) { $ver = "0.2.4" }
           & $makensis -DPRODUCT_VERSION="$ver" -DBUILD_DIR="$root\build\windows\x64\runner\Release" -DOUTPUT_EXE="$root\dist\cpredux-windows-setup.exe" -DAPP_ICON="$root\windows\runner\resources\app_icon.ico" -DLOGO_IMAGE="$root\assets\branding\CPReduxLogo.png" "$root\windows\installer\cpredux_setup.nsi"
 
@@ -235,11 +223,12 @@ jobs:
 
       - name: Versione
         id: v
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Rilascia su GitHub
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           name: "CPRedux v${{ steps.v.outputs.version }}"
           files: |
             dist/cpredux-windows-setup.exe

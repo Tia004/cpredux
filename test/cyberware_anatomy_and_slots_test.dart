@@ -138,7 +138,6 @@ void main() {
   group('CyberBodyViewer & HumanityGauge UI Tests', () {
     testWidgets('CyberBodyViewer si renderizza correttamente e supporta layer e filtri zona', (WidgetTester tester) async {
       String? selectedZone;
-      String? installedZoneId;
 
       final List<Cyberware> cyberware = <Cyberware>[
         Cyberware(
@@ -169,7 +168,7 @@ void main() {
                 cyberware: cyberware,
                 selectedZone: selectedZone,
                 onZoneSelected: (String? z) => selectedZone = z,
-                onInstallInZone: (String z) => installedZoneId = z,
+                onInstallInZone: (String z) {},
               ),
             ),
           ),

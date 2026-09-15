@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:cpredux/app/app.dart';
 import 'package:cpredux/app/app_state.dart';
 import 'package:cpredux/data/app_paths.dart';
 import 'package:cpredux/data/settings_store.dart';
