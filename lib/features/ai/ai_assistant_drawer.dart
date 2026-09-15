@@ -105,7 +105,11 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
                   ),
                 ),
                 Text(
-                  ai.hasGeminiKey ? 'Motore: Google Gemini 1.5 Flash' : 'Motore: Offline Heuristic Free',
+                  ai.effectiveProxyUrl.isNotEmpty
+                      ? 'Motore: Google Gemini 2.5 Flash · proxy cloud'
+                      : ai.hasGeminiKey
+                          ? 'Motore: Google Gemini 2.5 Flash'
+                          : 'Motore: Offline Heuristic Free',
                   style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 9.5),
                 ),
               ],

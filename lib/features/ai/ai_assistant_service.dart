@@ -99,9 +99,11 @@ class AiAssistantService extends ChangeNotifier {
 
   /// Chiave configurata al momento della compilazione tramite
   /// `--dart-define=GEMINI_API_KEY=xxx`.
-  /// Se presente, l'applicazione la include nel proprio ambiente compilato
-  /// senza scriverla in chiaro in nessun file locale sul disco dell'utente.
+  /// Questa modalità resta utile per sviluppo locale. Per le release pubbliche
+  /// usare `GEMINI_PROXY_URL`: la chiave resta nel Worker cloud e non finisce
+  /// nell'applicazione distribuita.
   static const String _envApiKey = String.fromEnvironment('GEMINI_API_KEY');
+  static const String _envProxyUrl = String.fromEnvironment('GEMINI_PROXY_URL');
 
   String _geminiApiKey = '';
   String get geminiApiKey => _geminiApiKey;
@@ -114,7 +116,9 @@ class AiAssistantService extends ChangeNotifier {
     return '';
   }
 
-  bool get hasGeminiKey => effectiveApiKey.isNotEmpty;
+  String get effectiveProxyUrl => _envProxyUrl.trim();
+
+  bool get hasGeminiKey => effectiveProxyUrl.isNotEmpty || effectiveApiKey.isNotEmpty;
   bool get hasEnvKey => _envApiKey.trim().isNotEmpty;
 
   final List<AiChatMessage> _messages = <AiChatMessage>[];
@@ -334,10 +338,14 @@ class AiAssistantService extends ChangeNotifier {
   }
 
   Future<String> _callGeminiApi(String prompt) async {
+    if (effectiveProxyUrl.isNotEmpty) {
+      return _callGeminiProxy(prompt);
+    }
+
     final String key = effectiveApiKey;
     if (key.isEmpty) throw Exception('Nessuna chiave API Gemini configurata');
     final Uri url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$key',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$key',
     );
 
     final HttpClient client = HttpClient();
@@ -376,6 +384,24 @@ class AiAssistantService extends ChangeNotifier {
       }
     }
     throw Exception('Formato risposta Gemini non valido');
+  }
+
+  Future<String> _callGeminiProxy(String prompt) async {
+    final HttpClient client = HttpClient();
+    try {
+      final HttpClientRequest req = await client.postUrl(Uri.parse(effectiveProxyUrl));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode(<String, String>{'prompt': prompt}));
+      final HttpClientResponse resp = await req.close();
+      final String respBody = await resp.transform(utf8.decoder).join();
+      final Object? decoded = jsonDecode(respBody);
+      if (resp.statusCode >= 200 && resp.statusCode < 300 && decoded is Map && decoded['text'] is String) {
+        return '${decoded['text']}'.trim();
+      }
+      throw Exception('Proxy Gemini: ${decoded is Map ? decoded['error'] ?? 'risposta non valida' : 'risposta non valida'}');
+    } finally {
+      client.close(force: true);
+    }
   }
 
   /// Genera il bottino (loot) per un nemico usando l'IA di Gemini o un generatore procedurale indipendente.
