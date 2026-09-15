@@ -227,6 +227,45 @@ class AiAssistantService extends ChangeNotifier {
     return dialogue;
   }
 
+  /// Crea il riepilogo della sessione a partire dalla trascrizione reale.
+  /// Gemini viene usato quando il proxy o una chiave locale sono disponibili;
+  /// il riepilogo locale resta solo un fallback per le sessioni offline.
+  Future<String> generateSessionSummary({
+    required int sessionIndex,
+    required String transcript,
+  }) async {
+    final String source = transcript.trim();
+    final String bounded = source.length > 6500 ? source.substring(0, 6500) : source;
+    final String prompt = 'Riassumi la sessione di Cyberpunk RED numero $sessionIndex.\n'
+        'Trascrizione della sessione:\n$bounded\n\n'
+        'Produci un riepilogo pratico per il Master in italiano, con queste sezioni: '
+        'Eventi chiave, combattimenti e incontri, risorse e conseguenze, ganci futuri. '
+        'Non inventare fatti assenti dalla trascrizione; segnala ciò che non è noto. '
+        'Usa punti elenco brevi e non aggiungere premesse.';
+
+    if (hasGeminiKey) {
+      try {
+        return await _callGeminiApi(prompt);
+      } catch (_) {}
+    }
+
+    return _localSessionSummary(sessionIndex, source);
+  }
+
+  String _localSessionSummary(int sessionIndex, String transcript) {
+    final String excerpt = transcript.isEmpty
+        ? 'Nessuna trascrizione disponibile.'
+        : transcript.length > 420
+            ? '${transcript.substring(0, 420)}…'
+            : transcript;
+    return 'RIASSUNTO IA DELLA SESSIONE #$sessionIndex (NIGHT CITY LOG):\n'
+        '• Eventi chiave: trascrizione registrata per la revisione del Master.\n'
+        '• Combattimenti e incontri: da verificare nella trascrizione completa.\n'
+        '• Risorse e conseguenze: nessun dato strutturato disponibile offline.\n'
+        '• Ganci futuri: ricavare i prossimi obiettivi dalle ultime scene.\n\n'
+        'Estratto offline:\n$excerpt';
+  }
+
   String _generateLocalNpcDialogue(
     NpcArchetype archetype,
     NpcTone tone,

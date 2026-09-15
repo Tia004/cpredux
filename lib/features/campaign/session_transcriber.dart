@@ -7,6 +7,7 @@ import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/campaign.dart';
 import '../../domain/campaign_combat.dart';
+import '../ai/ai_assistant_service.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/tech_button.dart';
 
@@ -217,17 +218,15 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog> {
     super.dispose();
   }
 
-  void _generateAiSummary(String rawTranscript, int index) {
+  Future<void> _generateAiSummary(String rawTranscript, int index) async {
     setState(() => _isGeneratingAi = true);
 
-    // Generazione euristica immediata del riepilogo della sessione
-    final String summary = '''
-RIASSUNTO IA DELLA SESSIONE #$index (NIGHT CITY LOG):
-• Eventi Chiave: Il gruppo si è infiltrato nel distretto di Watson eludendo la sorveglianza droni.
-• Combattimento & Incontri: Scontro a fuoco breve contro boostergang locali; armatura avversaria ablata con successo.
-• Crediti ed Economia: Scambio di crediti registrato tramite Delamain Core e sblocco credenziali sul mercato nero.
-• Ganci Futuri & Obiettivi: Il chip dati sequestrato richiede un Netrunner di Rango 4+ per la decifrazione delle coordinate della safehouse Arasaka.
-''';
+    final String summary = await AiAssistantService.instance.generateSessionSummary(
+      sessionIndex: index,
+      transcript: rawTranscript,
+    );
+
+    if (!mounted) return;
 
     setState(() {
       _aiSummaryCtrl.text = summary;

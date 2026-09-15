@@ -39,6 +39,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
   // Base Mode State
   String _baseArchetype = 'Scagnozzo da strada';
   int _baseQuality = 5;
+  bool _isBaseGenerating = false;
 
   // Advanced Mode State
   late final TextEditingController _advancedPromptCtrl;
@@ -99,18 +100,19 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
   }
 
   /// Generazione Modalità Base (completamente indipendente dal loot precedente).
-  void _generateBaseLoot() {
-    final math.Random rnd = math.Random();
+  Future<void> _generateBaseLoot() async {
+    if (mounted) setState(() => _isBaseGenerating = true);
     final AiAssistantService service = AiAssistantService.instance;
-    final AiLootResult res = service.generateLootWithAiProceduralSync(
+    final AiLootResult res = await service.generateLootWithAi(
       prompt: _baseArchetype,
       quality: _baseQuality,
-      random: rnd,
     );
+    if (!mounted) return;
     setState(() {
+      _isBaseGenerating = false;
       _eurodollars = res.eurodollars;
       _entries = List<LootEntry>.from(res.entries);
-      _generationSource = 'Base ($_baseArchetype, Q: $_baseQuality/10)';
+      _generationSource = 'Base (${res.source}, $_baseArchetype, Q: $_baseQuality/10)';
       _manualEbCtrl.text = '$_eurodollars';
     });
   }
@@ -366,12 +368,14 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
           ),
           const SizedBox(height: 8),
           TechButton(
-            label: 'REROLL LOOT BASE (GENERAZIONE FRESCA)',
+            label: _isBaseGenerating
+                ? 'GENERAZIONE LOOT IN CORSO...'
+                : 'REROLL LOOT BASE (GENERAZIONE IA)',
             icon: Icons.casino,
             expand: true,
             variant: TechButtonVariant.primary,
             tooltip: 'Genera un nuovo bottino casuale senza basarsi su quello precedente',
-            onPressed: _generateBaseLoot,
+            onPressed: _isBaseGenerating ? null : _generateBaseLoot,
           ),
         ],
       ),

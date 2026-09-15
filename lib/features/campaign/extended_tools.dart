@@ -7,7 +7,9 @@ import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/campaign.dart';
 import '../../domain/campaign_combat.dart';
+import '../../domain/gm/gm_generators.dart';
 import '../../domain/map_token.dart';
+import '../ai/ai_assistant_service.dart';
 import '../../widgets/tech_button.dart';
 
 // =============================================================================
@@ -23,43 +25,30 @@ class EnemyLootDialog extends StatefulWidget {
 
 class _EnemyLootDialogState extends State<EnemyLootDialog> {
   String _lootResult = 'Seleziona il rango del nemico e premi "Fruga nelle Tasche".';
+  bool _isGenerating = false;
 
-  void _generateLoot(String rank) {
-    final rand = math.Random();
-    int eb = 0;
-    List<String> items = [];
-
-    if (rank == 'Mook da Strada (Boostergang)') {
-      eb = (rand.nextInt(10) + 1) * 10; // 10-100 eb
-      items = [
-        'Chip dati musicale piratato',
-        'Scatola munizioni 9mm (x${(rand.nextInt(3) + 1) * 10})',
-        if (rand.nextBool()) '1 dose di Smash (Alcol sintetico)',
-        if (rand.nextInt(4) == 0) 'Coltello tascabile pieghevole',
-      ];
-    } else if (rank == 'Soldato Corporativo (Arasaka/Militech)') {
-      eb = (rand.nextInt(20) + 5) * 20; // 100-500 eb
-      items = [
-        'Badge di sicurezza aziendale di Livello 2',
-        'Munizioni perforanti per fucile (x${(rand.nextInt(2) + 1) * 15})',
-        'Inalatore medico Speedheal',
-        'Chip di crittografia aziendale (DV 15 Netrunning)',
-      ];
-    } else {
-      // Cyberpsicopatico / Boss
-      eb = (rand.nextInt(50) + 20) * 50; // 1000-3500 eb
-      items = [
-        '1 dose di Black Lace (Droghe da combattimento)',
-        'Cyberware recuperabile semi-bruciato (DV 17 Tecnico)',
-        'Carta di credito aziendale cifrata',
-        'Arma Eccellente personalizzata con Smartlink',
-      ];
-    }
-
+  Future<void> _generateLoot(String rank) async {
+    setState(() => _isGenerating = true);
+    final int quality = rank.contains('Cyberpsicopatico')
+        ? 8
+        : rank.contains('Soldato')
+            ? 6
+            : 4;
+    final AiLootResult result = await AiAssistantService.instance.generateLootWithAi(
+      prompt: rank,
+      quality: quality,
+    );
+    if (!mounted) return;
+    final List<String> items = result.entries.map((LootEntry entry) {
+      final String quantity = entry.quantity > 1 ? ' x${entry.quantity}' : '';
+      final String note = entry.note.isEmpty ? '' : ' — ${entry.note}';
+      return '${entry.name}$quantity$note';
+    }).toList();
     setState(() {
       _lootResult = '🔍 RISULTATO FRUGAZIONE ($rank):\n\n'
-          '💰 Denaro contante trovato: $eb Eurodollari (eb)\n'
-          '🎒 Oggetti nelle tasche:\n${items.map((i) => "  • $i").join("\n")}';
+          '💰 Denaro contante trovato: ${result.eurodollars} Eurodollari (eb)\n'
+          '🎒 Oggetti nelle tasche (${result.source}):\n${items.isEmpty ? '  • Nessun oggetto' : items.map((i) => "  • $i").join("\n")}';
+      _isGenerating = false;
     });
   }
 
@@ -105,22 +94,22 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
               runSpacing: 8,
               children: <Widget>[
                 TechButton(
-                  label: 'Mook da Strada (Boostergang)',
+                  label: _isGenerating ? 'GENERAZIONE IA...' : 'Mook da Strada (Boostergang)',
                   icon: Icons.person_outline,
                   variant: TechButtonVariant.secondary,
-                  onPressed: () => _generateLoot('Mook da Strada (Boostergang)'),
+                  onPressed: _isGenerating ? null : () => _generateLoot('Mook da Strada (Boostergang)'),
                 ),
                 TechButton(
                   label: 'Soldato Corp (Arasaka)',
                   icon: Icons.shield_outlined,
                   variant: TechButtonVariant.secondary,
-                  onPressed: () => _generateLoot('Soldato Corporativo (Arasaka/Militech)'),
+                  onPressed: _isGenerating ? null : () => _generateLoot('Soldato Corporativo (Arasaka/Militech)'),
                 ),
                 TechButton(
                   label: 'Cyberpsicopatico / Boss',
                   icon: Icons.warning_amber_rounded,
                   variant: TechButtonVariant.secondary,
-                  onPressed: () => _generateLoot('Cyberpsicopatico / Boss'),
+                  onPressed: _isGenerating ? null : () => _generateLoot('Cyberpsicopatico / Boss'),
                 ),
               ],
             ),

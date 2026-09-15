@@ -230,6 +230,16 @@ void main() {
       expect(corpQuote, isNotEmpty);
       expect(corpQuote, contains('contratti'));
     });
+
+    test('Riepilogo sessione usa il servizio IA e ha un fallback offline', () async {
+      final AiAssistantService ai = AiAssistantService.instance;
+      final String summary = await ai.generateSessionSummary(
+        sessionIndex: 4,
+        transcript: 'Il gruppo ha recuperato un chip e ha negoziato con un Fixer.',
+      );
+
+      expect(summary, isNotEmpty);
+    });
   });
 
   group('CyberHelpTooltip Widget Test', () {
