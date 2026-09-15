@@ -9,6 +9,7 @@ library;
 
 import 'dart:ui' show Offset;
 
+import 'campaign_combat.dart';
 import 'json_support.dart';
 
 /// I due aspetti della stessa geometria.
@@ -121,6 +122,9 @@ class MapWaypoint {
     this.authorId = '',
     this.authorName = '',
     this.createdAt = '',
+    this.npcSheet,
+    this.currentHp,
+    this.maxHp,
   });
 
   final String id;
@@ -138,6 +142,11 @@ class MapWaypoint {
   final String authorId;
   String authorName;
   final String createdAt;
+
+  /// Scheda rapida del PNG/Mook associato a questo token sulla mappa
+  QuickNpcSheet? npcSheet;
+  int? currentHp;
+  int? maxHp;
 
   Offset get position => Offset(x, y);
 
@@ -165,6 +174,9 @@ class MapWaypoint {
         'authorId': authorId,
         'authorName': authorName,
         'createdAt': createdAt,
+        if (npcSheet != null) 'npcSheet': npcSheet!.toJson(),
+        if (currentHp != null) 'currentHp': currentHp,
+        if (maxHp != null) 'maxHp': maxHp,
       };
 
   static MapWaypoint fromJson(Map<String, Object?> json) => MapWaypoint(
@@ -179,6 +191,12 @@ class MapWaypoint {
         authorId: readString(json['authorId']),
         authorName: readString(json['authorName']),
         createdAt: readString(json['createdAt']),
+        npcSheet: json['npcSheet'] is Map
+            ? QuickNpcSheet.fromJson((json['npcSheet']! as Map<Object?, Object?>)
+                .map((Object? k, Object? v) => MapEntry(k.toString(), v)))
+            : null,
+        currentHp: json['currentHp'] != null ? readInt(json['currentHp']) : null,
+        maxHp: json['maxHp'] != null ? readInt(json['maxHp']) : null,
       );
 
   MapWaypoint copyWith({

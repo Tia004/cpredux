@@ -12,22 +12,32 @@ import '../../design/typography.dart';
 import '../../data/cpredux_file.dart';
 import '../../data/document_library.dart';
 import '../../domain/campaign.dart';
+import '../../domain/campaign_combat.dart';
 import '../../domain/enums.dart';
+import '../../domain/net_architecture.dart';
 import '../../domain/rules.dart';
 import '../../domain/sheet.dart';
 import '../sheet/chat_rich_tools.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/cyber_help_tooltip.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 import '../map/map_section.dart';
+import 'net_architecture_editor.dart';
+import 'ai_fleet_section.dart';
+import 'cyberpunk_red_suite.dart';
+import 'extended_tools.dart';
+import 'session_transcriber.dart';
 
 /// Le sezioni del tavolo.
 enum CampaignSection {
   players('Giocatori', Icons.groups_2_outlined, CprPalette.cyan),
   map('Mappa', Icons.map_outlined, CprPalette.info),
+  netrun('Mappa NET', Icons.hub_outlined, CprPalette.cyan),
   table('Tavolo', Icons.forum_outlined, CprPalette.yellow),
+  aiBots('IA & Servizi', Icons.smart_toy_outlined, CprPalette.magenta),
   dice('Dadi', Icons.casino_outlined, CprPalette.yellow),
   notebook('Quaderno', Icons.menu_book_outlined, CprPalette.violet),
   settings('Impostazioni', Icons.tune_outlined, CprPalette.inkFaint);
@@ -63,8 +73,12 @@ class _CampaignScreenState extends State<CampaignScreen> {
         return const _PlayersSection();
       case CampaignSection.map:
         return const MapSection(asGameMaster: true);
+      case CampaignSection.netrun:
+        return const _NetrunSection();
       case CampaignSection.table:
         return const _TableSection();
+      case CampaignSection.aiBots:
+        return const AiFleetMasterSection();
       case CampaignSection.dice:
         return const _DiceSection();
       case CampaignSection.notebook:
@@ -118,129 +132,812 @@ class _CampaignHeader extends StatelessWidget {
     final Campaign campaign = state.campaign!;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          TechButton(
-            label: '',
-            icon: Icons.arrow_back,
-            variant: TechButtonVariant.ghost,
-            compact: true,
-            tooltip: 'Torna al menu',
-            onPressed: state.closeDocument,
-          ),
-          const SizedBox(width: 12),
-          Container(width: 3, height: 18, color: CprPalette.cyan),
-          const SizedBox(width: 9),
-          Flexible(
-            child: Text(
-              campaign.meta.name,
-              overflow: TextOverflow.ellipsis,
-              style: CprType.body.copyWith(color: CprPalette.ink, fontWeight: FontWeight.w600),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: <Widget>[
+                  TechButton(
+                    label: '',
+                    icon: Icons.arrow_back,
+                    variant: TechButtonVariant.ghost,
+                    compact: true,
+                    tooltip: 'Torna al menu',
+                    onPressed: state.closeDocument,
+                  ),
+                  const SizedBox(width: 12),
+                  Container(width: 3, height: 18, color: CprPalette.cyan),
+                  const SizedBox(width: 9),
+                  Text(
+                    campaign.meta.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: CprType.body.copyWith(color: CprPalette.ink, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 14),
+                  _SessionBadge(state: state),
+                  const SizedBox(width: 8),
+                  const CyberHelpTooltip(
+                    title: 'Tavolo & Connessione LAN/Web',
+                    message: 'Il Master apre il tavolo su una porta TCP (es. :20199 o :21099). I giocatori si collegano inserendo l\'indirizzo o cliccando il link di invito.',
+                    tag: 'Rete',
+                    accent: CprPalette.cyan,
+                  ),
+                  const SizedBox(width: 10),
+                  _CampaignClockBadge(campaign: campaign, state: state),
+                  const SizedBox(width: 14),
+                  const SessionMicrophoneIndicator(),
+                  const SizedBox(width: 10),
+                  if (state.isHosting) ...<Widget>[
+                    Text(
+                      '${campaign.players.where((CampaignPlayer p) => p.isConnected).length} al tavolo',
+                      style: CprType.caption.copyWith(color: CprPalette.cyan),
+                    ),
+                    const SizedBox(width: 10),
+                  TechButton(
+                    label: 'Invita',
+                    icon: Icons.share_outlined,
+                    variant: TechButtonVariant.secondary,
+                    compact: true,
+                    tooltip: 'Mostra i dettagli di connessione e link di invito per i giocatori',
+                    onPressed: () => openInviteDialog(context, state, campaign),
+                  ),
+                  const SizedBox(width: 10),
+                  TechButton(
+                    label: 'Chiudi tavolo',
+                    icon: Icons.stop_circle_outlined,
+                    variant: TechButtonVariant.danger,
+                    compact: true,
+                    onPressed: state.stopHosting,
+                  ),
+                ] else ...<Widget>[
+                  TechButton(
+                    label: 'Apri il tavolo',
+                    icon: Icons.wifi_tethering,
+                    variant: TechButtonVariant.primary,
+                    compact: true,
+                    tooltip: 'Mette il master in ascolto sulla porta ${campaign.port}',
+                    onPressed: () => state.startHosting(),
+                  ),
+                ],
+                const SizedBox(width: 10),
+                TechButton(
+                  label: 'Salva',
+                  icon: Icons.save_outlined,
+                  variant: TechButtonVariant.secondary,
+                  compact: true,
+                  onPressed: () => state.save(),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 14),
-          _SessionBadge(state: state),
-          const Spacer(),
-          if (state.isHosting) ...<Widget>[
-            Text(
-              '${campaign.players.where((CampaignPlayer p) => p.isConnected).length} al tavolo',
-              style: CprType.caption.copyWith(color: CprPalette.cyan),
+        ),
+        Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
+            color: CprPalette.surfaceSunken,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: <Widget>[
+                  Text(
+                    'STRUMENTI TAVOLO',
+                    style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 8.5),
+                  ),
+                  const SizedBox(width: 10),
+                  TechButton(
+                    label: 'Iniziativa',
+                    icon: Icons.format_list_numbered,
+                    compact: true,
+                    variant: TechButtonVariant.ghost,
+                    tooltip: 'Ordine di turno e iniziativa per PG e PNG',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const InitiativeTrackerDialog(),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TechButton(
+                    label: 'Balistica & DV',
+                    icon: Icons.straighten,
+                    compact: true,
+                    variant: TechButtonVariant.ghost,
+                    tooltip: 'Calcolo DV tiro per arma, distanza in metri e coperture',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const BallisticDvCalculatorDialog(),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TechButton(
+                    label: 'Incontri NC',
+                    icon: Icons.casino,
+                    compact: true,
+                    variant: TechButtonVariant.ghost,
+                    tooltip: 'Generatore rapido di agguati, Max-Tac, meteo e gang',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const NightCityEncounterDialog(),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TechButton(
+                    label: 'Loot Nemici',
+                    icon: Icons.inventory_2_outlined,
+                    compact: true,
+                    variant: TechButtonVariant.ghost,
+                    tooltip: 'Generatore bottino, chip dati, munizioni e droghe',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const EnemyLootDialog(),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TechButton(
+                    label: 'Screamsheets',
+                    icon: Icons.newspaper_outlined,
+                    compact: true,
+                    variant: TechButtonVariant.ghost,
+                    tooltip: 'Bacheca notizie, ingaggi Fixer e voci di corridoio',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const ScreamsheetNewsDialog(),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TechButton(
+                    label: 'Terapia Umanità',
+                    icon: Icons.psychology_outlined,
+                    compact: true,
+                    variant: TechButtonVariant.ghost,
+                    tooltip: 'Tracciatore terapia cyberpsicosi, degenza e costi in eddy',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => CyberpsychosisTherapyDialog(state: state),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TechButton(
+                    label: 'Debiti Corp',
+                    icon: Icons.account_balance_outlined,
+                    compact: true,
+                    variant: TechButtonVariant.ghost,
+                    tooltip: 'Registro debiti aziendali con scadenze e interessi',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const CorporateDebtsDialog(),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  TechButton(
+                    label: 'Termina Sessione & Riepilogo IA',
+                    icon: Icons.summarize_outlined,
+                    compact: true,
+                    variant: TechButtonVariant.primary,
+                    tooltip: 'Compila trascrizioni vocali, genera commit con note e riassunto IA',
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => EndSessionSummaryDialog(
+                        campaign: campaign,
+                        onSaveCommit: (CampaignSessionCommit commit) {
+                          state.mutateCampaign((Campaign c) {
+                            c.sessionCommits.add(commit);
+                          });
+                          state.appendSessionEvent(
+                            description: 'Master: Sessione archiviata: ${commit.title} (ID: ${commit.id})',
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(width: 10),
-            TechButton(
-              label: 'Invita',
-              icon: Icons.share_outlined,
-              variant: TechButtonVariant.secondary,
-              compact: true,
-              tooltip: 'Copia il link di invito e i dettagli per far collegare i giocatori via chat',
-              onPressed: () => _copyInviteLink(context, state, campaign),
-            ),
-            const SizedBox(width: 10),
-            TechButton(
-              label: 'Chiudi tavolo',
-              icon: Icons.stop_circle_outlined,
-              variant: TechButtonVariant.danger,
-              compact: true,
-              onPressed: state.stopHosting,
-            ),
-          ] else
-            TechButton(
-              label: 'Apri il tavolo',
-              icon: Icons.wifi_tethering,
-              variant: TechButtonVariant.primary,
-              compact: true,
-              tooltip: 'Mette il master in ascolto sulla porta ${campaign.port}',
-              onPressed: () => state.startHosting(),
-            ),
-          const SizedBox(width: 10),
-          TechButton(
-            label: 'Salva',
-            icon: Icons.save_outlined,
-            variant: TechButtonVariant.secondary,
-            compact: true,
-            onPressed: () => state.save(),
           ),
         ],
       ),
     );
   }
+}
 
-  Future<void> _copyInviteLink(BuildContext context, AppState state, Campaign campaign) async {
-    final int port = state.host?.port ?? campaign.port;
-    String hostIp = '127.0.0.1';
+class _CampaignClockBadge extends StatelessWidget {
+  const _CampaignClockBadge({required this.campaign, required this.state});
 
-    try {
-      final List<NetworkInterface> interfaces = await NetworkInterface.list(
-        type: InternetAddressType.IPv4,
-        includeLinkLocal: false,
+  final Campaign campaign;
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => showCampaignClockDialog(context, state, campaign),
+      borderRadius: BorderRadius.circular(3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: CprPalette.veil(CprPalette.cyan, 0.10),
+          border: Border.all(color: CprPalette.veil(CprPalette.cyan, 0.35)),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.schedule, size: 12, color: CprPalette.cyan),
+            const SizedBox(width: 5),
+            Text(
+              '${campaign.gameDate} · ${campaign.gameTime}',
+              style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 9.5),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.edit, size: 9, color: CprPalette.cyan),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> showCampaignClockDialog(BuildContext context, AppState state, Campaign campaign) async {
+  final TextEditingController dateCtrl = TextEditingController(text: campaign.gameDate);
+  final TextEditingController timeCtrl = TextEditingController(text: campaign.gameTime);
+
+  await showDialog<void>(
+    context: context,
+    builder: (BuildContext ctx) {
+      return StatefulBuilder(
+        builder: (BuildContext ctx, StateSetter setModalState) {
+          return AlertDialog(
+            backgroundColor: CprPalette.surfaceRaised,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+              side: const BorderSide(color: CprPalette.cyan, width: 1.5),
+            ),
+            title: Row(
+              children: <Widget>[
+                const Icon(Icons.schedule, color: CprPalette.cyan, size: 22),
+                const SizedBox(width: 10),
+                Text(
+                  'OROLOGIO DI CAMPAGNA',
+                  style: CprType.title.copyWith(fontSize: 15, color: CprPalette.cyan),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    'Data e ora di gioco condivise nel mondo di Cyberpunk RED. '
+                    'Ogni evento del registro viene scandito da questo orologio.',
+                    style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: dateCtrl,
+                          style: CprType.body.copyWith(color: CprPalette.ink),
+                          decoration: const InputDecoration(
+                            labelText: 'Data di gioco (AAAA-MM-GG)',
+                            filled: true,
+                            fillColor: CprPalette.surfaceSunken,
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: CprPalette.hairline)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: timeCtrl,
+                          style: CprType.body.copyWith(color: CprPalette.ink),
+                          decoration: const InputDecoration(
+                            labelText: 'Ora (HH:MM)',
+                            filled: true,
+                            fillColor: CprPalette.surfaceSunken,
+                            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: CprPalette.hairline)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text('AVANZAMENTO RAPIDO', style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 9)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: <Widget>[
+                      TechButton(
+                        label: '+1 Ora',
+                        compact: true,
+                        variant: TechButtonVariant.ghost,
+                        onPressed: () {
+                          final List<String> parts = timeCtrl.text.split(':');
+                          int h = int.tryParse(parts.first) ?? 12;
+                          final int m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+                          h = (h + 1) % 24;
+                          setModalState(() {
+                            timeCtrl.text = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+                          });
+                        },
+                      ),
+                      TechButton(
+                        label: '+6 Ore',
+                        compact: true,
+                        variant: TechButtonVariant.ghost,
+                        onPressed: () {
+                          final List<String> parts = timeCtrl.text.split(':');
+                          int h = int.tryParse(parts.first) ?? 12;
+                          final int m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+                          h = (h + 6) % 24;
+                          setModalState(() {
+                            timeCtrl.text = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+                          });
+                        },
+                      ),
+                      TechButton(
+                        label: 'Notte (23:00)',
+                        compact: true,
+                        variant: TechButtonVariant.ghost,
+                        onPressed: () => setModalState(() => timeCtrl.text = '23:00'),
+                      ),
+                      TechButton(
+                        label: 'Alba (06:30)',
+                        compact: true,
+                        variant: TechButtonVariant.ghost,
+                        onPressed: () => setModalState(() => timeCtrl.text = '06:30'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              TechButton(
+                label: 'Annulla',
+                variant: TechButtonVariant.ghost,
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+              TechButton(
+                label: 'Applica Tempo',
+                variant: TechButtonVariant.primary,
+                onPressed: () {
+                  state.mutateCampaign((Campaign c) {
+                    c.gameDate = dateCtrl.text.trim();
+                    c.gameTime = timeCtrl.text.trim();
+                  });
+                  Navigator.of(ctx).pop();
+                },
+              ),
+            ],
+          );
+        },
       );
-      for (final NetworkInterface iface in interfaces) {
-        for (final InternetAddress addr in iface.addresses) {
-          if (!addr.isLoopback) {
-            hostIp = addr.address;
-            break;
-          }
+    },
+  );
+}
+
+Future<void> openInviteDialog(BuildContext context, AppState state, Campaign campaign) async {
+  final int port = state.host?.port ?? campaign.port;
+  final String code = 'CP-${port.toString().substring(math.max(0, port.toString().length - 4))}';
+
+  // Raccoglie subito gli IP locali conosciuti senza attendere rete esterna
+  final List<String> ips = <String>[];
+  if (state.localAddresses.isNotEmpty) {
+    ips.addAll(state.localAddresses);
+  }
+  try {
+    final List<NetworkInterface> interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLinkLocal: false,
+    );
+    for (final NetworkInterface iface in interfaces) {
+      for (final InternetAddress addr in iface.addresses) {
+        if (!addr.isLoopback && !ips.contains(addr.address)) {
+          ips.add(addr.address);
         }
-        if (hostIp != '127.0.0.1') break;
       }
-    } catch (_) {}
+    }
+  } catch (_) {}
+  if (ips.isEmpty) ips.add('127.0.0.1');
 
-    String? publicIp;
-    try {
-      final HttpClient client = HttpClient()..connectionTimeout = const Duration(milliseconds: 1800);
-      final HttpClientRequest req = await client.getUrl(Uri.parse('https://api.ipify.org'));
-      final HttpClientResponse res = await req.close();
-      if (res.statusCode == 200) {
-        publicIp = (await res.transform(utf8.decoder).join()).trim();
-      }
-    } catch (_) {}
+  final String primaryIp = ips.first;
+  final String link = 'cpred://join?host=$primaryIp&port=$port&code=$code';
+  final String shareText = 'Tavolo CPRed aperto!\n'
+      '• Codice Stanza: $code\n'
+      '• Link Rapido: $link\n'
+      '• Connessione Locale: $primaryIp:$port'
+      '${campaign.password.isNotEmpty ? "\n• Password: ${campaign.password}" : ""}';
 
-    final String effectiveIp = publicIp ?? hostIp;
-    final String code = 'CP-${campaign.port.toString().substring(math.max(0, campaign.port.toString().length - 4))}';
-    final String link = 'cpred://join?host=$effectiveIp&port=$port&code=$code';
-
-    final String shareText = 'Tavolo CPRed aperto!\n'
-        '• Codice Stanza: $code\n'
-        '• Link Rapido: $link\n'
-        '• Connessione Online / Estero: $effectiveIp:$port\n'
-        '• Connessione Locale (Stessa rete): $hostIp:$port';
-
+  // Copia immediata negli appunti
+  try {
     await Clipboard.setData(ClipboardData(text: shareText));
+  } catch (_) {}
 
+  if (!context.mounted) return;
+
+  // Mostra la finestra di dialogo interattiva
+  await showDialog<void>(
+    context: context,
+    builder: (BuildContext ctx) => _InviteDialog(
+      campaign: campaign,
+      port: port,
+      state: state,
+      initialIps: ips,
+    ),
+  );
+}
+
+/// Dialog Cyberpunk per la condivisione e invito dei giocatori al tavolo.
+class _InviteDialog extends StatefulWidget {
+  const _InviteDialog({
+    required this.campaign,
+    required this.port,
+    required this.state,
+    required this.initialIps,
+  });
+
+  final Campaign campaign;
+  final int port;
+  final AppState state;
+  final List<String> initialIps;
+
+  @override
+  State<_InviteDialog> createState() => _InviteDialogState();
+}
+
+class _InviteDialogState extends State<_InviteDialog> {
+  late List<String> _localIps;
+  String? _publicIp;
+  bool _loadingPublic = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _localIps = List<String>.from(widget.initialIps);
+    _fetchPublicIp();
+  }
+
+  Future<void> _fetchPublicIp() async {
+    try {
+      final HttpClient client = HttpClient()..connectionTimeout = const Duration(milliseconds: 1000);
+      final HttpClientRequest req = await client.getUrl(Uri.parse('https://api.ipify.org')).timeout(const Duration(milliseconds: 1200));
+      final HttpClientResponse res = await req.close().timeout(const Duration(milliseconds: 1200));
+      if (res.statusCode == 200) {
+        final String ip = (await res.transform(utf8.decoder).join()).trim();
+        if (mounted && ip.isNotEmpty) {
+          setState(() {
+            _publicIp = ip;
+            _loadingPublic = false;
+          });
+          return;
+        }
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() => _loadingPublic = false);
+    }
+  }
+
+  String _fullInviteText() {
+    final String primaryIp = _localIps.isNotEmpty ? _localIps.first : '127.0.0.1';
+    final String code = 'CP-${widget.port.toString().substring(math.max(0, widget.port.toString().length - 4))}';
+    final String link = 'cpred://join?host=$primaryIp&port=${widget.port}&code=$code';
+    final String pwd = widget.campaign.password.isNotEmpty ? '\n• Password tavolo: ${widget.campaign.password}' : '';
+
+    return '🎲 TAVOLO CYBERPUNK RED APERTO!\n'
+        '• Codice Stanza: $code\n'
+        '• Link Diretto: $link\n'
+        '• Indirizzo Locale: ${_localIps.map((String ip) => "$ip:${widget.port}").join(" oppure ")}\n'
+        '${_publicIp != null ? "• Indirizzo Esterno (Online / VPN): $_publicIp:${widget.port}\n" : ""}'
+        '$pwd\n'
+        'Apri la scheda del tuo personaggio, vai in "Sessione" e inserisci questi dati per sincronizzarti col master.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String code = 'CP-${widget.port.toString().substring(math.max(0, widget.port.toString().length - 4))}';
+    final String primaryIp = _localIps.isNotEmpty ? _localIps.first : '127.0.0.1';
+    final String link = 'cpred://join?host=$primaryIp&port=${widget.port}&code=$code';
+
+    return AlertDialog(
+      backgroundColor: CprPalette.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+        side: const BorderSide(color: CprPalette.cyan, width: 1.5),
+      ),
+      title: Row(
+        children: <Widget>[
+          const Icon(Icons.share, color: CprPalette.cyan, size: 22),
+          const SizedBox(width: 10),
+          Text(
+            'INVITA GIOCATORI AL TAVOLO',
+            style: CprType.title.copyWith(fontSize: 15, color: CprPalette.cyan),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: CprPalette.veil(CprPalette.success, 0.12),
+                  border: Border.all(color: CprPalette.success),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    const Icon(Icons.check_circle, color: CprPalette.success, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Dettagli pronti! Già copiati negli appunti per essere inviati ai giocatori.',
+                        style: CprType.caption.copyWith(color: CprPalette.success),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              _InviteFieldRow(
+                label: 'CODICE STANZA',
+                value: code,
+                onCopy: () => _copySingle(context, code, 'Codice stanza'),
+              ),
+              const SizedBox(height: 10),
+              _InviteFieldRow(
+                label: 'INDIRIZZO LOCALE (STESSO WI-FI / RETE)',
+                value: _localIps.map((String ip) => '$ip:${widget.port}').join('  |  '),
+                onCopy: () => _copySingle(context, '$primaryIp:${widget.port}', 'Indirizzo locale'),
+              ),
+              if (_publicIp != null) ...<Widget>[
+                const SizedBox(height: 10),
+                _InviteFieldRow(
+                  label: 'INDIRIZZO PUBBLICO (ESTERNO / ROUTER)',
+                  value: '$_publicIp:${widget.port}',
+                  onCopy: () => _copySingle(context, '$_publicIp:${widget.port}', 'Indirizzo pubblico'),
+                ),
+              ] else if (_loadingPublic) ...<Widget>[
+                const SizedBox(height: 10),
+                Text(
+                  'Rilevamento IP pubblico in corso...',
+                  style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+                ),
+              ],
+              if (widget.campaign.password.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 10),
+                _InviteFieldRow(
+                  label: 'PASSWORD TAVOLO',
+                  value: widget.campaign.password,
+                  onCopy: () => _copySingle(context, widget.campaign.password, 'Password'),
+                ),
+              ],
+              const SizedBox(height: 10),
+              _InviteFieldRow(
+                label: 'LINK RAPIDO PER L\'APP',
+                value: link,
+                onCopy: () => _copySingle(context, link, 'Link rapido'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TechButton(
+          label: 'Chiudi',
+          variant: TechButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        TechButton(
+          label: 'Copia tutto il messaggio d\'invito',
+          icon: Icons.copy_all,
+          variant: TechButtonVariant.primary,
+          onPressed: () async {
+            final String text = _fullInviteText();
+            await Clipboard.setData(ClipboardData(text: text));
+            if (context.mounted) {
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Invito completo copiato negli appunti! Incollalo ai tuoi giocatori.'),
+                  backgroundColor: CprPalette.surface,
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _copySingle(BuildContext context, String text, String label) async {
+    await Clipboard.setData(ClipboardData(text: text));
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Link di invito copiato negli appunti! Invialo via chat ai tuoi giocatori.'),
+        SnackBar(
+          content: Text('$label copiato negli appunti!'),
           backgroundColor: CprPalette.surface,
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
   }
+}
+
+class _InviteFieldRow extends StatelessWidget {
+  const _InviteFieldRow({
+    required this.label,
+    required this.value,
+    required this.onCopy,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: CprPalette.surfaceSunken,
+        border: Border.all(color: CprPalette.hairline),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  label,
+                  style: CprType.label.copyWith(fontSize: 8.5, color: CprPalette.inkFaint),
+                ),
+                const SizedBox(height: 3),
+                SelectableText(
+                  value,
+                  style: CprType.body.copyWith(
+                    color: CprPalette.cyan,
+                    fontFamilyFallback: CprType.monoFamily,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TechButton(
+            label: 'Copia',
+            icon: Icons.copy,
+            variant: TechButtonVariant.ghost,
+            compact: true,
+            onPressed: onCopy,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Finestra modale per modificare direttamente il numero di porta senza passare dalle impostazioni.
+Future<void> showEditPortDialog(BuildContext context, AppState state, Campaign campaign) async {
+  final TextEditingController controller = TextEditingController(text: '${campaign.port}');
+  String? error;
+
+  await showDialog<void>(
+    context: context,
+    builder: (BuildContext ctx) {
+      return StatefulBuilder(
+        builder: (BuildContext ctx, StateSetter setModalState) {
+          return AlertDialog(
+            backgroundColor: CprPalette.surfaceRaised,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+              side: const BorderSide(color: CprPalette.yellow, width: 1.5),
+            ),
+            title: Row(
+              children: <Widget>[
+                const Icon(Icons.settings_ethernet, color: CprPalette.yellow, size: 22),
+                const SizedBox(width: 10),
+                Text(
+                  'MODIFICA PORTA SERVER',
+                  style: CprType.title.copyWith(fontSize: 15, color: CprPalette.yellow),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Modifica la porta per il tavolo di gioco. Se il tavolo è già aperto, '
+                    'verrà riavviato automaticamente sulla nuova porta.',
+                    style: CprType.caption.copyWith(color: CprPalette.inkMuted, height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    style: CprType.body.copyWith(
+                      color: CprPalette.ink,
+                      fontFamilyFallback: CprType.monoFamily,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Porta server (1024 - 65535)',
+                      labelStyle: CprType.label.copyWith(color: CprPalette.yellow),
+                      errorText: error,
+                      filled: true,
+                      fillColor: CprPalette.surfaceSunken,
+                      enabledBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: CprPalette.hairline),
+                      ),
+                      focusedBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: CprPalette.yellow),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              TechButton(
+                label: 'Annulla',
+                variant: TechButtonVariant.ghost,
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+              TechButton(
+                label: 'Applica porta',
+                variant: TechButtonVariant.primary,
+                onPressed: () async {
+                  final int? parsed = int.tryParse(controller.text.trim());
+                  if (parsed == null || parsed < 1024 || parsed > 65535) {
+                    setModalState(() {
+                      error = 'Inserisci un numero di porta valido tra 1024 e 65535';
+                    });
+                    return;
+                  }
+                  Navigator.of(ctx).pop();
+                  state.mutateCampaign((Campaign c) => c.port = parsed);
+                  if (state.isHosting) {
+                    await state.stopHosting();
+                    await state.startHosting();
+                  }
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Porta impostata su $parsed${state.isHosting ? " (tavolo riavviato)" : ""}'),
+                        backgroundColor: CprPalette.surface,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
 }
 
 /// Stato del tavolo, con il pallino che pulsa quando la sessione e' aperta.
@@ -315,9 +1012,27 @@ class _SessionBadgeState extends State<_SessionBadge>
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          hosting ? 'TAVOLO APERTO · PORTA ${widget.state.host!.port}' : 'TAVOLO CHIUSO',
-          style: CprType.label.copyWith(color: color, fontSize: 9.5),
+        InkWell(
+          onTap: widget.state.campaign != null
+              ? () => showEditPortDialog(context, widget.state, widget.state.campaign!)
+              : null,
+          borderRadius: BorderRadius.circular(3),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  hosting
+                      ? 'TAVOLO APERTO · PORTA ${widget.state.host!.port}'
+                      : 'TAVOLO CHIUSO · PORTA ${widget.state.campaign?.port ?? 21099}',
+                  style: CprType.label.copyWith(color: color, fontSize: 9.5),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.edit, size: 10, color: color),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -440,11 +1155,49 @@ class _EmptyTavolo extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text(
-                  state.isHosting
-                      ? 'Il tavolo e\' aperto. Comunica ai giocatori uno di questi indirizzi e la porta:'
-                      : 'Apri il tavolo per far collegare i giocatori. Porta configurata:',
-                  style: CprType.body.copyWith(color: CprPalette.ink),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        state.isHosting
+                            ? 'Il tavolo e\' aperto. Comunica ai giocatori uno di questi indirizzi e la porta:'
+                            : 'Apri il tavolo per far collegare i giocatori. Porta configurata:',
+                        style: CprType.body.copyWith(color: CprPalette.ink),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => showEditPortDialog(context, state, campaign),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: CprPalette.veil(CprPalette.cyan, 0.12),
+                          border: Border.all(color: CprPalette.cyan),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              ':${campaign.port}',
+                              style: CprType.label.copyWith(
+                                color: CprPalette.cyan,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.edit, size: 12, color: CprPalette.cyan),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Modifica porta',
+                              style: CprType.caption.copyWith(color: CprPalette.cyan, fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 if (state.isHosting && state.localAddresses.isNotEmpty)
@@ -453,6 +1206,7 @@ class _EmptyTavolo extends StatelessWidget {
                       address: address,
                       port: campaign.port,
                       password: campaign.password,
+                      onEditPort: () => showEditPortDialog(context, state, campaign),
                     )
                 else
                   _AddressRow(
@@ -461,6 +1215,7 @@ class _EmptyTavolo extends StatelessWidget {
                         : state.localAddresses.first,
                     port: campaign.port,
                     password: campaign.password,
+                    onEditPort: () => showEditPortDialog(context, state, campaign),
                   ),
                 const SizedBox(height: 14),
                 Text(
@@ -479,17 +1234,21 @@ class _EmptyTavolo extends StatelessWidget {
 }
 
 class _AddressRow extends StatelessWidget {
-  const _AddressRow({required this.address, required this.port, required this.password});
+  const _AddressRow({
+    required this.address,
+    required this.port,
+    required this.password,
+    this.onEditPort,
+  });
 
   final String address;
   final int port;
   final String password;
+  final VoidCallback? onEditPort;
 
   @override
   Widget build(BuildContext context) {
-    final String text = password.isEmpty
-        ? '$address:$port'
-        : '$address:$port  (password: $password)';
+    final String fullAddress = '$address:$port';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -498,13 +1257,55 @@ class _AddressRow extends StatelessWidget {
       child: Row(
         children: <Widget>[
           Expanded(
-            child: SelectableText(
-              text,
-              style: CprType.body.copyWith(
-                color: CprPalette.cyan,
-                fontFamilyFallback: CprType.monoFamily,
-                fontSize: 13,
-              ),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: <Widget>[
+                SelectableText(
+                  address,
+                  style: CprType.body.copyWith(
+                    color: CprPalette.cyan,
+                    fontFamilyFallback: CprType.monoFamily,
+                    fontSize: 13,
+                  ),
+                ),
+                InkWell(
+                  onTap: onEditPort,
+                  borderRadius: BorderRadius.circular(4),
+                  child: Tooltip(
+                    message: 'Clicca per modificare direttamente la porta :$port',
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: CprPalette.veil(CprPalette.yellow, 0.15),
+                        border: Border.all(color: CprPalette.yellow, width: 1.2),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            ':$port',
+                            style: CprType.body.copyWith(
+                              color: CprPalette.yellow,
+                              fontWeight: FontWeight.bold,
+                              fontFamilyFallback: CprType.monoFamily,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.edit, size: 12, color: CprPalette.yellow),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (password.isNotEmpty)
+                  SelectableText(
+                    '  (password: $password)',
+                    style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+                  ),
+              ],
             ),
           ),
           TechButton(
@@ -513,13 +1314,13 @@ class _AddressRow extends StatelessWidget {
             variant: TechButtonVariant.ghost,
             compact: true,
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: '$address:$port'));
+              await Clipboard.setData(ClipboardData(text: fullAddress));
               if (!context.mounted) return;
               await showTechMessage(
                 context,
                 title: 'Copiato',
                 message: 'Indirizzo copiato negli appunti.',
-                detail: password.isEmpty ? text : 'Password del tavolo: $password',
+                detail: password.isEmpty ? fullAddress : '$fullAddress (password: $password)',
               );
             },
           ),
@@ -1056,11 +1857,99 @@ class _TableSection extends StatefulWidget {
 
 class _TableSectionState extends State<_TableSection> {
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  String _activeChannel = 'TAVOLO'; // 'TAVOLO' oppure nome del giocatore / gruppo
+  final Set<String> _openChannels = <String>{};
+  final Set<String> _selectedPlayersForGroup = <String>{};
 
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _syncSecretTabsFromEvents(List<SessionEvent> events) {
+    for (final SessionEvent e in events) {
+      if (e.isWhisper) {
+        if (e.delta.isNotEmpty && e.delta != 'MASTER') {
+          _openChannels.add(e.delta);
+        }
+        if (e.whisperTo.isNotEmpty) {
+          _openChannels.add(e.whisperTo);
+        }
+      }
+    }
+  }
+
+  List<SessionEvent> _getFilteredEvents(List<SessionEvent> allEvents) {
+    if (_activeChannel == 'TAVOLO') {
+      return allEvents.where((SessionEvent e) => !e.isWhisper).toList();
+    }
+    final List<String> targets = _activeChannel
+        .split(',')
+        .map((String s) => s.trim().toLowerCase())
+        .where((String s) => s.isNotEmpty)
+        .toList();
+
+    return allEvents.where((SessionEvent e) {
+      if (!e.isWhisper) return false;
+      final List<String> eTargets = e.whisperTargets.map((String s) => s.toLowerCase()).toList();
+      final String sender = e.delta.toLowerCase();
+      final String pid = e.playerId.toLowerCase();
+
+      final bool targetMatches = targets.any((String t) => eTargets.contains(t) || e.whisperTo.toLowerCase().contains(t));
+      final bool senderMatches = targets.contains(sender) || targets.contains(pid);
+      return targetMatches || senderMatches;
+    }).toList();
+  }
+
+  void _sendMessage(AppState state, {String? gifUrl}) {
+    final String text = _controller.text;
+    final String clean = text.trim();
+
+    if (clean == '/help') {
+      state.masterChat('/help');
+      _controller.clear();
+      setState(() {});
+      return;
+    }
+
+    if (clean == '/clear') {
+      state.masterChat('/clear');
+      _controller.clear();
+      setState(() {});
+      return;
+    }
+
+    if (clean.startsWith('/w ') || clean.startsWith('/whisper ')) {
+      final bool isShort = clean.startsWith('/w ');
+      final String after = clean.substring(isShort ? 3 : 9).trim();
+      String target = '';
+      if (after.startsWith('"')) {
+        final int end = after.indexOf('"', 1);
+        if (end != -1) target = after.substring(1, end).trim();
+      } else {
+        final int sp = after.indexOf(' ');
+        if (sp != -1) target = after.substring(0, sp).trim();
+      }
+      if (target.isNotEmpty) {
+        _openChannels.add(target);
+        _activeChannel = target;
+      }
+      state.masterChat(text, gifUrl: gifUrl);
+      _controller.clear();
+      setState(() {});
+      return;
+    }
+
+    if (_activeChannel != 'TAVOLO') {
+      state.masterChat(text, whisperTo: _activeChannel, gifUrl: gifUrl);
+    } else {
+      state.masterChat(text, gifUrl: gifUrl);
+    }
+    _controller.clear();
+    setState(() {});
   }
 
   @override
@@ -1068,118 +1957,514 @@ class _TableSectionState extends State<_TableSection> {
     final AppState state = AppScope.of(context);
     final Campaign campaign = state.campaign!;
 
+    _syncSecretTabsFromEvents(state.sessionLog);
+    final List<SessionEvent> filtered = _getFilteredEvents(state.sessionLog);
+
     return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              ChamferPanel(
-                title: 'Registro di sessione',
-                accent: CprPalette.yellow,
-                trailing: TechButton(
-                  label: 'Pulisci',
-                  icon: Icons.cleaning_services_outlined,
-                  variant: TechButtonVariant.ghost,
-                  compact: true,
-                  onPressed: () {
-                    state.sessionLog.clear();
-                    state.clearSessionError();
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          // Sinistra: Area Chat Principale + Tab Canali
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                // Barra schede chat canali segreti
+                _ChannelTabBar(
+                  activeChannel: _activeChannel,
+                  openChannels: _openChannels.toList(),
+                  onSelect: (String ch) => setState(() => _activeChannel = ch),
+                  onClose: (String ch) {
+                    setState(() {
+                      _openChannels.remove(ch);
+                      if (_activeChannel == ch) _activeChannel = 'TAVOLO';
+                    });
                   },
                 ),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 180, maxHeight: 340),
-                  child: state.sessionLog.isEmpty
-                      ? Text(
-                          state.isHosting
-                              ? 'Il tavolo e\' aperto: chat, tiri e modifiche compaiono qui.'
-                              : 'Apri il tavolo per iniziare la sessione.',
-                          style: CprType.caption.copyWith(color: CprPalette.inkFaint),
-                        )
-                      : ListView.builder(
-                          itemCount: state.sessionLog.length,
-                          itemBuilder: (BuildContext context, int i) =>
-                              _LogRow(event: state.sessionLog[i]),
+                const SizedBox(height: 8),
+                // Pannello Registro messaggi
+                Expanded(
+                  child: ChamferPanel(
+                    title: _activeChannel == 'TAVOLO'
+                        ? 'Registro di sessione · Tavolo'
+                        : 'Chat Segreta · Sussurro a [$_activeChannel]',
+                    accent: _activeChannel == 'TAVOLO' ? CprPalette.yellow : CprPalette.magenta,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (_activeChannel != 'TAVOLO')
+                          TechButton(
+                            label: 'Torna al Tavolo',
+                            icon: Icons.public,
+                            variant: TechButtonVariant.ghost,
+                            compact: true,
+                            onPressed: () => setState(() => _activeChannel = 'TAVOLO'),
+                          ),
+                        TechButton(
+                          label: 'Pulisci',
+                          icon: Icons.cleaning_services_outlined,
+                          variant: TechButtonVariant.ghost,
+                          compact: true,
+                          onPressed: () {
+                            state.sessionLog.clear();
+                            state.clearSessionError();
+                          },
                         ),
+                      ],
+                    ),
+                    child: filtered.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                _activeChannel == 'TAVOLO'
+                                    ? (state.isHosting
+                                        ? 'Il tavolo e\' aperto: chat globale, tiri e notifiche compaiono qui.\nDigita /help per i comandi o usa la barra a destra per iniziare un sussurro.'
+                                        : 'Apri il tavolo per iniziare la sessione.')
+                                    : 'Nessun messaggio segreto con $_activeChannel.\nI messaggi scritti in questa scheda sono visibili solo ai destinatari selezionati.',
+                                textAlign: TextAlign.center,
+                                style: CprType.caption.copyWith(color: CprPalette.inkFaint, height: 1.5),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            itemCount: filtered.length,
+                            itemBuilder: (BuildContext context, int i) =>
+                                _LogRow(event: filtered[i]),
+                          ),
+                  ),
+                ),
+                if (state.sessionError != null) ...<Widget>[
+                  const SizedBox(height: 8),
+                  _ErrorBar(message: state.sessionError!, onDismiss: state.clearSessionError),
+                ],
+                const SizedBox(height: 8),
+                // Indicatore canale attivo sopra l'input
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: CprPalette.veil(
+                      _activeChannel == 'TAVOLO' ? CprPalette.cyan : CprPalette.magenta,
+                      0.12,
+                    ),
+                    border: Border.all(
+                      color: CprPalette.veil(
+                        _activeChannel == 'TAVOLO' ? CprPalette.cyan : CprPalette.magenta,
+                        0.5,
+                      ),
+                    ),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        _activeChannel == 'TAVOLO' ? Icons.public : Icons.lock,
+                        size: 13,
+                        color: _activeChannel == 'TAVOLO' ? CprPalette.cyan : CprPalette.magenta,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _activeChannel == 'TAVOLO'
+                              ? 'DESTINAZIONE: TUTTO IL TAVOLO (PUBBLICO) · Comandi disponibili: /help, /whisper'
+                              : 'DESTINAZIONE: SUSSURRO RISERVATO A [$_activeChannel]',
+                          style: CprType.label.copyWith(
+                            fontSize: 9.5,
+                            color: _activeChannel == 'TAVOLO' ? CprPalette.cyan : CprPalette.magenta,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (_activeChannel != 'TAVOLO')
+                        InkWell(
+                          onTap: () => setState(() => _activeChannel = 'TAVOLO'),
+                          child: Text(
+                            '✕ Torna al Tavolo',
+                            style: CprType.caption.copyWith(
+                              fontSize: 9.5,
+                              color: CprPalette.inkMuted,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Barra di input
+                Row(
+                  children: <Widget>[
+                    IconButton(
+                      icon: const Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
+                      tooltip: 'Aggiungi emoji Unicode',
+                      onPressed: state.isHosting
+                          ? () async {
+                              final String? emoji = await showCyberEmojiPicker(context);
+                              if (emoji != null) {
+                                _controller.text = '${_controller.text}$emoji';
+                              }
+                            }
+                          : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
+                      tooltip: 'Invia GIF (Tenor / Giphy)',
+                      onPressed: state.isHosting
+                          ? () async {
+                              final String? gifUrl = await showCyberGifPicker(context);
+                              if (gifUrl != null) {
+                                _sendMessage(state, gifUrl: gifUrl);
+                              }
+                            }
+                          : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
+                      tooltip: 'Invia file o immagine P2P',
+                      onPressed: state.isHosting
+                          ? () => pickAndSendAttachment(
+                                context,
+                                onSend: state.masterSendAttachment,
+                              )
+                          : null,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: TechField(
+                        label: '',
+                        value: _controller.text,
+                        hint: _activeChannel == 'TAVOLO'
+                            ? 'Parla al tavolo (/help per comandi, /w <nome> <msg> per sussurri)…'
+                            : 'Sussurra segretamente a $_activeChannel…',
+                        onChanged: (String v) => _controller.text = v,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    TechButton(
+                      label: 'Invia',
+                      icon: Icons.send,
+                      variant: _activeChannel == 'TAVOLO'
+                          ? TechButtonVariant.primary
+                          : TechButtonVariant.secondary,
+                      onPressed: state.isHosting ? () => _sendMessage(state) : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Destra: Barra laterale Giocatori Connessi con Sussurri e Selezione Multipla
+          SizedBox(
+            width: 270,
+            child: _ConnectedPlayersSidebar(
+              campaign: campaign,
+              state: state,
+              selectedPlayers: _selectedPlayersForGroup,
+              onToggleSelect: (String name) {
+                setState(() {
+                  if (_selectedPlayersForGroup.contains(name)) {
+                    _selectedPlayersForGroup.remove(name);
+                  } else {
+                    _selectedPlayersForGroup.add(name);
+                  }
+                });
+              },
+              onWhisperToPlayer: (String name) {
+                _openChannels.add(name);
+                setState(() => _activeChannel = name);
+              },
+              onCreateGroupSecret: (List<String> names) {
+                final String groupKey = names.join(', ');
+                _openChannels.add(groupKey);
+                setState(() => _activeChannel = groupKey);
+              },
+              onInvite: () => openInviteDialog(context, state, campaign),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Barra a schede per canali di chat (Tavolo e chat segrete con i singoli/gruppi).
+class _ChannelTabBar extends StatelessWidget {
+  const _ChannelTabBar({
+    required this.activeChannel,
+    required this.openChannels,
+    required this.onSelect,
+    required this.onClose,
+  });
+
+  final String activeChannel;
+  final List<String> openChannels;
+  final ValueChanged<String> onSelect;
+  final ValueChanged<String> onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: <Widget>[
+          _ChannelTabButton(
+            label: 'TAVOLO',
+            icon: Icons.public,
+            isActive: activeChannel == 'TAVOLO',
+            accent: CprPalette.cyan,
+            onTap: () => onSelect('TAVOLO'),
+          ),
+          for (final String ch in openChannels) ...<Widget>[
+            const SizedBox(width: 6),
+            _ChannelTabButton(
+              label: ch,
+              icon: Icons.lock,
+              isActive: activeChannel == ch,
+              accent: CprPalette.magenta,
+              onTap: () => onSelect(ch),
+              onClose: () => onClose(ch),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelTabButton extends StatelessWidget {
+  const _ChannelTabButton({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    required this.accent,
+    required this.onTap,
+    this.onClose,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isActive;
+  final Color accent;
+  final VoidCallback onTap;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? CprPalette.veil(accent, 0.2) : CprPalette.surfaceSunken,
+          border: Border.all(
+            color: isActive ? accent : CprPalette.hairline,
+            width: isActive ? 1.5 : 1.0,
+          ),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 13, color: isActive ? accent : CprPalette.inkMuted),
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: CprType.label.copyWith(
+                  fontSize: 10,
+                  color: isActive ? accent : CprPalette.ink,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
-              if (state.sessionError != null) ...<Widget>[
-                const SizedBox(height: 10),
-                _ErrorBar(message: state.sessionError!, onDismiss: state.clearSessionError),
-              ],
-              const SizedBox(height: 12),
-              Row(
+            ),
+            if (onClose != null) ...<Widget>[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: onClose,
+                child: Icon(
+                  Icons.close,
+                  size: 13,
+                  color: isActive ? accent : CprPalette.inkFaint,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pannello a destra con l'elenco dei giocatori connessi, pulsante whisper e selezione per sussurri multipli.
+class _ConnectedPlayersSidebar extends StatelessWidget {
+  const _ConnectedPlayersSidebar({
+    required this.campaign,
+    required this.state,
+    required this.selectedPlayers,
+    required this.onToggleSelect,
+    required this.onWhisperToPlayer,
+    required this.onCreateGroupSecret,
+    required this.onInvite,
+  });
+
+  final Campaign campaign;
+  final AppState state;
+  final Set<String> selectedPlayers;
+  final ValueChanged<String> onToggleSelect;
+  final ValueChanged<String> onWhisperToPlayer;
+  final ValueChanged<List<String>> onCreateGroupSecret;
+  final VoidCallback onInvite;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<CampaignPlayer> players = campaign.players;
+    final int connectedCount = players.where((CampaignPlayer p) => p.isConnected).length;
+
+    return ChamferPanel(
+      title: 'Giocatori ($connectedCount online)',
+      accent: CprPalette.cyan,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (players.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
                 children: <Widget>[
-                  IconButton(
-                    icon: const Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
-                    tooltip: 'Aggiungi emoji Unicode',
-                    onPressed: state.isHosting
-                        ? () async {
-                            final String? emoji = await showCyberEmojiPicker(context);
-                            if (emoji != null) {
-                              _controller.text = '${_controller.text}$emoji';
-                            }
-                          }
-                        : null,
+                  Text(
+                    'Nessun giocatore registrato.',
+                    style: CprType.caption.copyWith(color: CprPalette.inkFaint),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
-                    tooltip: 'Invia GIF (Tenor / Giphy)',
-                    onPressed: state.isHosting
-                        ? () async {
-                            final String? gifUrl = await showCyberGifPicker(context);
-                            if (gifUrl != null) {
-                              state.masterChat('', gifUrl: gifUrl);
-                            }
-                          }
-                        : null,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
-                    tooltip: 'Invia file o immagine P2P a tutto il tavolo',
-                    onPressed: state.isHosting
-                        ? () => pickAndSendAttachment(
-                              context,
-                              onSend: state.masterSendAttachment,
-                            )
-                        : null,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: TechField(
-                      label: '',
-                      value: _controller.text,
-                      hint: 'Parla al tavolo (supporta Unicode, emoji, GIF)…',
-                      onChanged: (String v) => _controller.text = v,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
+                  const SizedBox(height: 12),
                   TechButton(
-                    label: 'Invia',
-                    icon: Icons.send,
-                    variant: TechButtonVariant.primary,
-                    onPressed: state.isHosting
-                        ? () {
-                            state.masterChat(_controller.text);
-                            _controller.clear();
-                            setState(() {});
-                          }
-                        : null,
+                    label: 'Invita giocatori',
+                    icon: Icons.share,
+                    variant: TechButtonVariant.secondary,
+                    compact: true,
+                    onPressed: onInvite,
                   ),
                 ],
               ),
-              if (campaign.events.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 14),
-                Text(
-                  'Eventi salvati nella campagna: ${campaign.events.length}',
-                  style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9.5),
-                ),
-              ],
+            )
+          else ...<Widget>[
+            Text(
+              'Seleziona per sussurri multipli o usa il lucchetto per una chat segreta privata:',
+              style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 8.5),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView.builder(
+                itemCount: players.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final CampaignPlayer p = players[index];
+                  final String charName = p.characterName.trim().isEmpty ? 'Senza Nome' : p.characterName;
+                  final bool isSelected = selectedPlayers.contains(charName);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? CprPalette.veil(CprPalette.magenta, 0.12)
+                          : CprPalette.surfaceSunken,
+                      border: Border.all(
+                        color: isSelected ? CprPalette.magenta : CprPalette.hairline,
+                      ),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        // Checkbox selezione gruppo
+                        SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: Checkbox(
+                            value: isSelected,
+                            activeColor: CprPalette.magenta,
+                            onChanged: (_) => onToggleSelect(charName),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Pallino connessione
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: p.isConnected ? CprPalette.success : CprPalette.inkFaint,
+                            boxShadow: p.isConnected
+                                ? <BoxShadow>[
+                                    BoxShadow(
+                                      color: CprPalette.veil(CprPalette.success, 0.6),
+                                      blurRadius: 4,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Nome personaggio e ruolo
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                charName,
+                                overflow: TextOverflow.ellipsis,
+                                style: CprType.body.copyWith(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: p.isConnected ? CprPalette.ink : CprPalette.inkMuted,
+                                ),
+                              ),
+                              if (p.playerName.isNotEmpty || p.role.isNotEmpty)
+                                Text(
+                                  p.playerName.isNotEmpty && p.role.isNotEmpty
+                                      ? '${p.playerName} · ${p.role}'
+                                      : (p.playerName.isNotEmpty ? p.playerName : p.role),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: CprType.caption.copyWith(
+                                    fontSize: 9.5,
+                                    color: CprPalette.inkFaint,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        // Bottone Whisper rapido
+                        IconButton(
+                          icon: const Icon(Icons.lock_outline, size: 16, color: CprPalette.magenta),
+                          tooltip: 'Apri chat segreta con $charName',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          onPressed: () => onWhisperToPlayer(charName),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            if (selectedPlayers.length >= 2) ...<Widget>[
+              const SizedBox(height: 8),
+              TechButton(
+                label: 'Sussurro di gruppo (${selectedPlayers.length})',
+                icon: Icons.group,
+                variant: TechButtonVariant.primary,
+                compact: true,
+                onPressed: () => onCreateGroupSecret(selectedPlayers.toList()),
+              ),
             ],
-          ),
-        ),
+          ],
+        ],
       ),
     );
   }
@@ -1192,15 +2477,49 @@ class _LogRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = switch (event.delta) {
-      'MASTER' => CprPalette.yellow,
-      'TU' => CprPalette.inkMuted,
-      'PV -' || 'PV +' => CprPalette.healthFull,
-      _ => CprPalette.ink,
-    };
+    final bool isWhisper = event.isWhisper;
+    final bool isTransaction = event.isTransaction;
+    final bool isAlert = event.isAlert;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    final Color color = isAlert
+        ? CprPalette.danger
+        : isTransaction
+            ? CprPalette.success
+            : isWhisper
+                ? CprPalette.magenta
+                : switch (event.delta) {
+                    'MASTER' => CprPalette.yellow,
+                    'TU' => CprPalette.inkMuted,
+                    'PV -' || 'PV +' => CprPalette.healthFull,
+                    _ => CprPalette.ink,
+                  };
+
+    final BoxDecoration? itemDeco = isAlert
+        ? BoxDecoration(
+            color: CprPalette.veil(CprPalette.danger, 0.16),
+            border: Border.all(color: CprPalette.veil(CprPalette.danger, 0.5), width: 1.2),
+            borderRadius: BorderRadius.circular(3),
+          )
+        : isTransaction
+            ? BoxDecoration(
+                color: CprPalette.veil(CprPalette.success, 0.14),
+                border: Border.all(color: CprPalette.veil(CprPalette.success, 0.4), width: 1.2),
+                borderRadius: BorderRadius.circular(3),
+              )
+            : isWhisper
+                ? BoxDecoration(
+                    color: CprPalette.veil(CprPalette.magenta, 0.08),
+                    border: Border.all(color: CprPalette.veil(CprPalette.magenta, 0.3)),
+                    borderRadius: BorderRadius.circular(3),
+                  )
+                : null;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: (isAlert || isTransaction || isWhisper)
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+          : EdgeInsets.zero,
+      decoration: itemDeco,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1214,7 +2533,71 @@ class _LogRow extends StatelessWidget {
                   style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9),
                 ),
               ),
-              if (event.delta.isNotEmpty)
+              if (isAlert) ...<Widget>[
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  color: CprPalette.veil(CprPalette.danger, 0.22),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(Icons.block, size: 10, color: CprPalette.danger),
+                      const SizedBox(width: 4),
+                      Text(
+                        'BAN / AVVISO',
+                        style: CprType.label.copyWith(
+                          fontSize: 8.5,
+                          color: CprPalette.danger,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (isTransaction) ...<Widget>[
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  color: CprPalette.veil(CprPalette.success, 0.22),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(Icons.payments_outlined, size: 10, color: CprPalette.success),
+                      const SizedBox(width: 4),
+                      Text(
+                        'EDDY',
+                        style: CprType.label.copyWith(
+                          fontSize: 8.5,
+                          color: CprPalette.success,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (isWhisper) ...<Widget>[
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  color: CprPalette.veil(CprPalette.magenta, 0.2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(Icons.lock, size: 10, color: CprPalette.magenta),
+                      const SizedBox(width: 4),
+                      Text(
+                        event.whisperTo.isNotEmpty ? 'SUSSURRO A: ${event.whisperTo.toUpperCase()}' : 'SUSSURRO',
+                        style: CprType.label.copyWith(
+                          fontSize: 8.5,
+                          color: CprPalette.magenta,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (!isAlert && !isTransaction && event.delta.isNotEmpty)
                 Container(
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1672,6 +3055,35 @@ class _NotebookSection extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// --- Sezione NET Architecture per Netrunner e Master -----------------------
+
+class _NetrunSection extends StatelessWidget {
+  const _NetrunSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppState state = AppScope.of(context);
+    final Campaign? campaign = state.campaign;
+    if (campaign == null) return const SizedBox.shrink();
+
+    final NetArchitecture arch = campaign.netArchitecture ??
+        NetArchitecture.defaultArchitecture();
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: NetArchitectureEditor(
+        architecture: arch,
+        isMaster: state.isHosting,
+        onChanged: () {
+          state.mutateCampaign((Campaign c) {
+            c.netArchitecture = arch;
+          });
+        },
       ),
     );
   }

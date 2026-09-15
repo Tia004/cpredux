@@ -93,6 +93,21 @@ abstract final class CprType {
     fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
   );
 
+  /// Testo monospaziato con cifre tabulari.
+  ///
+  /// Serve dove l'allineamento verticale delle cifre conta piu' della
+  /// larghezza: un'espressione di dado, un valore di regola, una colonna di
+  /// numeri che si confrontano a occhio. Con un carattere proporzionale le
+  /// cifre "1" occupano meno spazio delle altre e la colonna si sfalsa.
+  static TextStyle mono(Color color, {double size = 13, FontWeight weight = FontWeight.w500}) => TextStyle(
+        fontFamilyFallback: monoFamily,
+        fontSize: size,
+        height: 1.25,
+        color: color,
+        fontWeight: weight,
+        fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+      );
+
   /// Testo con i colori applicati per il tema in uso.
   ///
   /// Il colore e' un parametro e non una costante di palette: e' cio' che

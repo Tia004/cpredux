@@ -453,6 +453,7 @@ class _CloudSyncIndicator extends StatelessWidget {
   final CharacterSheet sheet;
 
   Future<void> _openCloudModal(BuildContext context) async {
+    final AppState state = AppScope.of(context);
     final CloudSyncService cloud = CloudSyncService.instance;
     await showDialog<void>(
       context: context,
@@ -520,12 +521,12 @@ class _CloudSyncIndicator extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     TechButton(
-                      label: 'Accedi con Google',
-                      icon: Icons.account_circle_outlined,
+                      label: 'Configura Cloud Google',
+                      icon: Icons.cloud_sync_outlined,
                       variant: TechButtonVariant.primary,
-                      onPressed: () async {
-                        await cloud.signInWithGoogle();
-                        await cloud.saveSheetToCloud(sheet);
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        state.openCloud();
                       },
                     ),
                   ],

@@ -19,6 +19,8 @@ import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 import '../files/file_browser.dart';
 import 'chat_rich_tools.dart';
+import '../campaign/player_actions_dialogs.dart';
+import '../campaign/session_transcriber.dart';
 
 /// La sessione vista dal giocatore.
 ///
@@ -134,7 +136,12 @@ class _SessionTabState extends State<SessionTab> {
                           onRoll: (Skill s) => _rollSkill(state, s),
                         ),
                         const SizedBox(height: 14),
-                        _TablePlayersPanel(players: state.remotePlayers),
+                        _TablePlayersPanel(
+                          players: state.remotePlayers,
+                          onWhisper: (String name) {
+                            _chat.text = '/w "$name" ';
+                          },
+                        ),
                       ],
                     );
 
@@ -378,9 +385,64 @@ class _ChatPanel extends StatelessWidget {
     return ChamferPanel(
       title: 'Tavolo',
       accent: CprPalette.yellow,
+      trailing: const SessionMicrophoneIndicator(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          // Azioni rapide per il giocatore
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: CprPalette.surfaceSunken,
+              border: Border.all(color: CprPalette.hairline),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Row(
+              children: <Widget>[
+                Text(
+                  'SERVIZI NC',
+                  style: CprType.label.copyWith(color: CprPalette.yellow, fontSize: 8.5),
+                ),
+                const SizedBox(width: 8),
+                TechButton(
+                  label: 'Delamain',
+                  icon: Icons.local_taxi,
+                  compact: true,
+                  variant: TechButtonVariant.ghost,
+                  tooltip: 'Prenota una corsa Delamain e aggiorna le coordinate sulla mappa',
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const DelamainRideBookingDialog(),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                TechButton(
+                  label: 'Invia €\$',
+                  icon: Icons.payments_outlined,
+                  compact: true,
+                  variant: TechButtonVariant.ghost,
+                  tooltip: 'Trasferisci Eurodollari a un\'IA o a un altro membro del tavolo',
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const TransferMoneyDialog(),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                TechButton(
+                  label: 'Breccia IA',
+                  icon: Icons.terminal,
+                  compact: true,
+                  variant: TechButtonVariant.ghost,
+                  tooltip: 'Tenta un hacking illegale di un bot IA per sbloccare eddy o privilegi',
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const IllegalAiHackDialog(),
+                  ),
+                ),
+              ],
+            ),
+          ),
           SizedBox(
             height: 300,
             child: state.sessionLog.isEmpty
@@ -396,22 +458,96 @@ class _ChatPanel extends StatelessWidget {
                       final SessionEvent event = state.sessionLog[i];
                       final bool mine = event.delta == 'TU';
                       final bool isWhisper = event.description.startsWith('[Sussurro');
-                      final Color tagColor = isWhisper
-                          ? CprPalette.magenta
-                          : event.delta == 'MASTER'
-                              ? CprPalette.yellow
-                              : mine
-                                  ? CprPalette.inkFaint
-                                  : CprPalette.cyan;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                      final bool isTransaction = event.isTransaction;
+                      final bool isAlert = event.isAlert;
+
+                      final Color tagColor = isAlert
+                          ? CprPalette.danger
+                          : isTransaction
+                              ? CprPalette.success
+                              : isWhisper
+                                  ? CprPalette.magenta
+                                  : event.delta == 'MASTER'
+                                      ? CprPalette.yellow
+                                      : mine
+                                          ? CprPalette.inkFaint
+                                          : CprPalette.cyan;
+
+                      final BoxDecoration? itemDeco = isAlert
+                          ? BoxDecoration(
+                              color: CprPalette.veil(CprPalette.danger, 0.16),
+                              border: Border.all(color: CprPalette.veil(CprPalette.danger, 0.5), width: 1.2),
+                              borderRadius: BorderRadius.circular(3),
+                            )
+                          : isTransaction
+                              ? BoxDecoration(
+                                  color: CprPalette.veil(CprPalette.success, 0.14),
+                                  border: Border.all(color: CprPalette.veil(CprPalette.success, 0.4), width: 1.2),
+                                  borderRadius: BorderRadius.circular(3),
+                                )
+                              : isWhisper
+                                  ? BoxDecoration(
+                                      color: CprPalette.veil(CprPalette.magenta, 0.08),
+                                      border: Border.all(color: CprPalette.veil(CprPalette.magenta, 0.3)),
+                                      borderRadius: BorderRadius.circular(3),
+                                    )
+                                  : null;
+
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 3),
+                        padding: (isAlert || isTransaction || isWhisper)
+                            ? const EdgeInsets.symmetric(horizontal: 8, vertical: 5)
+                            : const EdgeInsets.symmetric(vertical: 2),
+                        decoration: itemDeco,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
-                                if (event.delta.isNotEmpty)
+                                if (isAlert) ...<Widget>[
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    color: CprPalette.veil(CprPalette.danger, 0.22),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        const Icon(Icons.block, size: 10, color: CprPalette.danger),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'BAN / AVVISO',
+                                          style: CprType.label.copyWith(
+                                            fontSize: 8.5,
+                                            color: CprPalette.danger,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else if (isTransaction) ...<Widget>[
+                                  Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    color: CprPalette.veil(CprPalette.success, 0.22),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        const Icon(Icons.payments_outlined, size: 10, color: CprPalette.success),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'EDDY',
+                                          style: CprType.label.copyWith(
+                                            fontSize: 8.5,
+                                            color: CprPalette.success,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else if (event.delta.isNotEmpty)
                                   Container(
                                     margin: const EdgeInsets.only(right: 8),
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -429,7 +565,13 @@ class _ChatPanel extends StatelessWidget {
                                   child: Text(
                                     event.description,
                                     style: CprType.caption.copyWith(
-                                      color: isWhisper ? CprPalette.veil(CprPalette.magenta, 0.9) : CprPalette.ink,
+                                      color: isAlert
+                                          ? CprPalette.danger
+                                          : isTransaction
+                                              ? CprPalette.success
+                                              : isWhisper
+                                                  ? CprPalette.veil(CprPalette.magenta, 0.9)
+                                                  : CprPalette.ink,
                                       fontStyle: isWhisper ? FontStyle.italic : FontStyle.normal,
                                       height: 1.4,
                                     ),
@@ -585,7 +727,7 @@ class _ChatPanel extends StatelessWidget {
                 child: TechField(
                   label: '',
                   value: controller.text,
-                  hint: 'Scrivi al tavolo (supporta Unicode, emoji, GIF)…',
+                  hint: 'Scrivi al tavolo (/help per comandi, /w <nome> <msg> per sussurri)…',
                   onChanged: (String v) => controller.text = v,
                 ),
               ),
@@ -1092,9 +1234,13 @@ class _RollPanelState extends State<_RollPanel> {
 }
 
 class _TablePlayersPanel extends StatelessWidget {
-  const _TablePlayersPanel({required this.players});
+  const _TablePlayersPanel({
+    required this.players,
+    this.onWhisper,
+  });
 
   final List<CampaignPlayer> players;
+  final ValueChanged<String>? onWhisper;
 
   @override
   Widget build(BuildContext context) {
@@ -1126,13 +1272,23 @@ class _TablePlayersPanel extends StatelessWidget {
                             style: CprType.body.copyWith(fontSize: 12.5),
                           ),
                         ),
-                        if (p.hitPoints.isNotEmpty)
+                        if (p.hitPoints.isNotEmpty) ...<Widget>[
                           Text(
                             'PV ${p.hitPoints}',
                             style: CprType.numeralSmall.copyWith(
                               color: CprPalette.healthColorFor(_ratio(p.hitPoints)),
                               fontSize: 12,
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (onWhisper != null && p.characterName.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.lock_outline, size: 14, color: CprPalette.magenta),
+                            tooltip: 'Sussurra a ${p.characterName}',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                            onPressed: () => onWhisper!(p.characterName),
                           ),
                       ],
                     ),

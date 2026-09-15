@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../domain/enums.dart';
+import '../net/cloud_sync_service.dart';
 import 'app_paths.dart';
 import 'cpredux_file.dart';
 
@@ -20,6 +21,8 @@ class DocumentEntry {
     required this.modified,
     this.updatedAt = '',
     this.readable = true,
+    this.isCloud = false,
+    this.cloudId,
   });
 
   final String path;
@@ -37,11 +40,15 @@ class DocumentEntry {
   /// sparisce dall'elenco senza spiegazione fa credere di averlo perso.
   final bool readable;
 
-  String get fileName => p.basename(path);
-  String get folder => p.dirname(path);
+  /// True se il documento risiede nello spazio cloud Google Firebase Spark.
+  final bool isCloud;
+  final String? cloudId;
+
+  String get fileName => isCloud ? name : p.basename(path);
+  String get folder => isCloud ? 'Google Cloud (Firebase Spark)' : p.dirname(path);
 
   /// True se il file non esiste piu' (un recente che punta nel vuoto).
-  bool get missing => !File(path).existsSync();
+  bool get missing => isCloud ? false : !File(path).existsSync();
 
   String get savedLabel => updatedAt.isEmpty ? '' : _pretty(updatedAt);
 
@@ -114,6 +121,28 @@ abstract final class DocumentLibrary {
           final DocumentEntry entry = _describe(file.path);
           if (kind != null && entry.kind != kind) continue;
           found[entry.path] = entry;
+        }
+      }
+    }
+
+    // 3. I documenti presenti nel Cloud Vault (Firebase Spark) se connesso.
+    final CloudSyncService cloud = CloudSyncService.instance;
+    if (cloud.isAuthenticated) {
+      for (final CloudDocumentItem cDoc in cloud.documents) {
+        if (kind != null && cDoc.kind != kind) continue;
+        final bool localExists = found.values.any((DocumentEntry e) => e.name.toLowerCase() == cDoc.name.toLowerCase());
+        if (!localExists) {
+          final String cloudPath = 'cloud://${cDoc.id}';
+          found[cloudPath] = DocumentEntry(
+            path: cloudPath,
+            name: cDoc.name,
+            kind: cDoc.kind,
+            modified: cDoc.updatedAt,
+            updatedAt: cDoc.updatedAt.toIso8601String(),
+            readable: true,
+            isCloud: true,
+            cloudId: cDoc.id,
+          );
         }
       }
     }

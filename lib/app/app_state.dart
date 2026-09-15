@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -8,18 +9,24 @@ import '../data/app_paths.dart';
 import '../data/catalog.dart';
 import '../data/cpredux_file.dart';
 import '../data/document_library.dart';
+import '../net/cloud_sync_service.dart';
 import '../data/document_upgrade.dart';
 import '../data/migrator.dart';
 import '../data/settings_store.dart';
 import '../domain/campaign.dart';
 import '../domain/catalog_item.dart';
+import '../domain/dice_expression.dart';
+import '../domain/gm/gm_calculators.dart';
+import '../domain/gm/gm_rules.dart';
 import '../domain/items.dart';
 import '../domain/enums.dart';
+import '../domain/map_token.dart';
 import '../domain/json_support.dart';
 import '../domain/rules.dart';
 import '../domain/sheet.dart';
 import '../domain/sheet_diff.dart';
 import '../domain/stats.dart';
+import '../domain/transport.dart';
 import '../domain/world_map.dart';
 import '../net/session.dart';
 import '../net/discord_rpc.dart';
@@ -27,10 +34,10 @@ import '../net/update_installer.dart';
 import '../net/update_manifest.dart';
 import '../net/updater.dart';
 
-enum AppScreen { home, sheet, campaign, settings, compare, cloud }
+enum AppScreen { home, sheet, campaign, settings, compare, cloud, gm }
 
 /// Categoria di una tab aperta nell'interfaccia browser.
-enum AppTabKind { home, sheet, campaign, cloud, settings, compare }
+enum AppTabKind { home, sheet, campaign, cloud, settings, compare, gm }
 
 /// Modello di una scheda/tab aperta nel browser dell'applicazione.
 class AppTab {
@@ -196,6 +203,7 @@ class AppState extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   void goHome() {
+    _activeTabIndex = 0;
     _screen = AppScreen.home;
     // L'elenco dei documenti si rilegge tornando al menu': un documento creato,
     // convertito o cancellato nel frattempo deve comparire (o sparire) senza
@@ -228,6 +236,79 @@ class AppState extends ChangeNotifier {
 
   void goToSettings() {
     _screen = AppScreen.settings;
+    final int idx = _tabs.indexWhere((AppTab t) => t.kind == AppTabKind.settings);
+    if (idx != -1) {
+      _activeTabIndex = idx;
+    } else {
+      _tabs.add(AppTab(
+        id: 'tab_settings',
+        kind: AppTabKind.settings,
+        title: 'Impostazioni',
+      ));
+      _activeTabIndex = _tabs.length - 1;
+    }
+    notifyListeners();
+  }
+
+  /// Gli strumenti del Master, come il pannello delle impostazioni: una sola
+  /// tab riusata, perche' non ha senso averne due aperte.
+  void goToGmTools() {
+    _screen = AppScreen.gm;
+    final int idx = _tabs.indexWhere((AppTab t) => t.kind == AppTabKind.gm);
+    if (idx != -1) {
+      _activeTabIndex = idx;
+    } else {
+      _tabs.add(AppTab(
+        id: 'tab_gm',
+        kind: AppTabKind.gm,
+        title: 'Strumenti del Master',
+      ));
+      _activeTabIndex = _tabs.length - 1;
+    }
+    notifyListeners();
+  }
+
+  // --- Strumenti del Master ------------------------------------------------
+
+  GmRuleBook? _gmRuleBook;
+
+  /// Il libro delle regole del tavolo.
+  ///
+  /// Si ricostruisce quando una correzione cambia, invece di essere tenuto
+  /// allineato a mano: le correzioni sono **una sola copia**, quella nelle
+  /// impostazioni, e qui c'e' solo la lettura. Se il libro tenesse una copia
+  /// propria, un ripristino dalle impostazioni lascerebbe i pannelli a
+  /// calcolare con i valori vecchi senza dirlo a nessuno.
+  GmRuleBook get gmRuleBook =>
+      _gmRuleBook ??= GmRuleBook(overrides: settings.gmRuleOverrides, schema: Ballistics.asRules());
+
+  Future<void> setGmRule(String id, double value) async {
+    await updateSettings((AppSettings s) => s.gmRuleOverrides[id] = value);
+    _gmRuleBook = null;
+    notifyListeners();
+  }
+
+  Future<void> resetGmRule(String id) async {
+    await updateSettings((AppSettings s) => s.gmRuleOverrides.remove(id));
+    _gmRuleBook = null;
+    notifyListeners();
+  }
+
+  Future<void> resetAllGmRules() async {
+    await updateSettings((AppSettings s) => s.gmRuleOverrides.clear());
+    _gmRuleBook = null;
+    notifyListeners();
+  }
+
+  List<DiceMacro> get gmMacros => List<DiceMacro>.unmodifiable(settings.gmMacros);
+
+  Future<void> saveGmMacro(DiceMacro macro) async {
+    await updateSettings((AppSettings s) => s.saveMacro(macro));
+    notifyListeners();
+  }
+
+  Future<void> deleteGmMacro(String id) async {
+    await updateSettings((AppSettings s) => s.deleteMacro(id));
     notifyListeners();
   }
 
@@ -241,6 +322,41 @@ class AppState extends ChangeNotifier {
   void goToCampaign() {
     if (_campaign == null) return;
     _screen = AppScreen.campaign;
+    notifyListeners();
+  }
+
+  // --- Assistente AI / Chatbot PNG ----------------------------------------
+
+  bool _isAiAssistantOpen = false;
+  bool get isAiAssistantOpen => _isAiAssistantOpen;
+
+  void toggleAiAssistant() {
+    _isAiAssistantOpen = !_isAiAssistantOpen;
+    // I due pannelli stanno sullo stesso lato. Tenerli aperti insieme
+    // lascerebbe al tavolo una striscia in mezzo: si apre l'uno o l'altro, e
+    // l'ultimo che si apre vince.
+    if (_isAiAssistantOpen) _isGmPanelOpen = false;
+    notifyListeners();
+  }
+
+  void setAiAssistantOpen(bool open) {
+    if (_isAiAssistantOpen == open) return;
+    _isAiAssistantOpen = open;
+    if (open) _isGmPanelOpen = false;
+    notifyListeners();
+  }
+
+  // --- Pannello degli strumenti del Master -------------------------------
+
+  bool _isGmPanelOpen = false;
+  bool get isGmPanelOpen => _isGmPanelOpen;
+
+  void toggleGmPanel() => setGmPanelOpen(!_isGmPanelOpen);
+
+  void setGmPanelOpen(bool open) {
+    if (_isGmPanelOpen == open) return;
+    _isGmPanelOpen = open;
+    if (open) _isAiAssistantOpen = false;
     notifyListeners();
   }
 
@@ -283,6 +399,8 @@ class AppState extends ChangeNotifier {
         _screen = AppScreen.settings;
       case AppTabKind.compare:
         _screen = AppScreen.compare;
+      case AppTabKind.gm:
+        _screen = AppScreen.gm;
     }
     notifyListeners();
   }
@@ -392,6 +510,8 @@ class AppState extends ChangeNotifier {
     _tabs.add(cloudTab);
     selectTab(_tabs.length - 1);
   }
+
+  void openCloud() => goToCloudSpace();
 
   /// Invia direttamente una scheda aggiornata a un giocatore collegato al tavolo (Master -> Giocatore).
   void sendSheetToPlayer(String playerId, CharacterSheet sheet, {String? reason}) {
@@ -654,6 +774,529 @@ class AppState extends ChangeNotifier {
     }
     _sessionChanged();
     return w;
+  }
+
+  // --- Token sulla mappa ----------------------------------------------------
+
+  /// I token del tavolo quando non c'e' una campagna aperta.
+  ///
+  /// Come per i waypoint: chi non ha una campagna ha comunque una scheda, e
+  /// durante una one-shot i nemici sulla mappa servono lo stesso. Questi non
+  /// finiscono su disco — senza campagna non c'e' un documento a cui
+  /// appartenere — ed e' una limitazione che vale la pena dichiarare invece di
+  /// far credere che siano salvati.
+  final List<MapToken> _tableTokens = <MapToken>[];
+
+  /// I token da disegnare adesso.
+  List<MapToken> get mapTokens =>
+      List<MapToken>.unmodifiable(_campaign?.tokens ?? _tableTokens);
+
+  /// True se i token finiranno dentro un documento.
+  bool get tokensArePersisted => _campaign != null;
+
+  /// Mette uno o piu' token sulla mappa, raggruppati.
+  ///
+  /// Ritorna i token creati. Il gruppo e' un concetto del tavolo, non della
+  /// mappa: gli otto della stessa banda si cancellano insieme a fine scontro, e
+  /// senza un identificativo di gruppo bisognerebbe ritrovarli a mano.
+  List<MapToken> addTokens({
+    required List<MapToken> tokens,
+    String groupLabel = '',
+  }) {
+    if (tokens.isEmpty) return const <MapToken>[];
+    final String groupId = groupLabel.isEmpty ? '' : 'grp-${DateTime.now().microsecondsSinceEpoch}';
+    final List<MapToken> created = <MapToken>[
+      for (final MapToken t in tokens)
+        MapToken(
+          id: t.id.isEmpty ? newTokenId() : t.id,
+          name: t.name,
+          x: t.x,
+          y: t.y,
+          kind: t.kind,
+          hp: t.hp,
+          maxHp: t.maxHp,
+          sp: t.sp,
+          combat: t.combat,
+          defense: t.defense,
+          damage: t.damage,
+          note: t.note,
+          longNotes: t.longNotes,
+          role: t.role,
+          weaponName: t.weaponName,
+          rof: t.rof,
+          eurobucks: t.eurobucks,
+          loot: t.loot,
+          refBonus: t.refBonus,
+          initiativeRoll: t.initiativeRoll,
+          groupId: groupId,
+          createdAt: _now(),
+        ),
+    ];
+
+    final Campaign? campaign = _campaign;
+    if (campaign != null) {
+      campaign.tokens.addAll(created);
+    } else {
+      _tableTokens.addAll(created);
+    }
+
+    _appendSession(
+      description: groupLabel.isEmpty
+          ? '${created.length} token sulla mappa'
+          : '$groupLabel: ${created.length} token sulla mappa',
+      delta: 'MAPPA',
+      persist: campaign != null,
+    );
+    _scheduleSave();
+    return created;
+  }
+
+  void updateMapToken(MapToken updated) {
+    final MapToken? token = _findToken(updated.id);
+    if (token == null) return;
+    token.name = updated.name;
+    token.hp = updated.hp;
+    token.maxHp = updated.maxHp;
+    token.sp = updated.sp;
+    token.combat = updated.combat;
+    token.defense = updated.defense;
+    token.damage = updated.damage;
+    token.note = updated.note;
+    token.longNotes = updated.longNotes;
+    token.role = updated.role;
+    token.weaponName = updated.weaponName;
+    token.rof = updated.rof;
+    token.eurobucks = updated.eurobucks;
+    token.loot = updated.loot;
+    token.refBonus = updated.refBonus;
+    token.initiativeRoll = updated.initiativeRoll;
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  void moveToken(String id, Offset position) {
+    final MapToken? token = _findToken(id);
+    if (token == null) return;
+    token.position = position;
+    _scheduleSave();
+  }
+
+  void damageToken(String id, int amount) {
+    final MapToken? token = _findToken(id);
+    if (token == null || amount == 0) return;
+    final int before = token.hp;
+    token.applyDamage(amount);
+    if (token.hp == before) return;
+    _appendSession(
+      description: token.isDown
+          ? '${token.name} è a terra'
+          : '${token.name} subisce $amount danni',
+      delta: '${before - token.hp} PV',
+      persist: _campaign != null,
+    );
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  void healToken(String id, int amount) {
+    final MapToken? token = _findToken(id);
+    if (token == null || amount <= 0) return;
+    token.heal(amount);
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  void removeToken(String id) {
+    _campaign?.tokens.removeWhere((MapToken t) => t.id == id);
+    _tableTokens.removeWhere((MapToken t) => t.id == id);
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  /// Toglie dalla mappa un intero gruppo: e' la fine di uno scontro.
+  void removeTokenGroup(String groupId) {
+    if (groupId.isEmpty) return;
+    final int before = mapTokens.length;
+    _campaign?.tokens.removeWhere((MapToken t) => t.groupId == groupId);
+    _tableTokens.removeWhere((MapToken t) => t.groupId == groupId);
+    if (mapTokens.length != before) {
+      _appendSession(description: 'Gruppo rimosso dalla mappa', delta: 'MAPPA', persist: _campaign != null);
+      _scheduleSave();
+      notifyListeners();
+    }
+  }
+
+  void clearTokens() {
+    _campaign?.tokens.clear();
+    _tableTokens.clear();
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  // --- Trasporti in tempo reale -------------------------------------------
+
+  /// I trasporti del tavolo quando non c'e' una campagna aperta.
+  final List<Transport> _tableTransports = <Transport>[];
+
+  /// I trasporti da disegnare adesso.
+  List<Transport> get mapTransports =>
+      List<Transport>.unmodifiable(_campaign?.transports ?? _tableTransports);
+
+  /// True se i trasporti finiranno dentro un documento.
+  bool get transportsArePersisted => _campaign != null;
+
+  Timer? _transportClock;
+
+  /// Ogni quanto si muovono i veicoli.
+  ///
+  /// Cento millisecondi: a una moltiplicazione di dodici volte, un taxi a
+  /// quarantacinque all'ora fa circa quindici metri per battito, che sulla
+  /// mappa e' meno di un pixel — quindi si vede scivolare invece di saltellare.
+  /// Piu' rado si vedrebbero gli scatti, piu' fitto sarebbe lavoro sprecato per
+  /// un disegno che cambia comunque a sessanta fotogrammi.
+  static const Duration transportTick = Duration(milliseconds: 100);
+
+  /// Fa avanzare il tempo dei trasporti di [elapsed] di tempo **vero**.
+  ///
+  /// Pubblica e separata dall'orologio per una ragione precisa: e' l'unico
+  /// punto in cui il tempo entra nel movimento, quindi i test possono dire
+  /// "dopo novanta secondi il taxi e' al posto di blocco" senza aspettarne
+  /// novanta e senza dipendere da quanto e' occupata la macchina.
+  ///
+  /// Ritorna quanti veicoli si sono mossi.
+  int advanceTransports(Duration elapsed) {
+    if (elapsed <= Duration.zero) return 0;
+    final List<Transport> list = _campaign?.transports ?? _tableTransports;
+    if (list.isEmpty) return 0;
+
+    final double span = gmRuleBook.rule(GmRules.transportMapSpan).value;
+    final double timeScale = gmRuleBook.rule(GmRules.transportTimeScale).value;
+    int moved = 0;
+
+    for (final Transport t in list) {
+      final TransportTick tick = t.advance(elapsed, mapSpanMeters: span, timeScale: timeScale);
+      if (tick.movedMeters > 0) {
+        moved++;
+        _movePassengers(t);
+      }
+      if (tick.resumed) {
+        t.log.insert(0, '${t.name}: ripartito da ${t.stops.isNotEmpty ? t.stops.first.name : '—'}');
+      }
+      if (tick.arrived) {
+        t.log.insert(0, '${t.name}: arrivato a ${t.stops.isEmpty ? '—' : t.stops.last.name}');
+        _appendSession(
+          description: '${t.name} arrivato a ${t.stops.isEmpty ? 'destinazione' : t.stops.last.name}',
+          delta: 'TRASPORTO',
+          persist: _campaign != null,
+        );
+      }
+      if (tick.isEvent) _scheduleSave();
+    }
+
+    if (moved > 0) {
+      notifyListeners();
+      _broadcastTransports();
+    }
+    _syncTransportClock();
+    return moved;
+  }
+
+  /// I passeggeri viaggiano **con** il veicolo.
+  ///
+  /// E' la parte che rende la cosa utile invece che decorativa: se un
+  /// personaggio prende un taxi, sulla mappa il suo token si sposta con il
+  /// taxi. Senza, il tavolo vedrebbe il veicolo andare e il personaggio restare
+  /// al punto di partenza, e nessuno dei due sarebbe vero.
+  void _movePassengers(Transport transport) {
+    for (final String id in transport.passengerTokenIds) {
+      final MapToken? token = _findToken(id);
+      if (token != null) token.position = transport.position;
+    }
+  }
+
+  /// Accende l'orologio se c'e' qualcosa da muovere, e lo spegne quando non
+  /// c'e' piu' niente.
+  ///
+  /// Un `Timer.periodic` che gira sempre e' un risveglio ogni cento
+  /// millisecondi anche a tavolo fermo: su un portatile significa la batteria,
+  /// e per un'applicazione che resta aperta tutta la serata e' la differenza
+  /// che si sente.
+  void _syncTransportClock() {
+    final bool needed = mapTransports.any((Transport t) => t.status == TransportStatus.inViaggio);
+    if (needed && _transportClock == null) {
+      _transportClock = Timer.periodic(transportTick, (_) => advanceTransports(transportTick));
+    } else if (!needed) {
+      _transportClock?.cancel();
+      _transportClock = null;
+    }
+  }
+
+  /// Mette un veicolo in strada.
+  Transport startTransport({
+    required String name,
+    required List<RouteStop> stops,
+    TransportMode mode = TransportMode.taxi,
+    double? speedKmh,
+    List<String> passengers = const <String>[],
+    List<String> passengerTokenIds = const <String>[],
+    String note = '',
+    bool departNow = true,
+  }) {
+    final Transport transport = Transport(
+      id: 'trn-${DateTime.now().microsecondsSinceEpoch}',
+      name: name.trim().isEmpty ? mode.label : name.trim(),
+      mode: mode,
+      stops: stops,
+      speedKmh: speedKmh ?? mode.cruiseKmh,
+      passengers: List<String>.from(passengers),
+      passengerTokenIds: List<String>.from(passengerTokenIds),
+      note: note,
+      createdAt: _now(),
+    );
+
+    // Il veicolo parte dalla prima fermata: senza, la prima cosa che si vede e'
+    // un mezzo che compare al centro della mappa e salta al punto di partenza.
+    if (stops.isNotEmpty) transport.position = stops.first.position;
+    if (!departNow) transport.halt('in attesa del via', incidentId: '');
+
+    (_campaign?.transports ?? _tableTransports).add(transport);
+    _movePassengers(transport);
+    _appendSession(description: transport.departureLine, delta: 'TRASPORTO', persist: _campaign != null);
+    _scheduleSave();
+    _syncTransportClock();
+    notifyListeners();
+    _broadcastTransports();
+    return transport;
+  }
+
+  /// Scatena un evento su un veicolo.
+  ///
+  /// E' il gesto per cui questa funzione esiste: il Master non mette in pausa
+  /// il tempo, **fa succedere qualcosa** — e quello che succede ha una durata,
+  /// un effetto sulla velocita' e una prova da superare. La riga che finisce
+  /// nel registro e' quella dell'evento, non "veicolo fermato": al tavolo
+  /// conta cosa e' successo.
+  bool triggerTransportIncident(String id, TransportIncident incident, {String? detail}) {
+    final Transport? t = _findTransport(id);
+    if (t == null) return false;
+    if (t.status == TransportStatus.arrivato) return false;
+
+    t.halt(
+      detail == null || detail.trim().isEmpty ? incident.title : detail.trim(),
+      hold: Duration(seconds: incident.haltSeconds),
+      incidentId: incident.id,
+      speedFactor: incident.speedFactor,
+    );
+    t.log.insert(0, incident.logLine);
+
+    _appendSession(
+      description: '${t.name}: ${incident.logLine}'
+          '${incident.checkStake.isEmpty ? '' : ' — ${incident.checkStake}'}',
+      delta: 'TRASPORTO',
+      persist: _campaign != null,
+    );
+    _scheduleSave();
+    _syncTransportClock();
+    notifyListeners();
+    _broadcastTransports();
+    return true;
+  }
+
+  /// Ferma un veicolo senza un evento: a volte il Master vuole solo che si
+  /// fermi, senza che sia successo niente.
+  bool haltTransport(String id, {String reason = ''}) {
+    final Transport? t = _findTransport(id);
+    if (t == null || t.status == TransportStatus.arrivato) return false;
+    t.halt(reason);
+    _appendSession(
+      description: '${t.name}: fermato${reason.isEmpty ? '' : ' ($reason)'}',
+      delta: 'TRASPORTO',
+      persist: _campaign != null,
+    );
+    _scheduleSave();
+    _syncTransportClock();
+    notifyListeners();
+    _broadcastTransports();
+    return true;
+  }
+
+  /// Lo lascia ripartire: e' il gesto che chiude un agguato.
+  bool resumeTransport(String id) {
+    final Transport? t = _findTransport(id);
+    if (t == null || t.status != TransportStatus.fermo) return false;
+    t.resume();
+    t.log.insert(0, '${t.name}: ripartito');
+    _appendSession(
+      description: '${t.name}: ripartito',
+      delta: 'TRASPORTO',
+      persist: _campaign != null,
+    );
+    _scheduleSave();
+    _syncTransportClock();
+    notifyListeners();
+    _broadcastTransports();
+    return true;
+  }
+
+  void setTransportSpeed(String id, double kmh) {
+    final Transport? t = _findTransport(id);
+    if (t == null) return;
+    t.speedKmh = kmh.clamp(1, 600).toDouble();
+    _scheduleSave();
+    notifyListeners();
+    _broadcastTransports();
+  }
+
+  void removeTransport(String id) {
+    if (!(_campaign?.transports ?? _tableTransports).any((Transport t) => t.id == id)) return;
+    _campaign?.transports.removeWhere((Transport t) => t.id == id);
+    _tableTransports.removeWhere((Transport t) => t.id == id);
+    _appendSession(description: 'Trasporto tolto dalla mappa', delta: 'TRASPORTO', persist: _campaign != null);
+    _scheduleSave();
+    _syncTransportClock();
+    notifyListeners();
+    _broadcastTransports();
+  }
+
+  /// Toglie dalla strada tutto: e' la fine della serata.
+  void clearTransports() {
+    _campaign?.transports.clear();
+    _tableTransports.clear();
+    _transportClock?.cancel();
+    _transportClock = null;
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  void _broadcastTransports() {
+    final CampaignHost? host = _host;
+    if (host == null) return;
+    for (final Transport t in mapTransports) {
+      host.broadcast(<String, Object?>{'t': SessionMessage.transport, 'transport': t.toJson()});
+    }
+  }
+
+  /// Applica un veicolo arrivato dal master.
+  ///
+  /// La **posizione** arriva dal master e non viene ricalcolata: sul client
+  /// l'orologio non gira, perche' un giocatore non deve poter far muovere il
+  /// taxi del tavolo a colpi di fotogrammi. Se la connessione cade, il veicolo
+  /// si ferma dove era invece di continuare per conto suo verso una meta' che
+  /// il master potrebbe aver cambiato.
+  void _applyRemoteTransport(Object? raw) {
+    final Transport incoming = Transport.fromJson(objectMap(raw));
+    if (incoming.id.isEmpty) return;
+    final List<Transport> list = _campaign?.transports ?? _tableTransports;
+    final int index = list.indexWhere((Transport t) => t.id == incoming.id);
+    if (index >= 0) {
+      list[index] = incoming;
+    } else {
+      list.add(incoming);
+    }
+    notifyListeners();
+  }
+
+  void _applyRemoteTransportRemove(String id) {
+    if (id.isEmpty) return;
+    final List<Transport> list = _campaign?.transports ?? _tableTransports;
+    final int before = list.length;
+    list.removeWhere((Transport t) => t.id == id);
+    if (list.length != before) notifyListeners();
+  }
+
+  Transport? _findTransport(String id) {
+    for (final Transport t in _campaign?.transports ?? _tableTransports) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  /// I token che possono salire a bordo: quelli sulla mappa adesso.
+  List<MapToken> get transportCandidates => mapTokens;
+
+  MapToken? _findToken(String id) {
+    for (final MapToken t in _campaign?.tokens ?? _tableTokens) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  /// Scrive una riga nel registro di sessione.
+  ///
+  /// E' il punto per cui esiste il registro: un tiro che resta solo sullo
+  /// schermo di chi l'ha fatto non e' un evento della partita. Se non c'e' una
+  /// sessione aperta il registro resta in memoria e non viene salvato, che e'
+  /// esattamente cio' che serve per un tiro fatto mentre si prepara.
+  void recordSessionEvent(String description, {String delta = ''}) {
+    final String text = description.trim();
+    if (text.isEmpty) return;
+    _appendSession(description: text, delta: delta, persist: _campaign != null);
+    _scheduleSave();
+    notifyListeners();
+  }
+
+  /// True se c'e' un documento con un registro su cui scrivere.
+  bool get canRecordSession => _campaign != null || _sheet != null;
+
+  /// Mettere il bottino nell'inventario.
+  ///
+  /// L'oggetto viene cercato nel catalogo **per nome**, con la stessa
+  /// tolleranza che il migratore usa per le schede vecchie (`matchByName`): se
+  /// il bottino dice "Black Lace" e il catalogo lo conosce, entra come voce di
+  /// catalogo e quindi pesa, ha un prezzo e si puo' equipaggiare. Se non lo conosce — e
+  /// succede con "Chip di dati", che non e' un oggetto di catalogo — entra
+  /// come oggetto definito dentro la scheda. L'alternativa sarebbe scartare il
+  /// bottino che non si conosce, cioe' perdere il pezzo piu' interessante.
+  ///
+  /// Ritorna quanti pezzi sono entrati, zero se non c'e' una scheda aperta.
+  int addLootToInventory({required String name, int quantity = 1, String note = ''}) {
+    final CharacterSheet? sheet = _sheet;
+    if (sheet == null || name.trim().isEmpty) return 0;
+    final int amount = quantity < 1 ? 1 : quantity;
+    final CatalogItem? known = _catalog.matchByName(name.trim());
+    final String stamp = DateTime.now().microsecondsSinceEpoch.toString();
+
+    if (known != null) {
+      for (int i = 0; i < amount; i++) {
+        sheet.inventory.add(InventoryEntry.fromCatalog(known, id: 'item-$stamp-$i'));
+      }
+    } else {
+      final CatalogItem custom = CatalogItem(
+        id: 'custom-$stamp',
+        name: name.trim(),
+        category: ItemCategory.item,
+        description: note.trim().isEmpty ? 'Bottino di sessione' : note.trim(),
+        source: 'bottino',
+      );
+      for (int i = 0; i < amount; i++) {
+        sheet.inventory.add(InventoryEntry.customItem(custom, id: 'item-$stamp-$i'));
+      }
+    }
+
+    _totals = computeTotals(sheet, lookup: catalogLookup);
+    _appendSession(
+      description: 'Bottino: $name${amount > 1 ? ' ×$amount' : ''}',
+      delta: 'INVENTARIO',
+      persist: _campaign != null,
+    );
+    _scheduleSave();
+    notifyListeners();
+    return amount;
+  }
+
+  /// Aggiunge eurodollari alla scheda aperta, con la causale nel registro.
+  bool addEurobucks(int amount, {String reason = 'Bottino'}) {
+    final CharacterSheet? sheet = _sheet;
+    if (sheet == null || amount == 0) return false;
+    sheet.eurobucks += amount;
+    _appendSession(
+      description: amount > 0 ? '$reason: +$amount eb' : '$reason: $amount eb',
+      delta: 'eb',
+      persist: _campaign != null,
+    );
+    _scheduleSave();
+    notifyListeners();
+    return true;
   }
 
   /// Modifica un waypoint esistente.
@@ -1632,26 +2275,120 @@ class AppState extends ChangeNotifier {
         reason: 'Nota del master', delta: 'NOTA', persistOnly: true);
   }
 
-  /// Il master parla a tutto il tavolo.
-  void masterChat(String text, {String? gifUrl}) {
+  /// Il master parla a tutto il tavolo o invia sussurri a singoli/gruppi di giocatori.
+  void masterChat(
+    String text, {
+    String? gifUrl,
+    List<String>? whisperTargets,
+    String? whisperTo,
+  }) {
     final String clean = text.trim();
     final String cleanGif = (gifUrl ?? '').trim();
+
+    // Comandi locali da console chat
+    if (clean == '/help') {
+      _appendSession(
+        description: '=== COMANDI CHAT DEL TAVOLO ===\n'
+            '• /help : Mostra questa guida ai comandi.\n'
+            '• /whisper <nome1, nome2...> <messaggio> : Invia un sussurro segreto a uno o più personaggi.\n'
+            '• /w <nome> <messaggio> : Scorciatoia rapida per /whisper.\n'
+            '• /clear : Pulisce la cronologia del registro locale.\n'
+            '• Clicca l\'icona del lucchetto sui giocatori a destra o seleziona le tab segrete per chattare in privato.',
+        delta: 'SISTEMA',
+        persist: false,
+      );
+      return;
+    }
+
+    if (clean == '/clear') {
+      sessionLog.clear();
+      _sessionChanged();
+      return;
+    }
+
     if (clean.isEmpty && cleanGif.isEmpty) return;
-    _host?.broadcast(<String, Object?>{
-      't': SessionMessage.chat,
-      'playerId': 'master',
-      'name': 'MASTER',
-      'text': clean,
-      if (cleanGif.isNotEmpty) 'gifUrl': cleanGif,
-      'at': DateTime.now().toIso8601String(),
-    });
-    _appendSession(
-      description: clean.isNotEmpty ? clean : 'GIF inviata',
-      delta: 'MASTER',
-      playerId: 'master',
-      gifUrl: cleanGif,
-      persist: false,
-    );
+
+    // Estrazione automatica comando /w o /whisper dal testo se digitato
+    String actualText = clean;
+    final List<String> targets = <String>[...?whisperTargets];
+    if (whisperTo != null && whisperTo.trim().isNotEmpty) {
+      targets.addAll(whisperTo.split(',').map((String s) => s.trim()).where((String s) => s.isNotEmpty));
+    }
+
+    if (clean.startsWith('/w ') || clean.startsWith('/whisper ')) {
+      final bool isShort = clean.startsWith('/w ');
+      final String after = clean.substring(isShort ? 3 : 9).trim();
+      if (after.startsWith('"')) {
+        final int endQuote = after.indexOf('"', 1);
+        if (endQuote != -1) {
+          final String rawTargets = after.substring(1, endQuote);
+          targets.addAll(rawTargets.split(',').map((String s) => s.trim()).where((String s) => s.isNotEmpty));
+          actualText = after.substring(endQuote + 1).trim();
+        }
+      } else {
+        final int firstSpace = after.indexOf(' ');
+        if (firstSpace != -1) {
+          final String rawTargets = after.substring(0, firstSpace);
+          targets.addAll(rawTargets.split(',').map((String s) => s.trim()).where((String s) => s.isNotEmpty));
+          actualText = after.substring(firstSpace + 1).trim();
+        }
+      }
+    }
+
+    final bool isWhisper = targets.isNotEmpty;
+    final String targetsLabel = targets.join(', ');
+
+    if (isWhisper) {
+      final Map<String, Object?> whisperMsg = <String, Object?>{
+        't': SessionMessage.chat,
+        'playerId': 'master',
+        'name': 'MASTER',
+        'text': actualText,
+        'whisperTo': targetsLabel,
+        'isWhisper': true,
+        if (cleanGif.isNotEmpty) 'gifUrl': cleanGif,
+        'at': DateTime.now().toIso8601String(),
+      };
+
+      for (final String target in targets) {
+        final String tLower = target.toLowerCase();
+        if (_host != null) {
+          for (final HostedPlayer p in _host!.players.values) {
+            if (p.characterName.toLowerCase() == tLower ||
+                p.playerName.toLowerCase() == tLower ||
+                p.id == target) {
+              _host?.sendTo(p.id, whisperMsg);
+            }
+          }
+        }
+      }
+
+      _appendSession(
+        description: '[Sussurro a $targetsLabel] $actualText',
+        delta: 'MASTER',
+        playerId: 'master',
+        whisperTo: targetsLabel,
+        isWhisper: true,
+        gifUrl: cleanGif,
+        persist: false,
+      );
+    } else {
+      _host?.broadcast(<String, Object?>{
+        't': SessionMessage.chat,
+        'playerId': 'master',
+        'name': 'MASTER',
+        'text': actualText,
+        if (cleanGif.isNotEmpty) 'gifUrl': cleanGif,
+        'at': DateTime.now().toIso8601String(),
+      });
+      _appendSession(
+        description: actualText.isNotEmpty ? actualText : 'GIF inviata',
+        delta: 'MASTER',
+        playerId: 'master',
+        gifUrl: cleanGif,
+        persist: false,
+      );
+    }
   }
 
   /// Il master invia un file o un'immagine in peer-to-peer a tutto il tavolo.
@@ -1841,6 +2578,7 @@ class AppState extends ChangeNotifier {
       case SessionMessage.chat:
         final String gifUrl = '${message['gifUrl'] ?? ''}'.trim();
         final bool isWhisper = message['isWhisper'] == true;
+        final String whisperTo = '${message['whisperTo'] ?? ''}'.trim();
         final String senderName = '${message['name'] ?? ''}';
         final String rawText = '${message['text'] ?? ''}';
         final String desc = isWhisper ? '[Sussurro] $rawText' : rawText;
@@ -1848,6 +2586,8 @@ class AppState extends ChangeNotifier {
           description: desc,
           delta: senderName,
           playerId: '${message['playerId'] ?? ''}',
+          whisperTo: whisperTo,
+          isWhisper: isWhisper,
           gifUrl: gifUrl,
           persist: false,
         );
@@ -1906,6 +2646,12 @@ class AppState extends ChangeNotifier {
 
       case SessionMessage.mapStyle:
         _remoteMapStyle = MapStyle.fromName(readString(message['style']));
+
+      case SessionMessage.transport:
+        _applyRemoteTransport(message['transport']);
+
+      case SessionMessage.transportRemove:
+        _applyRemoteTransportRemove('${message['id'] ?? ''}');
     }
     _sessionChanged();
   }
@@ -2022,32 +2768,77 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void sendChat(String text, {String? gifUrl, String? whisperTo}) {
+  void sendChat(
+    String text, {
+    String? gifUrl,
+    String? whisperTo,
+    List<String>? whisperTargets,
+  }) {
     final String clean = text.trim();
     final String cleanGif = (gifUrl ?? '').trim();
+
+    if (clean == '/help') {
+      _appendSession(
+        description: '=== COMANDI CHAT DEL TAVOLO ===\n'
+            '• /help : Mostra questa guida ai comandi.\n'
+            '• /whisper <nome1, nome2...> <messaggio> : Invia un sussurro segreto a uno o più personaggi.\n'
+            '• /w <nome> <messaggio> : Scorciatoia rapida per /whisper.\n'
+            '• /clear : Pulisce la cronologia del registro locale.\n'
+            '• Usa le tab segrete in alto o clicca sul lucchetto accanto ai giocatori per chattare in privato.',
+        delta: 'SISTEMA',
+        persist: false,
+      );
+      return;
+    }
+
+    if (clean == '/clear') {
+      sessionLog.clear();
+      _sessionChanged();
+      return;
+    }
+
     if (clean.isEmpty && cleanGif.isEmpty) return;
 
     // Riconoscimento automatico del comando di sussurro: /w nome messaggio oppure /whisper nome messaggio
     String actualText = clean;
-    String? target = whisperTo;
+    final List<String> targets = <String>[...?whisperTargets];
+    if (whisperTo != null && whisperTo.trim().isNotEmpty) {
+      targets.addAll(whisperTo.split(',').map((String s) => s.trim()).where((String s) => s.isNotEmpty));
+    }
+
     if (clean.startsWith('/w ') || clean.startsWith('/whisper ')) {
-      final List<String> parts = clean.split(' ');
-      if (parts.length >= 3) {
-        target = parts[1];
-        actualText = parts.sublist(2).join(' ');
+      final bool isShort = clean.startsWith('/w ');
+      final String after = clean.substring(isShort ? 3 : 9).trim();
+      if (after.startsWith('"')) {
+        final int endQuote = after.indexOf('"', 1);
+        if (endQuote != -1) {
+          final String rawTargets = after.substring(1, endQuote);
+          targets.addAll(rawTargets.split(',').map((String s) => s.trim()).where((String s) => s.isNotEmpty));
+          actualText = after.substring(endQuote + 1).trim();
+        }
+      } else {
+        final int firstSpace = after.indexOf(' ');
+        if (firstSpace != -1) {
+          final String rawTargets = after.substring(0, firstSpace);
+          targets.addAll(rawTargets.split(',').map((String s) => s.trim()).where((String s) => s.isNotEmpty));
+          actualText = after.substring(firstSpace + 1).trim();
+        }
       }
     }
 
+    final String targetStr = targets.join(', ');
     _client?.sendChat(
       actualText,
       gifUrl: cleanGif.isEmpty ? null : cleanGif,
-      whisperTo: target,
+      whisperTo: targetStr.isEmpty ? null : targetStr,
     );
     _appendSession(
-      description: target != null && target.isNotEmpty
-          ? '[Sussurro a $target] $actualText'
+      description: targetStr.isNotEmpty
+          ? '[Sussurro a $targetStr] $actualText'
           : (actualText.isNotEmpty ? actualText : 'GIF inviata'),
       delta: 'TU',
+      whisperTo: targetStr,
+      isWhisper: targetStr.isNotEmpty,
       gifUrl: cleanGif,
       persist: false,
     );
@@ -2145,6 +2936,38 @@ class AppState extends ChangeNotifier {
     _scheduleSave();
   }
 
+  void appendSessionEvent({
+    required String description,
+    String delta = '',
+    String playerId = '',
+    bool isTransaction = false,
+    bool isAlert = false,
+    int transactionAmount = 0,
+    String senderName = '',
+    String recipientName = '',
+    bool persist = true,
+  }) {
+    final SessionEvent event = SessionEvent(
+      id: 'evt-${DateTime.now().microsecondsSinceEpoch}',
+      timestamp: DateTime.now().toIso8601String(),
+      playerId: playerId,
+      description: description,
+      delta: delta,
+      isTransaction: isTransaction,
+      isAlert: isAlert,
+      transactionAmount: transactionAmount,
+      senderName: senderName,
+      recipientName: recipientName,
+    );
+    sessionLog.insert(0, event);
+    if (sessionLog.length > 400) sessionLog.removeLast();
+    if (persist) {
+      _campaign?.events.insert(0, event);
+      if ((_campaign?.events.length ?? 0) > 200) _campaign!.events.removeLast();
+    }
+    _sessionChanged();
+  }
+
   void _appendSession({
     required String description,
     String delta = '',
@@ -2154,6 +2977,8 @@ class AppState extends ChangeNotifier {
     int attachmentSize = 0,
     String attachmentType = '',
     String attachmentData = '',
+    String whisperTo = '',
+    bool isWhisper = false,
     bool persist = true,
   }) {
     final SessionEvent event = SessionEvent(
@@ -2162,6 +2987,8 @@ class AppState extends ChangeNotifier {
       playerId: playerId,
       description: description,
       delta: delta,
+      whisperTo: whisperTo,
+      isWhisper: isWhisper,
       gifUrl: gifUrl,
       attachmentName: attachmentName,
       attachmentSize: attachmentSize,
@@ -2275,6 +3102,11 @@ class AppState extends ChangeNotifier {
     _campaign = null;
     _documentPath = path;
     _totals = computeTotals(sheet, lookup: catalogLookup);
+
+    if (CloudSyncService.instance.isAuthenticated) {
+      unawaited(CloudSyncService.instance.saveSheetToCloud(sheet));
+    }
+
     _afterOpen(path, AppScreen.sheet);
   }
 
@@ -2308,6 +3140,11 @@ class AppState extends ChangeNotifier {
     _sheet = null;
     _totals = null;
     _documentPath = path;
+
+    if (CloudSyncService.instance.isAuthenticated) {
+      unawaited(CloudSyncService.instance.saveCampaignToCloud(campaign));
+    }
+
     _afterOpen(path, AppScreen.campaign);
   }
 
@@ -2316,7 +3153,35 @@ class AppState extends ChangeNotifier {
   /// Il riconoscimento avviene dal contenuto e non dall'estensione: entrambi i
   /// tipi usano `.cpredux`, e fidarsi del nome del file significherebbe
   /// aprire una campagna come scheda appena l'utente la rinomina.
-  Future<void> openDocument(String path) async {
+  Future<void> openDocument(String rawPath) async {
+    String path = rawPath;
+    if (path.startsWith('cloud://')) {
+      final String cloudId = path.substring('cloud://'.length);
+      final CloudDocumentItem? item = CloudSyncService.instance.documents
+          .where((CloudDocumentItem d) => d.id == cloudId)
+          .firstOrNull;
+      if (item == null) {
+        throw CpreduxException('Documento cloud non trovato.', detail: cloudId);
+      }
+      final String targetDir = AppPaths.sheetsDir().path;
+      final String targetPath = p.join(targetDir, '${sanitizeName(item.name)}.${CpreduxFile.extension}');
+      final CpreduxFile cfile = CpreduxFile.create(
+        targetPath,
+        kind: item.kind,
+        name: item.name,
+        documentId: item.id,
+        now: DateTime.now().toIso8601String(),
+      );
+      try {
+        final Map<String, Object?> parsed = (jsonDecode(item.jsonPayload) as Map)
+            .map((Object? k, Object? v) => MapEntry(k.toString(), v));
+        cfile.writePayload(parsed, name: item.name, now: item.updatedAt.toIso8601String());
+      } finally {
+        cfile.close();
+      }
+      path = targetPath;
+    }
+
     final String extension = p.extension(path).replaceFirst('.', '').toLowerCase();
 
     if (extension == 'cpred_sheet') {
@@ -2410,6 +3275,13 @@ class AppState extends ChangeNotifier {
     _dirty = false;
     _errorMessage = null;
     _screen = screen;
+
+    if (screen == AppScreen.sheet && _sheet != null) {
+      openSheetInNewTab(_sheet!, path: path);
+    } else if (screen == AppScreen.campaign && _campaign != null) {
+      openCampaignInNewTab(_campaign!, path: path);
+    }
+
     notifyListeners();
     refreshPresence();
   }
@@ -2647,11 +3519,20 @@ class AppState extends ChangeNotifier {
   void closeDocument() {
     if (_dirty) save(notify: false);
     _autosaveTimer?.cancel();
+
+    if (_activeTabIndex > 0 && _activeTabIndex < _tabs.length) {
+      final AppTab cur = _tabs[_activeTabIndex];
+      if (cur.kind == AppTabKind.sheet || cur.kind == AppTabKind.campaign) {
+        _tabs.removeAt(_activeTabIndex);
+      }
+    }
+
     _sheet = null;
     _campaign = null;
     _totals = null;
     _documentPath = null;
     _dirty = false;
+    _activeTabIndex = 0;
     _screen = AppScreen.home;
     notifyListeners();
   }
@@ -2684,6 +3565,7 @@ class AppState extends ChangeNotifier {
     _autosaveTimer?.cancel();
     _snapshotTimer?.cancel();
     _discordRetryTimer?.cancel();
+    _transportClock?.cancel();
     _discord.onConnectionChanged = null;
     _discord.shutdown();
     _host?.stop();

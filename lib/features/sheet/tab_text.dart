@@ -344,6 +344,20 @@ class BackgroundTab extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 14),
+              _Block(
+                title: 'Storia & Biografia',
+                accent: CprPalette.yellow,
+                children: <Widget>[
+                  _Field(
+                    bg.story,
+                    'Storia, passato, legami ed eventi che hanno segnato la vita del tuo personaggio a Night City',
+                    (String v) => bg.story = v,
+                    state,
+                    lines: 8,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
               _Relations(
                 title: 'Amici',
                 accent: CprPalette.success,

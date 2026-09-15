@@ -10,6 +10,9 @@ import '../../data/app_paths.dart';
 import '../../design/motion.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../../domain/gm/gm_rules.dart';
+import '../../domain/map_token.dart';
+import '../../domain/transport.dart';
 import '../../domain/world_map.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/dialogs.dart';
@@ -17,7 +20,9 @@ import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 import '../files/file_browser.dart';
 import 'map_canvas.dart';
+import 'night_city_painter.dart';
 import 'waypoint_dialog.dart';
+import '../campaign/cyberpunk_red_suite.dart';
 
 /// La mappa di Night City, con i segni del tavolo.
 ///
@@ -42,6 +47,16 @@ class _MapSectionState extends State<MapSection> {
   String? _selectedId;
   String _query = '';
   final Set<WaypointKind> _kindFilter = <WaypointKind>{};
+
+  /// Token selezionato sulla mappa. Separato da `_selectedId` perche' una cosa
+  /// e' un luogo e una e' una persona: evidenziarli insieme confonderebbe la
+  /// card che compare sotto il segno.
+  String? _selectedTokenId;
+
+  /// Veicolo selezionato: terzo stato di selezione, e non un riuso di
+  /// [_selectedTokenId], perche' la scheda che compare sotto un taxi non dice
+  /// "come sta" ma "dove va e chi c'e' a bordo".
+  String? _selectedTransportId;
 
   bool _cornerMode = false;
   int _nextCorner = 0;
@@ -138,20 +153,20 @@ class _MapSectionState extends State<MapSection> {
 
     final List<MapWaypoint> filtered = <MapWaypoint>[
       for (final MapWaypoint w in all)
-        if ((query.isEmpty ||
-                w.label.toLowerCase().contains(query) ||
-                w.note.toLowerCase().contains(query)) &&
+        if ((query.isEmpty || w.label.toLowerCase().contains(query) || w.note.toLowerCase().contains(query)) &&
             (_kindFilter.isEmpty || _kindFilter.contains(w.kind)))
           w,
     ];
 
     // Le proposte in cima: sono le uniche che chiedono qualcosa a qualcuno.
     filtered.sort((MapWaypoint a, MapWaypoint b) {
-      final int byStatus = (a.status == WaypointStatus.proposed ? 0 : 1)
-          .compareTo(b.status == WaypointStatus.proposed ? 0 : 1);
+      final int byStatus = (a.status == WaypointStatus.proposed ? 0 : 1).compareTo(
+        b.status == WaypointStatus.proposed ? 0 : 1,
+      );
       if (byStatus != 0) return byStatus;
-      final int byVisibility = (a.visibility == WaypointVisibility.private ? 0 : 1)
-          .compareTo(b.visibility == WaypointVisibility.private ? 0 : 1);
+      final int byVisibility = (a.visibility == WaypointVisibility.private ? 0 : 1).compareTo(
+        b.visibility == WaypointVisibility.private ? 0 : 1,
+      );
       if (byVisibility != 0) return byVisibility;
       return a.label.toLowerCase().compareTo(b.label.toLowerCase());
     });
@@ -165,8 +180,7 @@ class _MapSectionState extends State<MapSection> {
       context,
       title: 'Nuovo waypoint',
       canChooseVisibility: widget.asGameMaster,
-      positionLabel:
-          '${position.dx.toStringAsFixed(3)} · ${position.dy.toStringAsFixed(3)}',
+      positionLabel: '${position.dx.toStringAsFixed(3)} · ${position.dy.toStringAsFixed(3)}',
     );
     if (draft == null || !mounted) return;
 
@@ -247,7 +261,8 @@ class _MapSectionState extends State<MapSection> {
       title: 'Scegli una mappa',
       extensions: <String>['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'],
       initialDirectory: AppPaths.documentsDir().path,
-      description: 'L\'immagine resta sul tuo computer: il programma non la spedisce a nessuno, '
+      description:
+          'L\'immagine resta sul tuo computer: il programma non la spedisce a nessuno, '
           'nemmeno a chi gioca al tuo tavolo.',
       showAllFilesToggle: true,
     );
@@ -286,19 +301,31 @@ class _MapSectionState extends State<MapSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           if (_imageError != null) ...<Widget>[
-            _InlineWarning(message: _imageError!, onDismiss: () {
-              setState(() => _imageError = null);
-              state.clearMapImage();
-            }),
+            _InlineWarning(
+              message: _imageError!,
+              onDismiss: () {
+                setState(() => _imageError = null);
+                state.clearMapImage();
+              },
+            ),
             const SizedBox(height: 10),
           ],
-          if (_cornerMode) ...<Widget>[
-            _CornerHint(next: _nextCorner),
-            const SizedBox(height: 10),
-          ],
+          if (_cornerMode) ...<Widget>[_CornerHint(next: _nextCorner), const SizedBox(height: 10)],
           MapCanvas(
             style: state.mapStyle,
             waypoints: waypoints,
+            tokens: state.mapTokens,
+            selectedTokenId: _selectedTokenId,
+            transports: state.mapTransports,
+            selectedTransportId: _selectedTransportId,
+            onTransportTap: (Transport t) {
+              if (state.isPlacingWaypoint || _cornerMode) return;
+              setState(() {
+                _selectedId = null;
+                _selectedTokenId = null;
+                _selectedTransportId = t.id;
+              });
+            },
             asGameMaster: widget.asGameMaster,
             placing: state.isPlacingWaypoint || _cornerMode,
             image: _image,
@@ -306,9 +333,24 @@ class _MapSectionState extends State<MapSection> {
             imageOpacity: background.opacity,
             selectedId: _selectedId,
             onMapTap: (Offset position) => _onMapTap(state, position),
+            onTokenTap: (MapToken t) {
+              if (state.isPlacingWaypoint || _cornerMode) return;
+              setState(() {
+                _selectedId = null;
+                _selectedTokenId = t.id;
+              });
+              showDialog<void>(
+                context: context,
+                builder: (_) => QuickNpcTokenDialog(token: t),
+              );
+            },
+            onTokenDrag: state.moveToken,
             onWaypointTap: (MapWaypoint w) {
               if (state.isPlacingWaypoint || _cornerMode) return;
-              setState(() => _selectedId = w.id);
+              setState(() {
+                _selectedId = w.id;
+                _selectedTokenId = null;
+              });
             },
             onCancelPlacing: () {
               state.cancelPlacingWaypoint();
@@ -321,19 +363,15 @@ class _MapSectionState extends State<MapSection> {
           const SizedBox(height: 10),
           Row(
             children: <Widget>[
-              Icon(
-                _loadingImage ? Icons.hourglass_top : Icons.info_outline,
-                size: 13,
-                color: CprPalette.inkFaint,
-              ),
+              Icon(_loadingImage ? Icons.hourglass_top : Icons.info_outline, size: 13, color: CprPalette.inkFaint),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _loadingImage
                       ? 'Carico la mappa importata…'
-                      : 'Rotella per ingrandire, trascina per spostarti, clic su un segno per '
-                          'vederne il nome. La geometria e\' disegnata dal programma: nessuna mappa '
-                          'di Night City e\' inclusa.',
+                      : 'Rotella per ingrandire, trascina per spostarti, clic su un token per '
+                            'aprire la sua scheda rapida PNG dal tavolo. Cartografia di Night City '
+                            'ad alta risoluzione con overlay tattico.',
                   style: CprType.caption.copyWith(color: CprPalette.inkFaint),
                 ),
               ),
@@ -368,9 +406,44 @@ class _MapSectionState extends State<MapSection> {
           total: state.mapWaypoints.length,
           asGameMaster: widget.asGameMaster,
           selectedId: _selectedId,
-          onSelect: (MapWaypoint w) => setState(() => _selectedId = w.id),
+          onSelect: (MapWaypoint w) => setState(() {
+            _selectedId = w.id;
+            _selectedTokenId = null;
+          }),
           onEdit: (MapWaypoint w) => _editWaypoint(state, w),
           onDelete: (MapWaypoint w) => _deleteWaypoint(state, w),
+        ),
+        const SizedBox(height: 14),
+        _TransportList(
+          transports: state.mapTransports,
+          persisted: state.transportsArePersisted,
+          asGameMaster: widget.asGameMaster,
+          selectedId: _selectedTransportId,
+          mapSpanMeters: state.gmRuleBook.rule(GmRules.transportMapSpan).value,
+          timeScale: state.gmRuleBook.rule(GmRules.transportTimeScale).value,
+          onSelect: (Transport t) => setState(() {
+            _selectedTransportId = t.id;
+            _selectedId = null;
+            _selectedTokenId = null;
+          }),
+          onHalt: (Transport t) => state.haltTransport(t.id),
+          onResume: (Transport t) => state.resumeTransport(t.id),
+          onDelete: (Transport t) => state.removeTransport(t.id),
+        ),
+        const SizedBox(height: 14),
+        _TokenList(
+          tokens: state.mapTokens,
+          persisted: state.tokensArePersisted,
+          selectedId: _selectedTokenId,
+          onSelect: (MapToken t) => setState(() {
+            _selectedTokenId = t.id;
+            _selectedId = null;
+            _selectedTransportId = null;
+          }),
+          onDamage: (MapToken t) => state.damageToken(t.id, 5),
+          onHeal: (MapToken t) => state.healToken(t.id, 5),
+          onDelete: (MapToken t) => state.removeToken(t.id),
+          onClearGroup: state.removeTokenGroup,
         ),
         if (widget.asGameMaster) ...<Widget>[
           const SizedBox(height: 14),
@@ -400,9 +473,7 @@ class _MapSectionState extends State<MapSection> {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final Widget content = constraints.maxWidth < 1080
-            ? Column(
-                children: <Widget>[map, const SizedBox(height: 14), side],
-              )
+            ? Column(children: <Widget>[map, const SizedBox(height: 14), side])
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -415,10 +486,7 @@ class _MapSectionState extends State<MapSection> {
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1500),
-              child: content,
-            ),
+            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1500), child: content),
           ),
         );
       },
@@ -452,11 +520,7 @@ class _MapStatus extends StatelessWidget {
             color: CprPalette.warning,
             icon: Icons.hourglass_top,
           ),
-        _Pill(
-          text: '$shared al tavolo',
-          color: CprPalette.cyan,
-          icon: Icons.people_outline,
-        ),
+        _Pill(text: '$shared al tavolo', color: CprPalette.cyan, icon: Icons.people_outline),
         if (asGameMaster && privateCount > 0)
           _Pill(
             text: '$privateCount ${privateCount == 1 ? 'privato' : 'privati'}',
@@ -555,9 +619,7 @@ class _ControlsPanel extends StatelessWidget {
           TechButton(
             label: state.isPlacingWaypoint ? 'Clicca sulla mappa…' : 'Aggiungi un waypoint',
             icon: state.isPlacingWaypoint ? Icons.gps_fixed : Icons.add_location_alt_outlined,
-            variant: state.isPlacingWaypoint
-                ? TechButtonVariant.primary
-                : TechButtonVariant.secondary,
+            variant: state.isPlacingWaypoint ? TechButtonVariant.primary : TechButtonVariant.secondary,
             expand: true,
             onPressed: state.isPlacingWaypoint ? state.cancelPlacingWaypoint : onAdd,
           ),
@@ -569,13 +631,7 @@ class _ControlsPanel extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 16),
-          TechField(
-            label: 'Cerca',
-            value: query,
-            hint: 'nome o nota',
-            accent: CprPalette.info,
-            onChanged: onQuery,
-          ),
+          TechField(label: 'Cerca', value: query, hint: 'nome o nota', accent: CprPalette.info, onChanged: onQuery),
           const SizedBox(height: 14),
           Text('CATEGORIE', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
           const SizedBox(height: 8),
@@ -584,11 +640,7 @@ class _ControlsPanel extends StatelessWidget {
             runSpacing: 7,
             children: <Widget>[
               for (final WaypointKind k in WaypointKind.values)
-                _FilterChip(
-                  kind: k,
-                  selected: kindFilter.contains(k),
-                  onTap: () => onToggleKind(k),
-                ),
+                _FilterChip(kind: k, selected: kindFilter.contains(k), onTap: () => onToggleKind(k)),
             ],
           ),
         ],
@@ -626,10 +678,384 @@ class _FilterChip extends StatelessWidget {
               const SizedBox(width: 7),
               Text(
                 kind.label.toUpperCase(),
-                style: CprType.label.copyWith(
-                  fontSize: 9,
-                  color: selected ? color : CprPalette.inkMuted,
+                style: CprType.label.copyWith(fontSize: 9, color: selected ? color : CprPalette.inkMuted),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chi c'e' sulla mappa, con i comandi che servono mentre si gioca.
+///
+/// Sta qui e non nella console del Master perche' appartiene alla mappa: un
+/// segnaposto che si puo' disegnare ma non ferire e' una decorazione, e il
+/// momento in cui serve ferirlo e' esattamente quello in cui si sta guardando
+/// la mappa e non un'altra schermata.
+class _TokenList extends StatelessWidget {
+  const _TokenList({
+    required this.tokens,
+    required this.persisted,
+    required this.selectedId,
+    required this.onSelect,
+    required this.onDamage,
+    required this.onHeal,
+    required this.onDelete,
+    required this.onClearGroup,
+  });
+
+  final List<MapToken> tokens;
+
+  /// Se i token finiranno nel documento della campagna.
+  final bool persisted;
+  final String? selectedId;
+  final ValueChanged<MapToken> onSelect;
+  final ValueChanged<MapToken> onDamage;
+  final ValueChanged<MapToken> onHeal;
+  final ValueChanged<MapToken> onDelete;
+  final ValueChanged<String> onClearGroup;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> groups = <String>[];
+    for (final MapToken t in tokens) {
+      if (t.groupId.isNotEmpty && !groups.contains(t.groupId)) groups.add(t.groupId);
+    }
+
+    return ChamferPanel(
+      title: 'Token sulla mappa',
+      accent: CprPalette.danger,
+      trailing: Text('${tokens.length}', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (tokens.isEmpty)
+            Text(
+              'Nessuno sulla mappa. Il generatore di incontri della console del Master li manda '
+              'qui già pronti.',
+              style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+            )
+          else ...<Widget>[
+            if (!persisted)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'Senza una campagna aperta questi token non vengono salvati: chiudendo l\'app '
+                  'si perdono.',
+                  style: CprType.caption.copyWith(color: CprPalette.warning, fontSize: 11),
                 ),
+              ),
+            for (final MapToken t in tokens)
+              _TokenRow(
+                token: t,
+                selected: t.id == selectedId,
+                onSelect: () => onSelect(t),
+                onDamage: () => onDamage(t),
+                onHeal: () => onHeal(t),
+                onDelete: () => onDelete(t),
+              ),
+            if (groups.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Text('GRUPPI', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+              const SizedBox(height: 6),
+              for (final String group in groups)
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        '${tokens.where((MapToken t) => t.groupId == group).length} token',
+                        style: CprType.caption,
+                      ),
+                    ),
+                    TechButton(
+                      label: 'Togli gruppo',
+                      icon: Icons.delete_sweep_outlined,
+                      compact: true,
+                      tooltip: 'Rimuove dalla mappa tutti i token di questo gruppo',
+                      onPressed: () => onClearGroup(group),
+                    ),
+                  ],
+                ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// I veicoli in strada, con i comandi del Master.
+///
+/// Perche' una lista e non solo il segno sulla mappa: un taxi che si muove e'
+/// visibile, ma **quanto manca all'arrivo** e **chi c'e' a bordo** sono numeri,
+/// e i numeri non si leggono da un'icona di otto pixel. La lista e' il posto in
+/// cui il Master guarda prima di decidere se scatenare qualcosa.
+class _TransportList extends StatelessWidget {
+  const _TransportList({
+    required this.transports,
+    required this.persisted,
+    required this.asGameMaster,
+    required this.selectedId,
+    required this.mapSpanMeters,
+    required this.timeScale,
+    required this.onSelect,
+    required this.onHalt,
+    required this.onResume,
+    required this.onDelete,
+  });
+
+  final List<Transport> transports;
+  final bool persisted;
+  final bool asGameMaster;
+  final String? selectedId;
+  final double mapSpanMeters;
+  final double timeScale;
+  final ValueChanged<Transport> onSelect;
+  final ValueChanged<Transport> onHalt;
+  final ValueChanged<Transport> onResume;
+  final ValueChanged<Transport> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    if (transports.isEmpty) return const SizedBox.shrink();
+
+    return ChamferPanel(
+      title: 'In strada',
+      accent: CprPalette.info,
+      trailing: Text('${transports.length}', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (!persisted)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'Senza una campagna aperta i veicoli non vengono salvati: chiudendo l\'app si perdono.',
+                style: CprType.caption.copyWith(color: CprPalette.warning, fontSize: 11),
+              ),
+            ),
+          for (final Transport t in transports)
+            _TransportRow(
+              transport: t,
+              selected: t.id == selectedId,
+              asGameMaster: asGameMaster,
+              eta: t.eta(mapSpanMeters, timeScale: timeScale),
+              onSelect: () => onSelect(t),
+              onHalt: () => onHalt(t),
+              onResume: () => onResume(t),
+              onDelete: () => onDelete(t),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransportRow extends StatelessWidget {
+  const _TransportRow({
+    required this.transport,
+    required this.selected,
+    required this.asGameMaster,
+    required this.eta,
+    required this.onSelect,
+    required this.onHalt,
+    required this.onResume,
+    required this.onDelete,
+  });
+
+  final Transport transport;
+  final bool selected;
+  final bool asGameMaster;
+  final Duration? eta;
+  final VoidCallback onSelect;
+  final VoidCallback onHalt;
+  final VoidCallback onResume;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = NightCityPainter.transportColor(transport);
+    final String etaText = eta == null
+        ? (transport.status == TransportStatus.arrivato ? 'arrivato' : 'fermo')
+        : '${eta!.inSeconds < 60 ? '${eta!.inSeconds}s' : '${(eta!.inSeconds / 60).round()} min'} all\'arrivo';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onSelect,
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: selected ? CprPalette.veil(accent, 0.10) : CprPalette.surfaceSunken,
+            border: Border.all(color: selected ? CprPalette.veil(accent, 0.6) : CprPalette.hairline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(transportStatusIcon(transport), size: 13, color: accent),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      transport.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: CprType.body.copyWith(fontWeight: FontWeight.w600, fontSize: 12.5),
+                    ),
+                  ),
+                  Text(etaText, style: CprType.caption.copyWith(color: accent, fontSize: 11)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${transport.mode.label} · ${transport.statLine}',
+                style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 11),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                transport.routeLine,
+                style: CprType.caption.copyWith(color: CprPalette.inkFaint, fontSize: 11),
+              ),
+              if (asGameMaster) ...<Widget>[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: <Widget>[
+                    if (transport.status == TransportStatus.fermo)
+                      TechButton(
+                        label: 'Rilascia',
+                        icon: Icons.play_arrow,
+                        compact: true,
+                        tooltip: 'Lo fa ripartire subito, senza aspettare la scadenza',
+                        onPressed: onResume,
+                      )
+                    else if (transport.status == TransportStatus.inViaggio)
+                      TechButton(
+                        label: 'Ferma',
+                        icon: Icons.pause,
+                        compact: true,
+                        tooltip: 'Lo ferma dove si trova',
+                        onPressed: onHalt,
+                      ),
+                    TechButton(
+                      label: 'Togli',
+                      icon: Icons.close,
+                      compact: true,
+                      tooltip: 'Toglie il veicolo dalla mappa',
+                      onPressed: onDelete,
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// L'icona di un veicolo in base a cosa sta facendo.
+///
+/// Lo stato prima del modo: a un tavolo la domanda e' "si sta muovendo?", e
+/// "che mezzo e'" viene dopo. Un taxi fermo e una moto ferma pongono la stessa
+/// domanda.
+IconData transportStatusIcon(Transport t) => switch (t.status) {
+  TransportStatus.arrivato => Icons.flag_outlined,
+  TransportStatus.fermo => Icons.report_gmailerrorred_outlined,
+  TransportStatus.inViaggio => switch (t.mode) {
+    TransportMode.taxi => Icons.local_taxi_outlined,
+    TransportMode.groundcar => Icons.directions_car_outlined,
+    TransportMode.moto => Icons.two_wheeler_outlined,
+    TransportMode.aerodyne => Icons.flight_outlined,
+    TransportMode.maglev => Icons.train_outlined,
+  },
+};
+
+class _TokenRow extends StatelessWidget {
+  const _TokenRow({
+    required this.token,
+    required this.selected,
+    required this.onSelect,
+    required this.onDamage,
+    required this.onHeal,
+    required this.onDelete,
+  });
+
+  final MapToken token;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onDamage;
+  final VoidCallback onHeal;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = NightCityPainter.tokenColor(token.kind);
+    final Color health = NightCityPainter.tokenHealthColor(token);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onSelect,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? CprPalette.veil(color, 0.12) : CprPalette.surfaceSunken,
+            border: Border(left: BorderSide(color: health, width: 3)),
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Flexible(child: Text(token.name, style: CprType.caption)),
+                        const SizedBox(width: 6),
+                        if (token.isDown)
+                          Text('A TERRA', style: CprType.label.copyWith(fontSize: 9, color: CprPalette.healthFlatline)),
+                      ],
+                    ),
+                    if (token.statLine.isNotEmpty)
+                      Text(token.statLine, style: CprType.caption.copyWith(color: CprPalette.inkFaint, fontSize: 11)),
+                  ],
+                ),
+              ),
+              Tooltip(
+                message: 'Scheda rapida PNG',
+                child: TechButton(
+                  label: '',
+                  icon: Icons.badge_outlined,
+                  compact: true,
+                  variant: TechButtonVariant.secondary,
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => QuickNpcTokenDialog(token: token),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: '5 danni',
+                child: TechButton(label: '', icon: Icons.remove, compact: true, onPressed: onDamage),
+              ),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: '5 Punti Vita indietro',
+                child: TechButton(label: '', icon: Icons.add, compact: true, onPressed: onHeal),
+              ),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Togli dalla mappa',
+                child: TechButton(label: '', icon: Icons.close, compact: true, onPressed: onDelete),
               ),
             ],
           ),
@@ -670,27 +1096,24 @@ class _WaypointList extends StatelessWidget {
               style: CprType.caption.copyWith(color: CprPalette.inkFaint, height: 1.5),
             )
           : waypoints.isEmpty
-              ? Text(
-                  'Nessun segno corrisponde al filtro.',
-                  style: CprType.caption.copyWith(color: CprPalette.inkFaint),
-                )
-              : Column(
-                  children: <Widget>[
-                    for (final MapWaypoint w in waypoints)
-                      _WaypointRow(
-                        waypoint: w,
-                        selected: w.id == selectedId,
-                        // Un giocatore puo' toccare solo le proprie proposte:
-                        // un waypoint gia' condiviso e' sulla mappa di tutti, e
-                        // modificarlo da li' cambierebbe quello che il master
-                        // sta descrivendo.
-                        canEdit: asGameMaster || w.status == WaypointStatus.proposed,
-                        onSelect: () => onSelect(w),
-                        onEdit: () => onEdit(w),
-                        onDelete: () => onDelete(w),
-                      ),
-                  ],
-                ),
+          ? Text('Nessun segno corrisponde al filtro.', style: CprType.caption.copyWith(color: CprPalette.inkFaint))
+          : Column(
+              children: <Widget>[
+                for (final MapWaypoint w in waypoints)
+                  _WaypointRow(
+                    waypoint: w,
+                    selected: w.id == selectedId,
+                    // Un giocatore puo' toccare solo le proprie proposte:
+                    // un waypoint gia' condiviso e' sulla mappa di tutti, e
+                    // modificarlo da li' cambierebbe quello che il master
+                    // sta descrivendo.
+                    canEdit: asGameMaster || w.status == WaypointStatus.proposed,
+                    onSelect: () => onSelect(w),
+                    onEdit: () => onEdit(w),
+                    onDelete: () => onDelete(w),
+                  ),
+              ],
+            ),
     );
   }
 }
@@ -843,11 +1266,7 @@ class _Badge extends StatelessWidget {
 
 /// Le proposte dei giocatori in attesa di una decisione.
 class _ProposalsPanel extends StatelessWidget {
-  const _ProposalsPanel({
-    required this.proposals,
-    required this.onAccept,
-    required this.onReject,
-  });
+  const _ProposalsPanel({required this.proposals, required this.onAccept, required this.onReject});
 
   final List<MapWaypoint> proposals;
   final ValueChanged<String> onAccept;
@@ -880,33 +1299,20 @@ class _ProposalsPanel extends StatelessWidget {
                         children: <Widget>[
                           Row(
                             children: <Widget>[
-                              Icon(
-                                WaypointKindStyle.icon(w.kind),
-                                size: 13,
-                                color: WaypointKindStyle.color(w.kind),
-                              ),
+                              Icon(WaypointKindStyle.icon(w.kind), size: 13, color: WaypointKindStyle.color(w.kind)),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   w.label,
-                                  style: CprType.body.copyWith(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: CprType.body.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600),
                                 ),
                               ),
-                              Text(
-                                w.authorName,
-                                style: CprType.caption.copyWith(color: CprPalette.inkFaint),
-                              ),
+                              Text(w.authorName, style: CprType.caption.copyWith(color: CprPalette.inkFaint)),
                             ],
                           ),
                           if (w.note.trim().isNotEmpty) ...<Widget>[
                             const SizedBox(height: 4),
-                            Text(
-                              w.note,
-                              style: CprType.caption.copyWith(color: CprPalette.inkMuted),
-                            ),
+                            Text(w.note, style: CprType.caption.copyWith(color: CprPalette.inkMuted)),
                           ],
                           const SizedBox(height: 9),
                           Row(
@@ -1008,10 +1414,7 @@ class _ImportedMapPanel extends StatelessWidget {
                 overlayColor: CprPalette.veil(CprPalette.info, 0.14),
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
               ),
-              child: Slider(
-                value: background.opacity,
-                onChanged: state.setMapImageOpacity,
-              ),
+              child: Slider(value: background.opacity, onChanged: state.setMapImageOpacity),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1093,10 +1496,7 @@ class _LegendPanel extends StatelessWidget {
                   children: <Widget>[
                     Icon(WaypointKindStyle.icon(k), size: 12, color: WaypointKindStyle.color(k)),
                     const SizedBox(width: 6),
-                    Text(
-                      k.label,
-                      style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 11),
-                    ),
+                    Text(k.label, style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 11)),
                   ],
                 ),
             ],

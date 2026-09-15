@@ -132,6 +132,31 @@ I link di download sottostanti puntano **sempre all'ultima versione stabile disp
 
 <br>
 
+### Strumenti del Master
+
+Tredici strumenti da tavolo, in un **pannello laterale** che resta aperto mentre si gioca: la linguetta sul bordo destro lo apre e lo chiude, e resta raggiungibile da ogni schermata, mappa compresa. Una schermata a sé si apre, si usa e si chiude — e quando il Master genera un agguato deve guardare la mappa per decidere dove metterlo. Il pannello sta accanto al tavolo, e **quello che produce ci finisce dentro**: i nemici generati diventano token sulla mappa con i loro Punti Vita, il bottino entra nell'inventario della scheda aperta, i tiri e gli attacchi di rete si possono scrivere nel registro della sessione con un pulsante.
+
+Ogni strumento dice cosa sa, e **quanto è affidabile quello che sa**.
+
+- **Dal generatore al tavolo:** "Manda al tavolo" mette un token per nemico, raggruppati — a fine scontro si tolgono tutti insieme — e non impilati nello stesso pixel; sulla mappa si trascinano, si feriscono e l'anello attorno al token dice a tutti come sta.
+- **Il registro come destinazione, non come effetto:** calcolare non scrive niente da solo. È il Master a decidere cosa il tavolo vede, e finisce nel registro con la sua causale (`TIRO`, `MAPPA`, `RETE`).
+
+- **Dadi e macro:** espressioni complete scritte come al tavolo (`1d10 + RIF + Pistole`, `(1d10 + 8) * 2 - 4`, `4d6kh3`, `6d6!`), con il dettaglio di ogni dado lanciato, il riconoscimento del critico su un singolo d10 e le macro salvate che valgono per tutta la campagna.
+- **Incontro notturno:** agguati di gang, pattuglie della Max-Tac, pioggia acida, con i nemici già pronti e il briefing da leggere ad alta voce.
+- **Bottino, PNG rapidi, Screamsheet:** cosa aveva addosso chi è caduto, nemici di scena con tre numeri invece di una scheda, e un trafiletto di giornale da leggere prima della sessione.
+- **DV balistico:** distanza in metri e classe d'arma, con le otto fasce, i modificatori tattici e la fascia corrente evidenziata.
+- **Cyberpsicosi e terapia, Guarigione, Stile di vita:** quanta Umanità manca e quanto costa tornare indietro, giorni di degenza con o senza Medtech, e il conto mensile di cibo e alloggio con la penalità di chi dorme per strada.
+- **Debiti, Mercato nero, Console di rete:** interessi settimanali e chi cresce più in fretta, cosa si trova in base al rango di Contatti, e gli attacchi ai programmi con il REZ che scende colpo per colpo.
+- **Trasporti in tempo reale:** un mezzo in strada che **si muove da solo** mentre il tavolo gioca. Il percorso si compone dalle fermate pescando i waypoint già sulla mappa, i passeggeri salgono come token e viaggiano con il mezzo, e il Master scatena eventi — posto di blocco, agguato, incidente, gomma bucata, fermo della polizia, deviazione, ingorgo — ognuno con la sua durata, il suo effetto sulla velocità e la prova che il tavolo deve superare.
+
+**Perché i trasporti non sono token.** Un token è una cosa che sta in un posto; un trasporto è una cosa che *sta andando* da qualche parte: ha un percorso, una velocità, un tempo di arrivo, e si muove mentre nessuno lo tocca. Se il movimento lo facesse la mappa, la mappa comincerebbe a possedere il tempo, e qui il tempo appartiene al tavolo: lo stato dice dove sei adesso, e il tempo reale fa il resto. Così si può verificare che dopo novanta secondi il taxi è al posto di blocco senza aspettarne novanta — ed è quello che fanno i test.
+
+**Due numeri dichiarati rendono possibile tutto il resto.** La mappa è una griglia normalizzata senza unità di misura: giusto per disegnare, ma un «taxi a 45 km/h» su una mappa senza metri non significa niente. Servono la larghezza di Night City in metri e di quanto le strade allungano rispetto alla linea retta — e stanno in *Numeri e regole* come tutti gli altri valori, con la loro provenienza (*Proposta*, perché sono scelte di questa applicazione) e la possibilità di correggerle. Il terzo numero è il **moltiplicatore del tempo**: attraversare dodici chilometri a quarantacinque all'ora sono sedici minuti, realistici e inguardabili a un tavolo, quindi l'orologio corre mentre le velocità mostrate restano quelle vere dei veicoli.
+
+**Il principio che regge tutto questo:** nessun numero compare nudo. Ogni valore porta un'etichetta di provenienza — *Verificato*, *Da verificare* o *Proposta* — e si può correggere dal pannello **Numeri e regole**; la correzione vale per tutta la campagna e resta salvata. Una tabella inventata dichiara di essere una proposta, e i valori presi dal manuale ma non ancora ricontrollati si vedono in giallo con il motivo: un Master deve poter distinguere una regola da un suggerimento, perché se scopre a metà sessione che un numero era un'ipotesi non si fida più nemmeno di quelli giusti.
+
+<br>
+
 <p align="center">
   <img src="assets/branding/divider.svg" width="100%">
 </p>
@@ -176,7 +201,7 @@ cd cpredux
 # Scarica le dipendenze
 flutter pub get
 
-# Esegui tutti i test (283 test unit & widget)
+# Esegui tutti i test (384 test unit & widget)
 flutter test
 
 # Avvia l'applicazione sul tuo sistema operativo

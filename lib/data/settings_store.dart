@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../domain/dice_expression.dart';
 import 'app_paths.dart';
 
 /// Impostazioni dell'applicazione.
@@ -21,7 +22,11 @@ class AppSettings {
     this.pendingUpdateArchive = '',
     this.lastUpdateError = '',
     List<String>? recentFiles,
-  }) : recentFiles = recentFiles ?? <String>[];
+    Map<String, double>? gmRuleOverrides,
+    List<DiceMacro>? gmMacros,
+  })  : recentFiles = recentFiles ?? <String>[],
+        gmRuleOverrides = gmRuleOverrides ?? <String, double>{},
+        gmMacros = gmMacros ?? <DiceMacro>[];
 
   /// Indirizzo predefinito del manifesto degli aggiornamenti su GitLab Pages.
   static const String defaultUpdateFeedUrl = 'https://tia004.gitlab.io/cpredux/latest.json';
@@ -97,6 +102,31 @@ class AppSettings {
   /// Le schede e campagne aperte di recente, percorsi completi.
   final List<String> recentFiles;
 
+  /// Le correzioni del tavolo ai numeri degli strumenti del Master.
+  ///
+  /// Stanno nelle impostazioni e non nella scheda perche' sono una proprieta'
+  /// del **tavolo**, non di un personaggio: due giocatori alla stessa scrivania
+  /// usano le stesse house rule, e cambiarle una volta deve bastare.
+  final Map<String, double> gmRuleOverrides;
+
+  /// Le macro di dado salvate dall'utente.
+  ///
+  /// Sono qui per lo stesso motivo: "1d10 + RIF + Pistole" e' un tiro che un
+  /// giocatore rifa' per tutta la campagna, e riscriverlo ogni sessione e'
+  /// esattamente il lavoro che l'app doveva togliere.
+  final List<DiceMacro> gmMacros;
+
+  void saveMacro(DiceMacro macro) {
+    final int index = gmMacros.indexWhere((DiceMacro m) => m.id == macro.id);
+    if (index >= 0) {
+      gmMacros[index] = macro;
+    } else {
+      gmMacros.add(macro);
+    }
+  }
+
+  void deleteMacro(String id) => gmMacros.removeWhere((DiceMacro m) => m.id == id);
+
   static const int maxRecentFiles = 12;
 
   void rememberFile(String path) {
@@ -125,6 +155,8 @@ class AppSettings {
         'pendingUpdateArchive': pendingUpdateArchive,
         'lastUpdateError': lastUpdateError,
         'recentFiles': recentFiles,
+        'gmRuleOverrides': gmRuleOverrides,
+        'gmMacros': gmMacros.map((DiceMacro m) => m.toJson()).toList(),
       };
 
   static AppSettings fromJson(Map<String, Object?> json) {
@@ -155,7 +187,26 @@ class AppSettings {
       recentFiles: recent is List
           ? recent.whereType<String>().toList()
           : <String>[],
+      gmRuleOverrides: _doubleMap(json['gmRuleOverrides']),
+      gmMacros: _macros(json['gmMacros']),
     );
+  }
+
+  static Map<String, double> _doubleMap(Object? raw) {
+    if (raw is! Map) return <String, double>{};
+    final Map<String, double> parsed = <String, double>{};
+    raw.forEach((Object? k, Object? v) {
+      if (k is String && v is num) parsed[k] = v.toDouble();
+    });
+    return parsed;
+  }
+
+  static List<DiceMacro> _macros(Object? raw) {
+    if (raw is! List) return <DiceMacro>[];
+    return <DiceMacro>[
+      for (final Object? item in raw)
+        if (item is Map) DiceMacro.fromJson(Map<String, Object?>.from(item)),
+    ];
   }
 }
 

@@ -12,8 +12,9 @@ import '../../domain/rules.dart';
 import '../../domain/sheet.dart';
 import '../../domain/stats.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/cyber_gauges.dart';
+import '../../widgets/cyber_help_tooltip.dart';
 import '../../widgets/health_heart.dart';
-import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 import '../files/file_browser.dart';
@@ -36,6 +37,7 @@ class CharacterTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          _CampaignProfileBar(sheet: sheet, state: state),
           if (isUncompiled) ...<Widget>[
             const _EmptySheetGuideBanner(),
             const SizedBox(height: 16),
@@ -111,45 +113,73 @@ class _VitalsPanel extends StatelessWidget {
     final sheet = state.sheet!;
     final totals = state.totals!;
     final identity = sheet.identity;
+    final int currentHp = sheet.effectiveHp;
+    final int currentLuck = sheet.effectiveLuck;
 
     return ChamferPanel(
       title: 'Stato vitale',
+      trailing: const CyberHelpTooltip(
+        title: 'Punti Ferita & Umanità',
+        message: 'I PV indicano la salute fisica: a metà PV sei Ferito Gravemente (-2 a tutte le azioni). Sotto i 10 punti di Umanità subentra la Cyberpsicosi!',
+        tag: 'Regole',
+      ),
       accent: CprPalette.healthColorFor(
-        totals.maxHitPoints == 0 ? 0 : identity.currentHp / totals.maxHitPoints,
+        totals.maxHitPoints == 0 ? 0 : currentHp / totals.maxHitPoints,
       ),
       child: Column(
         children: <Widget>[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
             children: <Widget>[
               Tooltip(
                 message:
                     'Punti Vita (PV): 10 + 5 × Media(FIS, VOL). A metà PV sei Ferito Gravemente (-2 a tutte le azioni). A 0 PV sei Morente.',
                 waitDuration: const Duration(milliseconds: 200),
                 child: HealthHeart(
-                  current: identity.currentHp,
+                  current: currentHp,
                   max: totals.maxHitPoints,
-                  size: 178,
+                  size: 156,
                 ),
               ),
-              const SizedBox(width: 8),
               Tooltip(
                 message:
                     'Umanità: Inizia a Empatia × 10. Si riduce installando Cyberware. Sotto i 10 punti rischi la Cyberpsicosi!',
                 waitDuration: const Duration(milliseconds: 200),
-                child: HumanityGauge(
+                child: HumanityFillGauge(
                   current: identity.currentHumanity,
                   max: totals.maxHumanity,
-                  size: 178,
+                  size: 156,
+                ),
+              ),
+              Tooltip(
+                message:
+                    'Fortuna (LUCK): Spendi punti Fortuna prima di un tiro per aggiungere +1 al risultato per ogni punto speso!',
+                waitDuration: const Duration(milliseconds: 200),
+                child: LuckClover(
+                  current: currentLuck,
+                  max: totals.statValue(Stat.luck),
+                  size: 156,
+                ),
+              ),
+              Tooltip(
+                message:
+                    'Empatia (EMP): Misura l\'umanità emotiva e la capacità di relazionarsi con gli altri.',
+                waitDuration: const Duration(milliseconds: 200),
+                child: EmpathyGauge(
+                  current: identity.currentEmpathy,
+                  max: totals.maxEmpathy,
+                  size: 156,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 18),
           _DamageControls(
-            current: identity.currentHp,
+            current: currentHp,
             max: totals.maxHitPoints,
-            onSet: (int value) => state.mutate((s) => s.identity.currentHp = value),
+            onSet: (int value) => state.mutate((s) => s.effectiveHp = value),
           ),
           const SizedBox(height: 16),
           Row(
@@ -157,10 +187,10 @@ class _VitalsPanel extends StatelessWidget {
               Expanded(
                 child: TechNumberStepper(
                   label: 'Fortuna corrente',
-                  value: identity.currentLuck,
+                  value: currentLuck,
                   max: 99,
                   accent: CprPalette.yellow,
-                  onChanged: (int v) => state.mutate((s) => s.identity.currentLuck = v),
+                  onChanged: (int v) => state.mutate((s) => s.effectiveLuck = v),
                 ),
               ),
               const SizedBox(width: 10),
@@ -714,97 +744,253 @@ class _IdentityPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Sezione Ruoli (Multiruolo con tag chips e menu a tendina)
+          ChamferPanel(
+            title: 'Ruoli & Specializzazioni (Multiruolo)',
+            accent: CprPalette.yellow,
+            trailing: const CyberHelpTooltip(
+              title: 'Ruoli & Multiclasse',
+              message: 'In Cyberpunk RED puoi combinare più ruoli (es. Solo + Netrunner). Ciascun ruolo conferisce la sua abilità speciale unica.',
+              tag: 'Ruoli',
+              accent: CprPalette.yellow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
-                    Tooltip(
-                      message:
-                          'Scegli la tua carriera: clicca un pulsante rapido sotto o digita un ruolo.',
-                      waitDuration: const Duration(milliseconds: 200),
-                      child: TechField(
-                        label: 'Ruolo',
-                        value: identity.role,
-                        hint: 'Solo, Nomade, Netrunner…',
-                        accent: CprPalette.yellow,
-                        onChanged: (String v) => state.mutate((s) => s.identity.role = v),
+                    for (final String r in identity.roles)
+                      _RoleTag(
+                        label: r,
+                        onDelete: () => state.mutate((s) => s.identity.removeRole(r)),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 5,
-                      runSpacing: 5,
-                      children: <Widget>[
-                        for (final r in _standardRoles)
-                          _RoleChip(
-                            label: r['role']!,
-                            selected:
-                                identity.role.trim().toLowerCase() == r['role']!.toLowerCase(),
-                            onTap: () => state.mutate((s) {
-                              s.identity.role = r['role']!;
-                              if (s.identity.roleAbility.trim().isEmpty) {
-                                s.identity.roleAbility = r['ability']!;
-                              }
-                              if (s.identity.roleRank.trim().isEmpty ||
-                                  s.identity.roleRank == '0') {
-                                s.identity.roleRank = '4';
-                              }
-                            }),
-                          ),
-                      ],
+                    PopupMenuButton<String>(
+                      tooltip: 'Seleziona i ruoli del tuo personaggio (scelta multipla)',
+                      color: CprPalette.surfaceRaised,
+                      elevation: 8,
+                      shape: Border.all(color: CprPalette.yellow, width: 1),
+                      onSelected: (String role) {
+                        state.mutate((s) {
+                          if (s.identity.roles.any((r) => r.toLowerCase() == role.toLowerCase())) {
+                            s.identity.removeRole(role);
+                          } else {
+                            s.identity.addRole(role);
+                          }
+                        });
+                      },
+                      itemBuilder: (BuildContext ctx) {
+                        return <String>[
+                          'Solo',
+                          'Netrunner',
+                          'Tech',
+                          'Medtech',
+                          'Media',
+                          'Rockerboy',
+                          'Exec',
+                          'Lawman',
+                          'Fixer',
+                          'Nomad',
+                        ].map((String role) {
+                          final bool selected = identity.roles.any((r) => r.toLowerCase() == role.toLowerCase());
+                          return PopupMenuItem<String>(
+                            value: role,
+                            child: Row(
+                              children: <Widget>[
+                                Icon(
+                                  selected ? Icons.check_box : Icons.check_box_outline_blank,
+                                  size: 16,
+                                  color: selected ? CprPalette.yellow : CprPalette.inkMuted,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  role,
+                                  style: CprType.body.copyWith(
+                                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                                    color: selected ? CprPalette.yellow : CprPalette.ink,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: CprPalette.surfaceSunken,
+                          border: Border.all(color: CprPalette.yellow.withValues(alpha: 0.6)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Icon(Icons.add, size: 13, color: CprPalette.yellow),
+                            const SizedBox(width: 4),
+                            Text(
+                              'AGGIUNGI RUOLO',
+                              style: CprType.label.copyWith(
+                                fontSize: 9.5,
+                                color: CprPalette.yellow,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Tooltip(
-                  message:
-                      'Reputazione: quanto sei temuto o rispettato (da 0 per sconosciuto a 10 per leggenda).',
-                  waitDuration: const Duration(milliseconds: 200),
-                  child: TechField(
-                    label: 'Punti reputazione',
-                    value: identity.reputation,
-                    onChanged: (String v) => state.mutate((s) => s.identity.reputation = v),
-                  ),
+                const SizedBox(height: 10),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      flex: 3,
+                      child: TechField(
+                        label: 'Modifica o inserisci ruolo custom',
+                        value: identity.role,
+                        hint: 'Separati da virgola (es. Solo, Tech)',
+                        onChanged: (String v) => state.mutate((s) => s.identity.role = v),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: Tooltip(
+                        message: 'Reputazione: quanto sei temuto o rispettato (da 0 per sconosciuto a 10 per leggenda).',
+                        waitDuration: const Duration(milliseconds: 200),
+                        child: TechField(
+                          label: 'Punti reputazione',
+                          value: identity.reputation,
+                          onChanged: (String v) => state.mutate((s) => s.identity.reputation = v),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                flex: 3,
-                child: Tooltip(
-                  message: 'La capacità speciale unica derivante dal tuo Ruolo.',
-                  waitDuration: const Duration(milliseconds: 200),
-                  child: TechField(
-                    label: 'Abilita di ruolo',
-                    value: identity.roleAbility,
-                    onChanged: (String v) => state.mutate((s) => s.identity.roleAbility = v),
-                  ),
+          // Sezione Abilità di Ruolo (scelta multipla in base al ruolo)
+          ChamferPanel(
+            title: 'Abilità di Ruolo',
+            accent: CprPalette.cyan,
+            trailing: const CyberHelpTooltip(
+              title: 'Abilità di Ruolo',
+              message: 'Le abilità speciali di ciascun ruolo (Combat Awareness, Interfaccia, ecc.) sbloccabili e potenziabili con gli IP.',
+              tag: 'Abilità',
+              accent: CprPalette.cyan,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    for (final String a in identity.roleAbilities)
+                      _AbilityTag(
+                        label: a,
+                        onDelete: () => state.mutate((s) => s.identity.removeRoleAbility(a)),
+                      ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Seleziona le abilità corrispondenti ai ruoli scelti',
+                      color: CprPalette.surfaceRaised,
+                      elevation: 8,
+                      shape: Border.all(color: CprPalette.cyan, width: 1),
+                      onSelected: (String ability) {
+                        state.mutate((s) {
+                          if (s.identity.roleAbilities.any((a) => a.toLowerCase() == ability.toLowerCase())) {
+                            s.identity.removeRoleAbility(ability);
+                          } else {
+                            s.identity.addRoleAbility(ability);
+                          }
+                        });
+                      },
+                      itemBuilder: (BuildContext ctx) {
+                        final Set<String> selectedRolesLower =
+                            identity.roles.map((String r) => r.toLowerCase()).toSet();
+                        final List<Map<String, String>> relevantRoles = _standardRoles
+                            .where((Map<String, String> m) => selectedRolesLower.contains(m['role']!.toLowerCase()))
+                            .toList();
+                        final List<Map<String, String>> toShow =
+                            relevantRoles.isNotEmpty ? relevantRoles : _standardRoles;
+
+                        return <PopupMenuEntry<String>>[
+                          for (final Map<String, String> r in toShow)
+                            CheckedPopupMenuItem<String>(
+                              value: r['ability']!,
+                              checked: identity.roleAbilities
+                                  .any((String x) => x.toLowerCase() == r['ability']!.toLowerCase()),
+                              child: Text(
+                                '${r['role']}: ${r['ability']}',
+                                style: CprType.body.copyWith(fontSize: 12, color: CprPalette.ink),
+                              ),
+                            ),
+                        ];
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: CprPalette.surface,
+                          border: Border.all(color: CprPalette.cyan, width: 1),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const <Widget>[
+                            Icon(Icons.checklist, size: 13, color: CprPalette.cyan),
+                            SizedBox(width: 5),
+                            Text(
+                              'SCEGLI ABILITÀ',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: CprPalette.cyan,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(Icons.arrow_drop_down, size: 15, color: CprPalette.cyan),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: Tooltip(
-                  message:
-                      'Grado di competenza dell\'abilità di ruolo (da 1 a 10, di norma 4 alla creazione).',
-                  waitDuration: const Duration(milliseconds: 200),
-                  child: TechField(
-                    label: 'Rango',
-                    value: identity.roleRank,
-                    numeric: true,
-                    onChanged: (String v) => state.mutate((s) => s.identity.roleRank = v),
-                  ),
+                const SizedBox(height: 10),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      flex: 3,
+                      child: TechField(
+                        label: 'Abilità attive (modifica manuale)',
+                        value: identity.roleAbility,
+                        hint: 'Separati da virgola',
+                        onChanged: (String v) => state.mutate((s) => s.identity.roleAbility = v),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: Tooltip(
+                        message: 'Grado di competenza dell\'abilità di ruolo (da 1 a 10, di norma 4 alla creazione).',
+                        waitDuration: const Duration(milliseconds: 200),
+                        child: TechField(
+                          label: 'Rango',
+                          value: identity.roleRank,
+                          numeric: true,
+                          onChanged: (String v) => state.mutate((s) => s.identity.roleRank = v),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -890,42 +1076,91 @@ class _CharacterAvatarThumb extends StatelessWidget {
   }
 }
 
-class _RoleChip extends StatelessWidget {
-  const _RoleChip({required this.label, required this.selected, required this.onTap});
+class _RoleTag extends StatelessWidget {
+  const _RoleTag({required this.label, required this.onDelete});
 
   final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final Color color = selected ? CprPalette.yellow : CprPalette.inkMuted;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-          decoration: BoxDecoration(
-            color: selected ? CprPalette.veil(CprPalette.yellow, 0.15) : CprPalette.surfaceRaised,
-            border: Border.all(
-              color: selected ? CprPalette.yellow : CprPalette.hairline,
-              width: 1,
-            ),
-          ),
-          child: Text(
+    return Container(
+      padding: const EdgeInsets.only(left: 8, right: 4, top: 3, bottom: 3),
+      decoration: BoxDecoration(
+        color: CprPalette.veil(CprPalette.yellow, 0.15),
+        border: Border.all(color: CprPalette.yellow, width: 1),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
             label.toUpperCase(),
             style: CprType.label.copyWith(
-              fontSize: 9,
-              color: color,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 10,
+              color: CprPalette.yellow,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.8,
             ),
           ),
-        ),
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: onDelete,
+            borderRadius: BorderRadius.circular(10),
+            child: const Padding(
+              padding: EdgeInsets.all(2),
+              child: Icon(Icons.close, size: 12, color: CprPalette.yellow),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+class _AbilityTag extends StatelessWidget {
+  const _AbilityTag({required this.label, required this.onDelete});
+
+  final String label;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.only(left: 8, right: 4, top: 3, bottom: 3),
+      decoration: BoxDecoration(
+        color: CprPalette.veil(CprPalette.cyan, 0.15),
+        border: Border.all(color: CprPalette.cyan, width: 1),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            label.toUpperCase(),
+            style: CprType.label.copyWith(
+              fontSize: 10,
+              color: CprPalette.cyan,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: onDelete,
+            borderRadius: BorderRadius.circular(10),
+            child: const Padding(
+              padding: EdgeInsets.all(2),
+              child: Icon(Icons.close, size: 12, color: CprPalette.cyan),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 
 class _EmptySheetGuideBanner extends StatelessWidget {
   const _EmptySheetGuideBanner();
@@ -1098,11 +1333,17 @@ class _ConditionsPanel extends StatelessWidget {
         children: <Widget>[
           TechTextArea(
             label: 'Ferite gravi',
-            value: sheet.identity.severeInjuries,
+            value: sheet.activeProfile?.severeInjuries ?? sheet.identity.severeInjuries,
             hint: 'Una per riga: cosa, dove, quanto e\' guarita',
             lines: 3,
             accent: CprPalette.danger,
-            onChanged: (String v) => state.mutate((s) => s.identity.severeInjuries = v),
+            onChanged: (String v) => state.mutate((s) {
+              if (s.activeProfile != null) {
+                s.activeProfile!.severeInjuries = v;
+              } else {
+                s.identity.severeInjuries = v;
+              }
+            }),
           ),
           const SizedBox(height: 12),
           TechTextArea(
@@ -1118,3 +1359,192 @@ class _ConditionsPanel extends StatelessWidget {
     );
   }
 }
+
+/// Barra di intestazione che permette di passare dalla Scheda Base ai Profili Campagna
+/// memorizzati all'interno dello stesso documento .cpredux (senza creare nuovi file).
+class _CampaignProfileBar extends StatelessWidget {
+  const _CampaignProfileBar({required this.sheet, required this.state});
+
+  final CharacterSheet sheet;
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? activeId = sheet.activeCampaignProfileId;
+    final CampaignSheetProfile? activeProfile = sheet.activeProfile;
+    final bool isBase = activeProfile == null;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: CprPalette.surfaceRaised,
+        border: Border.all(
+          color: isBase ? CprPalette.hairline : CprPalette.yellow,
+          width: isBase ? 1 : 1.2,
+        ),
+      ),
+      child: Wrap(
+        runSpacing: 8,
+        spacing: 8,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: <Widget>[
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
+            children: <Widget>[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    isBase ? Icons.person_outline : Icons.casino_outlined,
+                    size: 18,
+                    color: isBase ? CprPalette.inkMuted : CprPalette.yellow,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'PROFILO:',
+                    style: CprType.label.copyWith(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                      color: isBase ? CprPalette.inkMuted : CprPalette.yellow,
+                    ),
+                  ),
+                ],
+              ),
+              PopupMenuButton<String?>(
+                tooltip: 'Seleziona profilo scheda o versione campagna',
+                color: CprPalette.surfaceRaised,
+                shape: Border.all(color: CprPalette.yellow),
+                onSelected: (String? profileId) {
+                  state.mutate((s) => s.selectCampaignProfile(profileId));
+                },
+                itemBuilder: (BuildContext ctx) => <PopupMenuEntry<String?>>[
+                  PopupMenuItem<String?>(
+                    value: null,
+                    child: Row(
+                      children: <Widget>[
+                        const Icon(Icons.person, size: 16, color: CprPalette.cyan),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Scheda Base (Originale)',
+                          style: CprType.body.copyWith(
+                            fontWeight: isBase ? FontWeight.bold : FontWeight.normal,
+                            color: isBase ? CprPalette.cyan : CprPalette.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (sheet.campaignProfiles.isNotEmpty) const PopupMenuDivider(),
+                  for (final CampaignSheetProfile prof in sheet.campaignProfiles.values)
+                    PopupMenuItem<String?>(
+                      value: prof.campaignId,
+                      child: Row(
+                        children: <Widget>[
+                          const Icon(Icons.casino_outlined, size: 16, color: CprPalette.yellow),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Campagna: ${prof.campaignName}',
+                            style: CprType.body.copyWith(
+                              fontWeight: activeId == prof.campaignId ? FontWeight.bold : FontWeight.normal,
+                              color: activeId == prof.campaignId ? CprPalette.yellow : CprPalette.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: CprPalette.surfaceSunken,
+                    border: Border.all(color: isBase ? CprPalette.hairline : CprPalette.yellow),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        isBase ? 'Scheda Base (Originale)' : 'Campagna: ${activeProfile.campaignName}',
+                        style: CprType.body.copyWith(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: isBase ? CprPalette.ink : CprPalette.yellow,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.arrow_drop_down, size: 16, color: CprPalette.inkMuted),
+                    ],
+                  ),
+                ),
+              ),
+              const CyberHelpTooltip(
+                title: 'Versioni & Profili Campagna',
+                message: 'In Cyberpunk RED puoi associare questa scheda a diverse campagne senza duplicare il file: i PV attuali, punti fortuna e ferite subite vengono salvati separatamente nel profilo della campagna, lasciando la tua Scheda Base intatta.',
+                tag: 'Overlay',
+                accent: CprPalette.yellow,
+              ),
+            ],
+          ),
+          TechButton(
+            label: '+ Associa a Campagna',
+            icon: Icons.add_circle_outline,
+            variant: TechButtonVariant.ghost,
+            compact: true,
+            onPressed: () => _promptAddCampaignProfile(context, state, sheet),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _promptAddCampaignProfile(BuildContext context, AppState state, CharacterSheet sheet) async {
+    final TextEditingController nameCtrl = TextEditingController(text: 'Nuova Campagna 2045');
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        backgroundColor: CprPalette.surface,
+        title: Text('Nuovo Profilo Campagna', style: CprType.body.copyWith(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'Crea un overlay per una campagna specifica. Le modifiche ai PV, munizioni e ferite saranno registrate qui senza toccare la Scheda Base originale:',
+              style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+            ),
+            const SizedBox(height: 12),
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Nome della Campagna')),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annulla')),
+          TechButton(
+            label: 'Crea Profilo',
+            icon: Icons.check,
+            variant: TechButtonVariant.primary,
+            compact: true,
+            onPressed: () {
+              if (nameCtrl.text.trim().isNotEmpty) {
+                Navigator.of(ctx).pop(true);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true && nameCtrl.text.trim().isNotEmpty) {
+      final String campName = nameCtrl.text.trim();
+      final String campId = 'camp_profile_${DateTime.now().millisecondsSinceEpoch}';
+      state.mutate((s) {
+        s.getOrCreateProfile(campId, campName);
+        s.selectCampaignProfile(campId);
+      });
+    }
+  }
+}
+

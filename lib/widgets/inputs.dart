@@ -44,8 +44,9 @@ class TechField extends StatefulWidget {
   const TechField({
     super.key,
     required this.label,
-    required this.value,
-    required this.onChanged,
+    this.value = '',
+    this.onChanged,
+    this.controller,
     this.hint,
     this.numeric = false,
     this.maxLines = 1,
@@ -56,7 +57,8 @@ class TechField extends StatefulWidget {
 
   final String label;
   final String value;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
+  final TextEditingController? controller;
   final String? hint;
 
   /// I campi numerici usano la tastiera numerica e filtrano i caratteri non
@@ -73,33 +75,38 @@ class TechField extends StatefulWidget {
 }
 
 class _TechFieldState extends State<TechField> {
-  late final TextEditingController _controller = TextEditingController(text: widget.value);
+  TextEditingController? _internalController;
+  TextEditingController get _controller => widget.controller ?? _internalController!;
   final FocusNode _focus = FocusNode();
   bool _focused = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.controller == null) {
+      _internalController = TextEditingController(text: widget.value);
+    }
     _focus.addListener(() => setState(() => _focused = _focus.hasFocus));
   }
 
   @override
   void didUpdateWidget(covariant TechField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Si scrive nel controller solo se il valore esterno e' davvero diverso:
-    // assegnare `text` a ogni rebuild sposterebbe il cursore all'inizio a ogni
-    // carattere digitato, il che rende il campo inutilizzabile.
-    if (widget.value != _controller.text) {
-      _controller.value = TextEditingValue(
-        text: widget.value,
-        selection: TextSelection.collapsed(offset: widget.value.length),
-      );
+    if (widget.controller == null) {
+      if (_internalController == null) {
+        _internalController = TextEditingController(text: widget.value);
+      } else if (widget.value != _internalController!.text) {
+        _internalController!.value = TextEditingValue(
+          text: widget.value,
+          selection: TextSelection.collapsed(offset: widget.value.length),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _internalController?.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -472,11 +479,16 @@ class TechSection extends StatelessWidget {
           children: <Widget>[
             Container(width: 3, height: 13, color: accentColor),
             const SizedBox(width: 8),
-            Text(
-              title.toUpperCase(),
-              style: CprType.label.copyWith(color: accentColor),
+            // Il titolo prende lo spazio che avanza invece di reclamare la sua
+            // larghezza naturale. Senza `Expanded`, un titolo lungo come
+            // "PROGRAMMI DIFENSIVI ATTIVI" accanto a un pulsante sfonda la riga
+            // e la sezione va in overflow.
+            Expanded(
+              child: Text(
+                title.toUpperCase(),
+                style: CprType.label.copyWith(color: accentColor),
+              ),
             ),
-            const Spacer(),
             ?trailing,
           ],
         ),

@@ -13,6 +13,7 @@ import '../../design/motion.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/enums.dart';
+import '../../net/cloud_sync_service.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/drop_zone.dart';
@@ -203,23 +204,179 @@ class _ActionsState extends State<_Actions> {
   // --- Creazione e apertura ------------------------------------------------
 
   Future<void> _newDocument(BuildContext context, {required bool sheet}) async {
-    final String? path = await showFileBrowser(
-      context,
-      mode: FileBrowserMode.save,
-      title: sheet ? 'Dove salvare la nuova scheda' : 'Nuova campagna',
-      extensions: <String>[CpreduxFile.extension],
-      initialDirectory: AppPaths.documentsDir().path,
-      suggestedName: sheet ? 'Nuova Scheda' : 'Nuova campagna',
-      description: sheet ? 'Scegli dove salvare la nuova scheda Cyberpunk' : 'Scegli dove salvare il documento',
+    final TextEditingController nameCtrl = TextEditingController(
+      text: sheet ? 'Nuovo Edgerunner' : 'Nuova Campagna',
     );
-    if (path == null || !context.mounted) return;
+    String targetDir = AppPaths.sheetsDir().path;
+    bool isCustomDir = false;
 
-    final String name = p.basenameWithoutExtension(path);
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) {
+          final bool isCloud = CloudSyncService.instance.isAuthenticated;
+          return AlertDialog(
+            backgroundColor: CprPalette.surface,
+            title: Text(
+              sheet ? 'CREA NUOVA SCHEDA' : 'CREA NUOVA CAMPAGNA',
+              style: CprType.body.copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    sheet
+                        ? 'Inserisci il nome del personaggio:'
+                        : 'Inserisci il titolo della nuova campagna:',
+                    style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: sheet ? 'Nome Personaggio' : 'Titolo Campagna',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: CprPalette.surfaceSunken,
+                      border: Border.all(color: CprPalette.hairline),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              isCustomDir ? Icons.folder_open : Icons.folder_special_outlined,
+                              size: 14,
+                              color: isCustomDir ? CprPalette.yellow : CprPalette.cyan,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isCustomDir ? 'CARTELLA PERSONALIZZATA' : 'ARCHIVIO DEDICATO APPLICAZIONE',
+                              style: CprType.label.copyWith(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: isCustomDir ? CprPalette.yellow : CprPalette.cyan,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          targetDir,
+                          style: CprType.caption.copyWith(color: CprPalette.inkFaint, fontSize: 10.5),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              isCloud ? Icons.cloud_done : Icons.cloud_off,
+                              size: 12,
+                              color: isCloud ? CprPalette.cyan : CprPalette.inkFaint,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isCloud ? 'Cloud Sync attivo (Google Firebase Spark)' : 'Cloud disconnesso (salvataggio locale)',
+                              style: CprType.caption.copyWith(
+                                fontSize: 10,
+                                color: isCloud ? CprPalette.cyan : CprPalette.inkFaint,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TechButton(
+                      label: isCustomDir ? 'Ripristina archivio app' : 'Salva da un\'altra parte…',
+                      icon: isCustomDir ? Icons.restore : Icons.drive_file_move_outline,
+                      variant: TechButtonVariant.ghost,
+                      compact: true,
+                      onPressed: () async {
+                        if (isCustomDir) {
+                          setDialogState(() {
+                            targetDir = AppPaths.sheetsDir().path;
+                            isCustomDir = false;
+                          });
+                          return;
+                        }
+                        final String? custom = await showFileBrowser(
+                          context,
+                          mode: FileBrowserMode.save,
+                          title: 'Scegli dove salvare',
+                          extensions: <String>[CpreduxFile.extension],
+                          initialDirectory: targetDir,
+                          suggestedName: nameCtrl.text.trim().isNotEmpty
+                              ? nameCtrl.text.trim()
+                              : (sheet ? 'Nuova Scheda' : 'Nuova Campagna'),
+                        );
+                        if (custom != null) {
+                          setDialogState(() {
+                            targetDir = p.dirname(custom);
+                            isCustomDir = true;
+                            final String bn = p.basenameWithoutExtension(custom);
+                            if (bn.isNotEmpty) nameCtrl.text = bn;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Annulla'),
+              ),
+              TechButton(
+                label: 'Crea',
+                icon: Icons.check,
+                variant: TechButtonVariant.primary,
+                compact: true,
+                onPressed: () {
+                  if (nameCtrl.text.trim().isNotEmpty) {
+                    Navigator.of(ctx).pop(true);
+                  }
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    String name = nameCtrl.text.trim();
+    if (name.isEmpty) name = sheet ? 'Nuovo Edgerunner' : 'Nuova Campagna';
+
+    // Risoluzione conflitti nomi nella directory
+    String candidateName = name;
+    int counter = 2;
+    while (File(p.join(targetDir, '${AppState.sanitizeName(candidateName)}.${CpreduxFile.extension}')).existsSync()) {
+      candidateName = '$name $counter';
+      counter++;
+    }
+
     try {
       if (sheet) {
-        await state.createSheet(name: name, directory: p.dirname(path));
+        await state.createSheet(name: candidateName, directory: targetDir);
       } else {
-        await state.createCampaign(name: name, directory: p.dirname(path));
+        await state.createCampaign(name: candidateName, directory: targetDir);
       }
     } catch (e) {
       if (!context.mounted) return;
@@ -465,6 +622,14 @@ class _ActionsState extends State<_Actions> {
             icon: Icons.difference_outlined,
             accent: CprPalette.info,
             onTap: () => _compareDocuments(context),
+          ),
+          const SizedBox(height: 8),
+          MenuRow(
+            label: 'Strumenti del Master',
+            description: 'Incontri, bottino, DV, terapia, debiti, rete: tredici strumenti da tavolo',
+            icon: Icons.dashboard_customize_outlined,
+            accent: CprPalette.violet,
+            onTap: state.goToGmTools,
           ),
           const SizedBox(height: 8),
           ExpandableMenuRow(
@@ -914,12 +1079,19 @@ class _Footer extends StatelessWidget {
         ),
         const Spacer(),
         TechButton(
-          label: 'Cartella documenti',
-          icon: Icons.folder_outlined,
+          label: 'Archivio CPRedux',
+          icon: Icons.folder_special_outlined,
           variant: TechButtonVariant.ghost,
           compact: true,
-          tooltip: AppPaths.documentsDir().path,
-          onPressed: () {},
+          tooltip: AppPaths.sheetsDir().path,
+          onPressed: () {
+            showTechMessage(
+              context,
+              title: 'Archivio Dedicato CPRedux',
+              message: 'Tutti i tuoi documenti sono conservati in sicurezza nella cartella dedicata dell\'applicazione:',
+              detail: AppPaths.sheetsDir().path,
+            );
+          },
         ),
       ],
     );

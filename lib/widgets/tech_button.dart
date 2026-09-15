@@ -116,11 +116,22 @@ class _TechButtonState extends State<TechButton> with TickerProviderStateMixin {
           Icon(widget.icon, size: widget.compact ? 14 : 16, color: c.text),
           const SizedBox(width: 8),
         ],
-        Text(
-          widget.label.toUpperCase(),
-          style: CprType.label.copyWith(
-            color: c.text,
-            fontSize: widget.compact ? 10.5 : 11.5,
+        // L'etichetta e' flessibile e tronca invece di sfondare.
+        //
+        // I pulsanti di questa applicazione portano etichette che vengono dai
+        // dati ("Munizioni per fucile d'assalto ×3"), non da un elenco chiuso:
+        // una riga di `Row` con dentro un `Text` rigido, quando il contenuto
+        // supera lo spazio, **disegna la striscia a righe gialle e nere** e
+        // nasconde il resto. Succede nel pannello del Master, largo 420 pixel,
+        // quindi la correzione sta qui: vale per ogni schermata che verra'.
+        Flexible(
+          child: Text(
+            widget.label.toUpperCase(),
+            overflow: TextOverflow.ellipsis,
+            style: CprType.label.copyWith(
+              color: c.text,
+              fontSize: widget.compact ? 10.5 : 11.5,
+            ),
           ),
         ),
       ],

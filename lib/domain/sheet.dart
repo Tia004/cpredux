@@ -127,6 +127,7 @@ class Background {
     this.housingRent = '',
     this.lifestyle = '',
     this.lifestyleCost = '',
+    this.story = '',
     List<Friend>? friends,
     List<TragicStory>? tragicStories,
     List<Enemy>? enemies,
@@ -152,6 +153,7 @@ class Background {
   String housingRent;
   String lifestyle;
   String lifestyleCost;
+  String story;
   final List<Friend> friends;
   final List<TragicStory> tragicStories;
   final List<Enemy> enemies;
@@ -175,6 +177,7 @@ class Background {
         'housingRent': housingRent,
         'lifestyle': lifestyle,
         'lifestyleCost': lifestyleCost,
+        'story': story,
         'friends': friends.map((Friend f) => f.toJson()).toList(),
         'tragicStories': tragicStories.map((TragicStory t) => t.toJson()).toList(),
         'enemies': enemies.map((Enemy e) => e.toJson()).toList(),
@@ -182,6 +185,7 @@ class Background {
 
   static Background fromJson(Map<String, Object?> json) => Background(
         culturalOrigins: readString(json['culturalOrigins']),
+        story: readString(json['story']),
         personality: readString(json['personality']),
         favouriteClothingStyle: readString(json['favouriteClothingStyle']),
         favouriteHairStyle: readString(json['favouriteHairStyle']),
@@ -282,6 +286,46 @@ class SheetIdentity {
   String roleAbility;
   String roleRank;
 
+  List<String> get roles => role
+      .split(RegExp(r'[,/|]'))
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+
+  void addRole(String r) {
+    final List<String> current = roles;
+    if (!current.any((x) => x.toLowerCase() == r.trim().toLowerCase())) {
+      current.add(r.trim());
+      role = current.join(', ');
+    }
+  }
+
+  void removeRole(String r) {
+    final List<String> current = roles;
+    current.removeWhere((x) => x.toLowerCase() == r.trim().toLowerCase());
+    role = current.join(', ');
+  }
+
+  List<String> get roleAbilities => roleAbility
+      .split(RegExp(r'[,;]'))
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+
+  void addRoleAbility(String a) {
+    final List<String> current = roleAbilities;
+    if (!current.any((x) => x.toLowerCase() == a.trim().toLowerCase())) {
+      current.add(a.trim());
+      roleAbility = current.join(', ');
+    }
+  }
+
+  void removeRoleAbility(String a) {
+    final List<String> current = roleAbilities;
+    current.removeWhere((x) => x.toLowerCase() == a.trim().toLowerCase());
+    roleAbility = current.join(', ');
+  }
+
   int currentHp;
   int currentLuck;
   int currentImprovementPoints;
@@ -375,6 +419,80 @@ class DocumentMeta {
       );
 }
 
+/// Profilo specifico per una campagna a cui la scheda partecipa.
+///
+/// Memorizzato dentro lo stesso file `.cpredux` della scheda (senza creare nuovi file),
+/// permette di mantenere intatta la Scheda Base (statistiche originali, PV massimi)
+/// registrando le variazioni subite durante la campagna: PV attuali, punti fortuna spesi,
+/// munizioni rimaste, ferite critiche e note di sessione.
+class CampaignSheetProfile {
+  CampaignSheetProfile({
+    required this.campaignId,
+    required this.campaignName,
+    this.currentHp,
+    this.currentLuck,
+    this.currentHumanity,
+    this.currentEmpathy,
+    this.severeInjuries = '',
+    this.campaignNotes = '',
+    this.ammoCounts = const <String, int>{},
+    this.earnedIp = 0,
+    this.lastPlayedAt = '',
+  });
+
+  final String campaignId;
+  String campaignName;
+  int? currentHp;
+  int? currentLuck;
+  int? currentHumanity;
+  int? currentEmpathy;
+  String severeInjuries;
+  String campaignNotes;
+  Map<String, int> ammoCounts;
+  int earnedIp;
+  String lastPlayedAt;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'campaignId': campaignId,
+        'campaignName': campaignName,
+        if (currentHp != null) 'currentHp': currentHp,
+        if (currentLuck != null) 'currentLuck': currentLuck,
+        if (currentHumanity != null) 'currentHumanity': currentHumanity,
+        if (currentEmpathy != null) 'currentEmpathy': currentEmpathy,
+        'severeInjuries': severeInjuries,
+        'campaignNotes': campaignNotes,
+        'ammoCounts': ammoCounts,
+        'earnedIp': earnedIp,
+        'lastPlayedAt': lastPlayedAt,
+      };
+
+  static CampaignSheetProfile fromJson(Map<String, Object?> json) {
+    final Map<String, Object?> rawAmmo = json['ammoCounts'] is Map
+        ? (json['ammoCounts']! as Map<Object?, Object?>)
+            .map((Object? k, Object? v) => MapEntry(k.toString(), v))
+        : const <String, Object?>{};
+    final Map<String, int> ammo = <String, int>{};
+    for (final MapEntry<String, Object?> e in rawAmmo.entries) {
+      final int? count = int.tryParse('${e.value}');
+      if (count != null) ammo[e.key] = count;
+    }
+
+    return CampaignSheetProfile(
+      campaignId: readString(json['campaignId']),
+      campaignName: readString(json['campaignName']),
+      currentHp: json['currentHp'] != null ? readInt(json['currentHp']) : null,
+      currentLuck: json['currentLuck'] != null ? readInt(json['currentLuck']) : null,
+      currentHumanity: json['currentHumanity'] != null ? readInt(json['currentHumanity']) : null,
+      currentEmpathy: json['currentEmpathy'] != null ? readInt(json['currentEmpathy']) : null,
+      severeInjuries: readString(json['severeInjuries']),
+      campaignNotes: readString(json['campaignNotes']),
+      ammoCounts: ammo,
+      earnedIp: readInt(json['earnedIp']),
+      lastPlayedAt: readString(json['lastPlayedAt']),
+    );
+  }
+}
+
 /// La scheda personaggio completa.
 ///
 /// E' un *aggregato*: si carica e si salva sempre per intero. Questa e' la
@@ -401,6 +519,8 @@ class CharacterSheet {
     PhysicalDescription? physical,
     this.eurobucks = 0,
     this.oldConnections = '',
+    Map<String, CampaignSheetProfile>? campaignProfiles,
+    this.activeCampaignProfileId,
   })  : identity = identity ?? SheetIdentity(),
         statBase = statBase ?? <Stat, int>{for (final Stat s in Stat.values) s: 1},
         skillLevels = skillLevels ??
@@ -413,7 +533,8 @@ class CharacterSheet {
         effects = effects ?? <Effect>[],
         notes = notes ?? <Note>[],
         background = background ?? Background(),
-        physical = physical ?? PhysicalDescription();
+        physical = physical ?? PhysicalDescription(),
+        campaignProfiles = campaignProfiles ?? <String, CampaignSheetProfile>{};
 
   final DocumentMeta meta;
   SheetIdentity identity;
@@ -438,6 +559,68 @@ class CharacterSheet {
 
   int eurobucks;
   String oldConnections;
+
+  /// Profili dedicati alle campagne a cui la scheda partecipa.
+  /// Rimangono memorizzati dentro lo stesso documento senza creare file aggiuntivi.
+  final Map<String, CampaignSheetProfile> campaignProfiles;
+
+  /// Profilo di campagna attualmente visualizzato/modificato. Se null, si usa la Scheda Base.
+  String? activeCampaignProfileId;
+
+  CampaignSheetProfile? get activeProfile =>
+      activeCampaignProfileId != null ? campaignProfiles[activeCampaignProfileId] : null;
+
+  /// Valore effettivo dei PV considerando l'eventuale profilo campagna attivo.
+  int get effectiveHp => activeProfile?.currentHp ?? identity.currentHp;
+  set effectiveHp(int val) {
+    if (activeProfile != null) {
+      activeProfile!.currentHp = val;
+    } else {
+      identity.currentHp = val;
+    }
+  }
+
+  /// Valore effettivo dei punti Fortuna.
+  int get effectiveLuck => activeProfile?.currentLuck ?? identity.currentLuck;
+  set effectiveLuck(int val) {
+    if (activeProfile != null) {
+      activeProfile!.currentLuck = val;
+    } else {
+      identity.currentLuck = val;
+    }
+  }
+
+  /// Ferite gravi effettive (profilo campagna se attivo, altrimenti scheda base).
+  String get effectiveSevereInjuries => activeProfile?.severeInjuries ?? identity.severeInjuries;
+  set effectiveSevereInjuries(String val) {
+    if (activeProfile != null) {
+      activeProfile!.severeInjuries = val;
+    } else {
+      identity.severeInjuries = val;
+    }
+  }
+
+  /// Seleziona un profilo campagna o reimposta la Scheda Base (null).
+  void selectCampaignProfile(String? campaignId) {
+    activeCampaignProfileId = campaignId;
+  }
+
+  /// Registra o recupera un profilo campagna dentro la scheda.
+  CampaignSheetProfile getOrCreateProfile(String campaignId, String campaignName) {
+    return campaignProfiles.putIfAbsent(
+      campaignId,
+      () => CampaignSheetProfile(
+        campaignId: campaignId,
+        campaignName: campaignName,
+        currentHp: identity.currentHp,
+        currentLuck: identity.currentLuck,
+        currentHumanity: identity.currentHumanity,
+        currentEmpathy: identity.currentEmpathy,
+        severeInjuries: identity.severeInjuries,
+        lastPlayedAt: DateTime.now().toIso8601String(),
+      ),
+    );
+  }
 
   /// Crea una scheda nuova con i default del progetto originale: tutte le
   /// caratteristiche a 1, abilita' essenziali a 2 e le altre a 0.
@@ -467,6 +650,11 @@ class CharacterSheet {
         'physical': physical.toJson(),
         'eurobucks': eurobucks,
         'oldConnections': oldConnections,
+        'campaignProfiles': <String, Object?>{
+          for (final MapEntry<String, CampaignSheetProfile> e in campaignProfiles.entries)
+            e.key: e.value.toJson(),
+        },
+        if (activeCampaignProfileId != null) 'activeCampaignProfileId': activeCampaignProfileId,
       };
 
   static CharacterSheet fromJson(Map<String, Object?> json) {
@@ -479,9 +667,6 @@ class CharacterSheet {
             .map((Object? k, Object? v) => MapEntry(k.toString(), v))
         : const <String, Object?>{};
 
-    // Si parte dai default e si sovrascrive: se un file e' incompleto (o
-    // scritto da una versione che non conosceva una caratteristica) la scheda
-    // si apre comunque invece di restare con valori mancanti.
     final Map<Stat, int> stats = <Stat, int>{for (final Stat s in Stat.values) s: 1};
     for (final MapEntry<String, Object?> e in statRaw.entries) {
       final Stat? stat = Stat.fromId(int.tryParse(e.key) ?? -1);
@@ -494,6 +679,19 @@ class CharacterSheet {
     for (final MapEntry<String, Object?> e in skillRaw.entries) {
       final Skill? skill = Skill.fromId(int.tryParse(e.key) ?? -1);
       if (skill != null) skills[skill] = readInt(e.value);
+    }
+
+    final Map<String, Object?> profRaw = json['campaignProfiles'] is Map
+        ? (json['campaignProfiles']! as Map<Object?, Object?>)
+            .map((Object? k, Object? v) => MapEntry(k.toString(), v))
+        : const <String, Object?>{};
+    final Map<String, CampaignSheetProfile> profiles = <String, CampaignSheetProfile>{};
+    for (final MapEntry<String, Object?> e in profRaw.entries) {
+      if (e.value is Map) {
+        profiles[e.key] = CampaignSheetProfile.fromJson(
+          (e.value! as Map<Object?, Object?>).map((Object? k, Object? v) => MapEntry(k.toString(), v)),
+        );
+      }
     }
 
     return CharacterSheet(
@@ -532,6 +730,8 @@ class CharacterSheet {
       ),
       eurobucks: readInt(json['eurobucks']),
       oldConnections: readString(json['oldConnections']),
+      campaignProfiles: profiles,
+      activeCampaignProfileId: json['activeCampaignProfileId'] as String?,
     );
   }
 }

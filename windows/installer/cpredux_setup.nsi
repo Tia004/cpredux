@@ -7,18 +7,18 @@ Unicode True
 
 !define PRODUCT_NAME "CPRedux Desktop"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "0.2.4"
+  !define PRODUCT_VERSION "0.2.5"
+  !define PRODUCT_PUBLISHER "CPRedux Community"
+  !define PRODUCT_WEB_SITE "https://github.com/Tia2045/CPRedVisualizer"
+  !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\cpredux.exe"
+  !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+  !define PRODUCT_UNINST_ROOT_KEY "HKLM"
+  !define PRODUCT_STARTMENU_REGVAL "NSIS:StartMenuDir"
+  
+  !define OUTPUT_EXE "cpredux-v0.2.5-setup.exe"
 !endif
-!define PRODUCT_PUBLISHER "CPRedux Team"
-!define PRODUCT_WEB_SITE "https://gitlab.com/Tia004/cpredux"
-!define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\CPRedux"
-!define PRODUCT_DIR_REGKEY "Software\CPRedux"
-
 !ifndef BUILD_DIR
   !define BUILD_DIR "..\..\build\windows\x64\runner\Release"
-!endif
-!ifndef OUTPUT_EXE
-  !define OUTPUT_EXE "cpredux-v0.2.4-setup.exe"
 !endif
 !ifndef APP_ICON
   !define APP_ICON "..\runner\resources\app_icon.ico"

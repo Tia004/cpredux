@@ -1,6 +1,11 @@
+import 'campaign_ai.dart';
+import 'campaign_combat.dart';
 import 'enums.dart';
 import 'json_support.dart';
+import 'map_token.dart';
+import 'net_architecture.dart';
 import 'sheet.dart';
+import 'transport.dart';
 import 'world_map.dart';
 
 /// Un giocatore collegato alla campagna.
@@ -29,6 +34,10 @@ class CampaignPlayer {
     this.isBanned = false,
     this.isConnected = false,
     this.notes = '',
+    this.mapX = 0.5,
+    this.mapY = 0.5,
+    this.mapDistrict = 'Little China',
+    this.eurobucks = 0,
   });
 
   final String id;
@@ -48,6 +57,10 @@ class CampaignPlayer {
   bool isBanned;
   bool isConnected;
   String notes;
+  double mapX;
+  double mapY;
+  String mapDistrict;
+  int eurobucks;
 
   Map<String, Object?> toJson() => <String, Object?>{
         'id': id,
@@ -67,6 +80,10 @@ class CampaignPlayer {
         'isBanned': isBanned,
         'isConnected': isConnected,
         'notes': notes,
+        'mapX': mapX,
+        'mapY': mapY,
+        'mapDistrict': mapDistrict,
+        'eurobucks': eurobucks,
       };
 
   static CampaignPlayer fromJson(Map<String, Object?> json) => CampaignPlayer(
@@ -87,6 +104,10 @@ class CampaignPlayer {
         isBanned: readBool(json['isBanned']),
         isConnected: readBool(json['isConnected']),
         notes: readString(json['notes']),
+        mapX: readDouble(json['mapX'], 0.5),
+        mapY: readDouble(json['mapY'], 0.5),
+        mapDistrict: readString(json['mapDistrict'], 'Little China'),
+        eurobucks: readInt(json['eurobucks']),
       );
 }
 
@@ -108,6 +129,13 @@ class SessionEvent {
     this.attachmentSize = 0,
     this.attachmentType = '',
     this.attachmentData = '',
+    this.whisperTo = '',
+    this.isWhisper = false,
+    this.isTransaction = false,
+    this.isAlert = false,
+    this.transactionAmount,
+    this.senderName,
+    this.recipientName,
   });
 
   final String id;
@@ -117,6 +145,22 @@ class SessionEvent {
 
   /// Variazione in forma leggibile ("PV -12", "Oggetto rimosso", "JACKIE").
   final String delta;
+
+  /// Destinatari del sussurro privato (es. "Jackie", "Jackie, V").
+  final String whisperTo;
+
+  /// True se l'evento e' un messaggio privato / segreto.
+  final bool isWhisper;
+
+  /// Flag per transazione monetaria (evidenziata con sfondo verde trasparente in chat).
+  final bool isTransaction;
+
+  /// Flag per allarme, ban o evento punitivo (evidenziato in rosso in chat).
+  final bool isAlert;
+
+  final int? transactionAmount;
+  final String? senderName;
+  final String? recipientName;
 
   /// URL di una GIF animata (Tenor/Giphy).
   final String gifUrl;
@@ -137,12 +181,25 @@ class SessionEvent {
       attachmentName.endsWith('.gif') ||
       attachmentName.endsWith('.webp');
 
+  List<String> get whisperTargets => whisperTo
+      .split(',')
+      .map((String s) => s.trim())
+      .where((String s) => s.isNotEmpty)
+      .toList();
+
   Map<String, Object?> toJson() => <String, Object?>{
         'id': id,
         'timestamp': timestamp,
         'playerId': playerId,
         'description': description,
         'delta': delta,
+        if (whisperTo.isNotEmpty) 'whisperTo': whisperTo,
+        if (isWhisper) 'isWhisper': isWhisper,
+        if (isTransaction) 'isTransaction': isTransaction,
+        if (isAlert) 'isAlert': isAlert,
+        if (transactionAmount != null) 'transactionAmount': transactionAmount,
+        if (senderName != null) 'senderName': senderName,
+        if (recipientName != null) 'recipientName': recipientName,
         if (gifUrl.isNotEmpty) 'gifUrl': gifUrl,
         if (attachmentName.isNotEmpty) 'attachmentName': attachmentName,
         if (attachmentSize > 0) 'attachmentSize': attachmentSize,
@@ -156,6 +213,13 @@ class SessionEvent {
         playerId: readString(json['playerId']),
         description: readString(json['description']),
         delta: readString(json['delta']),
+        whisperTo: readString(json['whisperTo']),
+        isWhisper: json['isWhisper'] == true,
+        isTransaction: json['isTransaction'] == true,
+        isAlert: json['isAlert'] == true,
+        transactionAmount: json['transactionAmount'] != null ? readInt(json['transactionAmount']) : null,
+        senderName: readNullableString(json['senderName']),
+        recipientName: readNullableString(json['recipientName']),
         gifUrl: readString(json['gifUrl']),
         attachmentName: readString(json['attachmentName']),
         attachmentSize: readInt(json['attachmentSize']),
@@ -169,7 +233,8 @@ class SessionEvent {
 class Campaign {
   Campaign({
     required this.meta,
-    this.gameDate = '',
+    this.gameDate = '2045-05-14',
+    this.gameTime = '22:00',
     this.description = '',
     this.port = 21099,
     this.password = '',
@@ -179,14 +244,47 @@ class Campaign {
     List<CampaignPlayer>? players,
     List<SessionEvent>? events,
     List<MapWaypoint>? waypoints,
+    List<MapToken>? tokens,
+    List<Transport>? transports,
+    List<CampaignAiBot>? aiBots,
+    List<PendingAiHack>? pendingHacks,
+    List<CampaignSessionCommit>? sessionCommits,
+    List<CombatInitiativeEntry>? initiativeOrder,
+    this.currentInitiativeTurnIndex = 0,
+    this.combatRound = 1,
+    this.netArchitecture,
   })  : players = players ?? <CampaignPlayer>[],
         events = events ?? <SessionEvent>[],
         waypoints = waypoints ?? <MapWaypoint>[],
+        tokens = tokens ?? <MapToken>[],
+        transports = transports ?? <Transport>[],
+        aiBots = aiBots ?? CampaignAiBot.defaultFleet(),
+        pendingHacks = pendingHacks ?? <PendingAiHack>[],
+        sessionCommits = sessionCommits ?? <CampaignSessionCommit>[],
+        initiativeOrder = initiativeOrder ?? <CombatInitiativeEntry>[],
         mapBackground = mapBackground ?? MapBackground();
 
   final DocumentMeta meta;
   String gameDate;
+  String gameTime;
   String description;
+
+  /// Architettura NET della campagna per il Netrunner.
+  NetArchitecture? netArchitecture;
+
+  /// Flotta di Intelligenze Artificiali programmabili della campagna (Delamain, Broker, ecc.).
+  final List<CampaignAiBot> aiBots;
+
+  /// Richieste pendenti di hackeraggio illegale verso le IA.
+  final List<PendingAiHack> pendingHacks;
+
+  /// Archivio cronologico delle sessioni con trascrizioni e riassunti IA (stile commit).
+  final List<CampaignSessionCommit> sessionCommits;
+
+  /// Ordine di iniziativa e turni di combattimento del tavolo.
+  final List<CombatInitiativeEntry> initiativeOrder;
+  int currentInitiativeTurnIndex;
+  int combatRound;
 
   /// Aspetto della mappa scelto dal master: e' lui che disegna il tavolo, e
   /// l'aspetto viaggia con la campagna quindi tutti vedono la stessa cosa.
@@ -196,12 +294,13 @@ class Campaign {
   MapBackground mapBackground;
 
   /// I waypoint della campagna.
-  ///
-  /// Vivono nel documento e non nella sessione perche' sono **preparazione**:
-  /// i waypoint di una serata si ritrovano in quella successiva, ed e' quello
-  /// che li distingue da una chat. Le posizioni private del master restano qui
-  /// dentro e non vengono trasmesse.
   final List<MapWaypoint> waypoints;
+
+  /// I token sulla mappa: chi c'e', dove, e in che stato.
+  final List<MapToken> tokens;
+
+  /// I trasporti in corso: un taxi che sta portando qualcuno in centro, una moto che scappa.
+  final List<Transport> transports;
 
   /// Porta di ascolto per la sessione condivisa.
   int port;
@@ -209,8 +308,7 @@ class Campaign {
   /// Password del tavolo. Vuota significa tavolo aperto a chi ha l'indirizzo.
   String password;
 
-  /// Indirizzo di rete da comunicare ai giocatori (facoltativo: il master puo'
-  /// anche solo copiare quello rilevato automaticamente).
+  /// Indirizzo di rete da comunicare ai giocatori (facoltativo).
   String advertisedAddress;
 
   final List<CampaignPlayer> players;
@@ -223,13 +321,23 @@ class Campaign {
   Map<String, Object?> toJson() => <String, Object?>{
         'meta': meta.toJson(),
         'gameDate': gameDate,
+        'gameTime': gameTime,
         'description': description,
         'port': port,
         'password': password,
         'advertisedAddress': advertisedAddress,
         'mapStyle': mapStyle.name,
         'mapBackground': mapBackground.toJson(),
+        if (netArchitecture != null) 'netArchitecture': netArchitecture!.toJson(),
+        'aiBots': aiBots.map((CampaignAiBot b) => b.toJson()).toList(),
+        'pendingHacks': pendingHacks.map((PendingAiHack h) => h.toJson()).toList(),
+        'sessionCommits': sessionCommits.map((CampaignSessionCommit c) => c.toJson()).toList(),
+        'initiativeOrder': initiativeOrder.map((CombatInitiativeEntry i) => i.toJson()).toList(),
+        'currentInitiativeTurnIndex': currentInitiativeTurnIndex,
+        'combatRound': combatRound,
         'waypoints': waypoints.map((MapWaypoint w) => w.toJson()).toList(),
+        'tokens': tokens.map((MapToken t) => t.toJson()).toList(),
+        'transports': transports.map((Transport t) => t.toJson()).toList(),
         'players': players.map((CampaignPlayer p) => p.toJson()).toList(),
         'events': events.map((SessionEvent e) => e.toJson()).toList(),
       };
@@ -241,7 +349,8 @@ class Campaign {
                   .map((Object? k, Object? v) => MapEntry(k.toString(), v))
               : const <String, Object?>{},
         ),
-        gameDate: readString(json['gameDate']),
+        gameDate: readString(json['gameDate'], '2045-05-14'),
+        gameTime: readString(json['gameTime'], '22:00'),
         description: readString(json['description']),
         port: readInt(json['port'], 21099),
         password: readString(json['password']),
@@ -253,10 +362,24 @@ class Campaign {
                   .map((Object? k, Object? v) => MapEntry(k.toString(), v))
               : const <String, Object?>{},
         ),
+        netArchitecture: json['netArchitecture'] is Map
+            ? NetArchitecture.fromJson(
+                (json['netArchitecture']! as Map<Object?, Object?>)
+                    .map((Object? k, Object? v) => MapEntry(k.toString(), v)),
+              )
+            : null,
+        aiBots: json['aiBots'] != null
+            ? readObjectList(json['aiBots']).map(CampaignAiBot.fromJson).toList()
+            : CampaignAiBot.defaultFleet(),
+        pendingHacks: readObjectList(json['pendingHacks']).map(PendingAiHack.fromJson).toList(),
+        sessionCommits: readObjectList(json['sessionCommits']).map(CampaignSessionCommit.fromJson).toList(),
+        initiativeOrder: readObjectList(json['initiativeOrder']).map(CombatInitiativeEntry.fromJson).toList(),
+        currentInitiativeTurnIndex: readInt(json['currentInitiativeTurnIndex'], 0),
+        combatRound: readInt(json['combatRound'], 1),
         players: readObjectList(json['players']).map(CampaignPlayer.fromJson).toList(),
         events: readObjectList(json['events']).map(SessionEvent.fromJson).toList(),
-        // Una campagna salvata prima che la mappa esistesse apre senza problemi:
-        // `waypoints` assente vale elenco vuoto, non errore.
         waypoints: readObjectList(json['waypoints']).map(MapWaypoint.fromJson).toList(),
+        tokens: readObjectList(json['tokens']).map(MapToken.fromJson).toList(),
+        transports: readObjectList(json['transports']).map(Transport.fromJson).toList(),
       );
 }

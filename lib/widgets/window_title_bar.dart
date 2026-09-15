@@ -41,6 +41,8 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
     switch (state.screen) {
       case AppScreen.home:
         return 'Cyberpunk RED Visualizer';
+      case AppScreen.gm:
+        return 'Strumenti del Master';
       case AppScreen.sheet:
         final sheet = state.sheet;
         if (sheet == null) return 'Scheda Personaggio';
@@ -261,6 +263,62 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
                           ? CprPalette.yellow
                           : CprPalette.veil(CprPalette.inkMuted, 0.75),
                     ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(width: 1, height: 10, color: CprPalette.hairline),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: state.toggleAiAssistant,
+          borderRadius: BorderRadius.circular(3),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: state.isAiAssistantOpen
+                  ? CprPalette.cyan.withValues(alpha: 0.18)
+                  : CprPalette.surfaceRaised,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: state.isAiAssistantOpen
+                    ? CprPalette.cyan
+                    : CprPalette.hairline,
+                width: 1,
+              ),
+              boxShadow: state.isAiAssistantOpen
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: CprPalette.cyan.withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        spreadRadius: 0.5,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(
+                  Icons.smart_toy_outlined,
+                  size: 12,
+                  color: state.isAiAssistantOpen
+                      ? CprPalette.cyan
+                      : CprPalette.inkMuted,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'AI NET / PNG',
+                  style: CprType.caption.copyWith(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.6,
+                    color: state.isAiAssistantOpen
+                        ? CprPalette.cyan
+                        : CprPalette.inkMuted,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

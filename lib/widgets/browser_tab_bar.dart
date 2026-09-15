@@ -159,6 +159,8 @@ class _BrowserTabItem extends StatelessWidget {
         return Icons.settings_outlined;
       case AppTabKind.compare:
         return Icons.compare_arrows;
+      case AppTabKind.gm:
+        return Icons.dashboard_customize_outlined;
     }
   }
 
@@ -176,6 +178,8 @@ class _BrowserTabItem extends StatelessWidget {
         return CprPalette.inkMuted;
       case AppTabKind.compare:
         return CprPalette.warning;
+      case AppTabKind.gm:
+        return CprPalette.violet;
     }
   }
 

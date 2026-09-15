@@ -101,7 +101,13 @@ class _DieModel {
     final List<_PolyFace> f = <_PolyFace>[];
     for (int i = 0; i < faceIndices.length; i++) {
       final List<int> idx = faceIndices[i];
-      final _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      _Vec3 center = const _Vec3(0, 0, 0);
+      for (final int vi in idx) {
+        center = center + v[vi];
+      }
+      center = center * (1.0 / idx.length);
+      _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      if (n.dot(center) < 0) n = n * -1.0;
       f.add(_PolyFace(indices: idx, value: i + 1, normal: n));
     }
     return _DieModel(vertices: v, faces: f);
@@ -167,7 +173,13 @@ class _DieModel {
     final List<_PolyFace> f = <_PolyFace>[];
     for (int i = 0; i < faceIndices.length; i++) {
       final List<int> idx = faceIndices[i];
-      final _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      _Vec3 center = const _Vec3(0, 0, 0);
+      for (final int vi in idx) {
+        center = center + v[vi];
+      }
+      center = center * (1.0 / idx.length);
+      _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      if (n.dot(center) < 0) n = n * -1.0;
       f.add(_PolyFace(indices: idx, value: values[i], normal: n));
     }
     return _DieModel(vertices: v, faces: f);
@@ -199,7 +211,9 @@ class _DieModel {
       final int top1 = 2 + i;
       final int bot = 7 + i;
       final int top2 = 2 + ((i + 1) % 5);
-      final _Vec3 n = (v[top1] - v[0]).cross(v[bot] - v[0]).normalized();
+      _Vec3 n = (v[top1] - v[0]).cross(v[bot] - v[0]).normalized();
+      final _Vec3 faceCenter = (v[0] + v[top1] + v[bot] + v[top2]) * 0.25;
+      if (n.dot(faceCenter) < 0) n = n * -1.0;
       final int val = ((i * 2) + 2); // 2, 4, 6, 8, 10
       f.add(_PolyFace(indices: <int>[0, top1, bot, top2], value: val, normal: n));
     }
@@ -208,7 +222,9 @@ class _DieModel {
       final int bot1 = 7 + i;
       final int top = 2 + ((i + 1) % 5);
       final int bot2 = 7 + ((i + 1) % 5);
-      final _Vec3 n = (v[top] - v[1]).cross(v[bot1] - v[1]).normalized();
+      _Vec3 n = (v[top] - v[1]).cross(v[bot1] - v[1]).normalized();
+      final _Vec3 faceCenter = (v[1] + v[bot2] + v[top] + v[bot1]) * 0.25;
+      if (n.dot(faceCenter) < 0) n = n * -1.0;
       final int val = ((i * 2) + 1); // 1, 3, 5, 7, 9
       f.add(_PolyFace(indices: <int>[1, bot2, top, bot1], value: val, normal: n));
     }
@@ -313,7 +329,13 @@ class _DieModel {
     final List<_PolyFace> f = <_PolyFace>[];
     for (int i = 0; i < faceIndices.length; i++) {
       final List<int> idx = faceIndices[i];
-      final _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      _Vec3 center = const _Vec3(0, 0, 0);
+      for (final int vi in idx) {
+        center = center + v[vi];
+      }
+      center = center * (1.0 / idx.length);
+      _Vec3 n = (v[idx[1]] - v[idx[0]]).cross(v[idx[2]] - v[idx[0]]).normalized();
+      if (n.dot(center) < 0) n = n * -1.0;
       f.add(_PolyFace(indices: idx, value: i + 1, normal: n));
     }
     return _DieModel(vertices: v, faces: f);
@@ -501,10 +523,13 @@ class _ActiveDie {
 
     // Vogliamo che la normale della faccia punti verso (0, 0, 1) nello spazio camera
     final _Vec3 n = targetFace.normal;
-    // Angoli di rotazione per orientare n verso +Z
-    final double pitch = math.atan2(n.y, n.z);
-    final double yaw = -math.atan2(n.x, math.sqrt(n.y * n.y + n.z * n.z));
-    return (pitch, yaw, 0.0);
+    // Angoli di rotazione per orientare n perfettamente verso la camera (nCamZ = 1.0)
+    // compensando l'inclinazione prospettica camTilt del tavolo (~30° = 0.52 rad)
+    const double camTilt = 0.52;
+    final double ry = -math.atan2(n.x, n.z);
+    final double zPrime = math.sqrt(n.x * n.x + n.z * n.z);
+    final double rx = math.atan2(n.y, zPrime) - camTilt;
+    return (rx, ry, 0.0);
   }
 }
 

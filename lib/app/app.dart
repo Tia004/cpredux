@@ -2,14 +2,18 @@ import 'dart:io';
 import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../design/motion.dart';
 import '../design/palette.dart';
 import '../design/theme.dart';
 import '../design/typography.dart';
+import '../features/ai/ai_assistant_drawer.dart';
 import '../features/campaign/campaign_screen.dart';
 import '../features/cloud/cloud_space_view.dart';
 import '../features/compare/compare_screen.dart';
+import '../features/gm/gm_panel.dart';
+import '../features/gm/gm_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/sheet/sheet_screen.dart';
@@ -47,10 +51,20 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
   /// controllo degli aggiornamenti parte con l'avvio.
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
+  static const MethodChannel _fileOpenChannel = MethodChannel('cpredux/file_open');
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _fileOpenChannel.setMethodCallHandler((MethodCall call) async {
+      if (call.method == 'openFile' && call.arguments is String) {
+        final String path = call.arguments as String;
+        if (path.isNotEmpty) {
+          await _state.openFileInNewTab(path);
+        }
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _afterStartup());
   }
 
@@ -197,32 +211,71 @@ class _Root extends StatelessWidget {
                 const WindowTitleBar(),
                 const BrowserTabBar(),
                 if (state.errorMessage != null) _ErrorBar(message: state.errorMessage!),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: CprMotion.slow,
-                switchInCurve: CprMotion.enter,
-                switchOutCurve: CprMotion.exit,
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.015),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  );
-                },
-                child: KeyedSubtree(
-                  key: ValueKey<AppScreen>(state.screen),
-                  child: _screenFor(state.screen),
+                Expanded(
+                  child: Stack(
+                    children: <Widget>[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: CprMotion.slow,
+                              switchInCurve: CprMotion.enter,
+                              switchOutCurve: CprMotion.exit,
+                              transitionBuilder: (Widget child, Animation<double> animation) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.015),
+                                      end: Offset.zero,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: KeyedSubtree(
+                                key: ValueKey<AppScreen>(state.screen),
+                                child: _screenFor(state.screen),
+                              ),
+                            ),
+                          ),
+                          if (state.isAiAssistantOpen)
+                            AiAssistantDrawer(
+                              onClose: () => state.setAiAssistantOpen(false),
+                            ),
+                          if (state.isGmPanelOpen)
+                            GmPanel(
+                              onClose: () => state.setGmPanelOpen(false),
+                            ),
+                        ],
+                      ),
+                      if (!state.isAiAssistantOpen)
+                        Positioned(
+                          right: 0,
+                          top: 120,
+                          child: _AiFloatingTab(
+                            onTap: state.toggleAiAssistant,
+                          ),
+                        ),
+                      // La linguetta del Master resta raggiungibile anche con
+                      // l'assistente aperto: sono due cose che si usano in
+                      // momenti diversi della stessa serata, e aprirne uno non
+                      // deve voler dire non poter aprire l'altro.
+                      if (!state.isGmPanelOpen)
+                        Positioned(
+                          right: 0,
+                          top: 196,
+                          child: GmFloatingTab(
+                            onTap: state.toggleGmPanel,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
         ),
       ),
     );
@@ -242,6 +295,8 @@ class _Root extends StatelessWidget {
         return const CompareScreen();
       case AppScreen.cloud:
         return const CloudSpaceView();
+      case AppScreen.gm:
+        return const GmScreen();
     }
   }
 }
@@ -289,3 +344,52 @@ class _ErrorBar extends StatelessWidget {
     );
   }
 }
+
+class _AiFloatingTab extends StatelessWidget {
+  const _AiFloatingTab({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
+        decoration: BoxDecoration(
+          color: CprPalette.surfaceRaised,
+          borderRadius: const BorderRadius.horizontal(left: Radius.circular(6)),
+          border: Border.all(color: CprPalette.cyan.withValues(alpha: 0.5)),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: CprPalette.cyan.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(-2, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.smart_toy_outlined, size: 14, color: CprPalette.cyan),
+            const SizedBox(height: 5),
+            RotatedBox(
+              quarterTurns: 3,
+              child: Text(
+                'AI NET',
+                style: CprType.label.copyWith(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: CprPalette.cyan,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

@@ -116,18 +116,6 @@ class CloudSyncService extends ChangeNotifier {
   CloudSyncService._() {
     _loadVault();
     _loadUser();
-    if (_currentUser == null) {
-      _currentUser = const CloudUser(
-        uid: 'usr_cpred_spark_edgerunner',
-        email: 'edgerunner@nightcity.net',
-        displayName: 'EDGERUNNER',
-        photoUrl: null,
-      );
-      _authStatus = CloudAuthStatus.authenticated;
-      _syncState = SheetSyncState.synced;
-      _lastSyncedAt = DateTime.now();
-      _persistUser();
-    }
   }
 
   static final CloudSyncService instance = CloudSyncService._();
@@ -234,22 +222,31 @@ class CloudSyncService extends ChangeNotifier {
   }
 
   /// Effettua l'accesso con Google (Firebase Auth).
-  Future<bool> signInWithGoogle({String? customEmail, String? customName}) async {
+  Future<bool> signInWithGoogle({required String email, String? customName}) async {
+    final String cleanEmail = email.trim();
+    if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
+      _authStatus = CloudAuthStatus.error;
+      _lastError = 'Inserisci un indirizzo email valido.';
+      notifyListeners();
+      return false;
+    }
+
     _authStatus = CloudAuthStatus.authenticating;
     _lastError = null;
     notifyListeners();
 
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 600));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
 
-      final String email = customEmail ?? 'edgerunner@nightcity.net';
-      final String name = customName ?? (email.split('@').first);
-      final String uid = 'usr_${email.hashCode.abs()}';
+      final String name = (customName != null && customName.trim().isNotEmpty)
+          ? customName.trim()
+          : cleanEmail.split('@').first;
+      final String uid = 'usr_${cleanEmail.hashCode.abs()}';
 
       _currentUser = CloudUser(
         uid: uid,
-        email: email,
-        displayName: name.toUpperCase(),
+        email: cleanEmail,
+        displayName: name,
         photoUrl: null,
       );
 
@@ -263,6 +260,47 @@ class CloudSyncService extends ChangeNotifier {
     } catch (e) {
       _authStatus = CloudAuthStatus.error;
       _lastError = 'Errore di autenticazione Google: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Sincronizza un documento (scheda o campagna) sul cloud se l'utente è autenticato.
+  Future<bool> syncDocument({
+    required String id,
+    required String name,
+    required DocumentKind kind,
+    required String jsonPayload,
+    String roleOrDetails = '',
+  }) async {
+    if (!isAuthenticated) return false;
+
+    _syncState = SheetSyncState.syncing;
+    notifyListeners();
+
+    try {
+      final int size = utf8.encode(jsonPayload).length;
+      final CloudDocumentItem entry = CloudDocumentItem(
+        id: id.isNotEmpty ? id : '${kind.name}_${DateTime.now().millisecondsSinceEpoch}',
+        name: name.trim().isNotEmpty ? name.trim() : (kind == DocumentKind.sheet ? 'Nuova Scheda' : 'Nuova Campagna'),
+        kind: kind,
+        updatedAt: DateTime.now(),
+        sizeBytes: size,
+        jsonPayload: jsonPayload,
+        roleOrDetails: roleOrDetails,
+      );
+
+      _documents.removeWhere((CloudDocumentItem d) => d.id == entry.id);
+      _documents.insert(0, entry);
+      _persistVault();
+
+      _syncState = SheetSyncState.synced;
+      _lastSyncedAt = DateTime.now();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _syncState = SheetSyncState.error;
+      _lastError = 'Errore sincronizzazione documento: $e';
       notifyListeners();
       return false;
     }

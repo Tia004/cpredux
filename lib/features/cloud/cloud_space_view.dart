@@ -532,44 +532,78 @@ class _CloudSpaceViewState extends State<CloudSpaceView> {
   }
 
   Future<void> _promptGoogleLogin(BuildContext context, CloudSyncService cloud) async {
-    final TextEditingController emailCtrl = TextEditingController(text: 'edgerunner@nightcity.net');
-    final TextEditingController nameCtrl = TextEditingController(text: 'Johnny Silverhand');
+    final TextEditingController emailCtrl = TextEditingController();
+    final TextEditingController nameCtrl = TextEditingController();
+    String? errorText;
 
     final bool? doLogin = await showDialog<bool>(
       context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        backgroundColor: CprPalette.surface,
-        title: Text('Accesso Google Firebase Spark', style: CprType.body.copyWith(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Inserisci i tuoi dati di accesso Google per collegare lo spazio cloud gratuito Firebase Spark (1 GB):',
-              style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+      builder: (BuildContext ctx) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) {
+          return AlertDialog(
+            backgroundColor: CprPalette.surface,
+            title: Text(
+              'ACCESSO GOOGLE FIREBASE SPARK',
+              style: CprType.body.copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.1),
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'Nome Visualizzato'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Inserisci la tua email Google reale per collegare il tuo spazio cloud Firestore gratuito (1 GB):',
+                  style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome Visualizzato (es. tuo nome o alias)',
+                    hintText: 'Johnny',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email Google',
+                    hintText: 'utente@gmail.com',
+                    errorText: errorText,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: emailCtrl,
-              decoration: const InputDecoration(labelText: 'Email Google'),
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annulla')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Accedi')),
-        ],
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Annulla'),
+              ),
+              TechButton(
+                label: 'Accedi al Cloud',
+                icon: Icons.cloud_done,
+                variant: TechButtonVariant.primary,
+                compact: true,
+                onPressed: () {
+                  final String email = emailCtrl.text.trim();
+                  if (email.isEmpty || !email.contains('@')) {
+                    setModalState(() {
+                      errorText = 'Inserisci un indirizzo email valido';
+                    });
+                    return;
+                  }
+                  Navigator.of(ctx).pop(true);
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
 
     if (doLogin == true) {
       await cloud.signInWithGoogle(
-        customEmail: emailCtrl.text.trim(),
+        email: emailCtrl.text.trim(),
         customName: nameCtrl.text.trim(),
       );
     }

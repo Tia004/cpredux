@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../../domain/map_token.dart';
+import '../../domain/transport.dart';
 import '../../domain/world_map.dart';
 import '../../widgets/tech_button.dart';
 import 'map_geometry.dart';
@@ -32,10 +34,36 @@ class MapCanvas extends StatefulWidget {
     this.selectedId,
     this.draft,
     this.maxHeight = 640,
+    this.tokens = const <MapToken>[],
+    this.selectedTokenId,
+    this.onTokenTap,
+    this.onTokenDrag,
+    this.transports = const <Transport>[],
+    this.selectedTransportId,
+    this.onTransportTap,
   });
 
   final MapStyle style;
   final List<MapWaypoint> waypoints;
+
+  /// Chi c'e' sulla mappa. Opzionale: la mappa si disegna anche senza token.
+  final List<MapToken> tokens;
+  final String? selectedTokenId;
+  final ValueChanged<MapToken>? onTokenTap;
+
+  /// Nuova posizione (coordinate mappa 0..1) mentre si trascina un token.
+  final void Function(String tokenId, Offset position)? onTokenDrag;
+
+  /// I veicoli in strada. Si **vedono** muovere: la posizione arriva dallo
+  /// stato a ogni battito dell'orologio, e il disegno segue.
+  final List<Transport> transports;
+  final String? selectedTransportId;
+
+  /// Un veicolo e' stato cliccato. Non si trascina: un veicolo in movimento che
+  /// si puo' spostare a mano significa che due cose diverse decidono dove si
+  /// trova, e quella sbagliata e' sempre quella che si vede.
+  final ValueChanged<Transport>? onTransportTap;
+
   final bool asGameMaster;
 
   /// True quando il prossimo clic sulla mappa crea un waypoint.
@@ -77,6 +105,13 @@ class _MapCanvasState extends State<MapCanvas> with SingleTickerProviderStateMix
 
   String? _hoveredId;
   double _scale = 1;
+
+  /// Token che si sta trascinando adesso, se ce n'e' uno.
+  ///
+  /// Finche' non e' nullo, lo spostamento della mappa e' spento: altrimenti
+  /// spostare il capo dei Tyger Claws farebbe scivolare via anche il quartiere
+  /// sotto di lui, che e' la cosa che rende impossibile prenderci la mano.
+  String? _draggingTokenId;
 
   @override
   void initState() {
@@ -147,6 +182,72 @@ class _MapCanvasState extends State<MapCanvas> with SingleTickerProviderStateMix
     return best;
   }
 
+  /// Quale token sta sotto il puntatore.
+  ///
+  /// Soglia piu' larga di quella dei waypoint: un token e' un bersaglio piu'
+  /// piccolo e si sposta, quindi perdonare qualche pixel in piu' evita il clic
+  /// a vuoto proprio mentre si gioca.
+  void _onPointerDown(Offset local, Size size) {
+    if (widget.placing || widget.onTokenDrag == null) return;
+    final MapToken? token = _hitTestToken(local, size);
+    if (token == null) return;
+    setState(() => _draggingTokenId = token.id);
+  }
+
+  void _onPointerMove(Offset local, Size size) {
+    final String? id = _draggingTokenId;
+    if (id == null || widget.onTokenDrag == null) return;
+    final Offset map = localToMap(local, mapRectIn(size));
+    // Limitato alla mappa: un token trascinato fuori bordo non si ritrova piu',
+    // e "dov'e' finito il capo dei Tyger Claws" non e' una domanda che il
+    // Master debba farsi.
+    widget.onTokenDrag!(id, Offset(map.dx.clamp(0, 1).toDouble(), map.dy.clamp(0, 1).toDouble()));
+  }
+
+  void _endDrag() {
+    if (_draggingTokenId == null) return;
+    setState(() => _draggingTokenId = null);
+  }
+
+  /// Quale veicolo sta sotto il puntatore.
+  ///
+  /// Soglia piu' larga di tutte le altre: un veicolo e' piccolo, si muove, e
+  /// chi lo clicca lo sta facendo **mentre** si muove. Sbagliare bersaglio qui
+  /// significa toccare il token che gli viaggia dentro.
+  Transport? _hitTestTransport(Offset local, Size size) {
+    if (widget.transports.isEmpty) return null;
+    final Rect rect = mapRectIn(size);
+    final double threshold = 20 / _scale;
+
+    Transport? best;
+    double bestDistance = double.infinity;
+    for (final Transport t in widget.transports) {
+      final double d = (mapToLocal(t.position, rect) - local).distance;
+      if (d <= threshold && d < bestDistance) {
+        best = t;
+        bestDistance = d;
+      }
+    }
+    return best;
+  }
+
+  MapToken? _hitTestToken(Offset local, Size size) {
+    if (widget.tokens.isEmpty) return null;
+    final Rect rect = mapRectIn(size);
+    final double threshold = 17 / _scale;
+
+    MapToken? best;
+    double bestDistance = double.infinity;
+    for (final MapToken t in widget.tokens) {
+      final double d = (mapToLocal(t.position, rect) - local).distance;
+      if (d <= threshold && d < bestDistance) {
+        best = t;
+        bestDistance = d;
+      }
+    }
+    return best;
+  }
+
   void _onTapUp(TapUpDetails details, Size size) {
     _focus.requestFocus();
     final Offset local = details.localPosition;
@@ -158,6 +259,22 @@ class _MapCanvasState extends State<MapCanvas> with SingleTickerProviderStateMix
     if (widget.placing) {
       final Offset map = localToMap(local, rect);
       if (isInsideMap(map)) widget.onMapTap(map);
+      return;
+    }
+
+    // Prima i veicoli, poi i token, poi i waypoint: l'ordine e' quello del
+    // disegno, dal piu' alto al piu' basso. Un clic deve prendere quello che si
+    // vede, e il contrario farebbe selezionare il segnaposto nascosto dietro a
+    // chi ci sta sopra.
+    final Transport? vehicle = _hitTestTransport(local, size);
+    if (vehicle != null && widget.onTransportTap != null) {
+      widget.onTransportTap!(vehicle);
+      return;
+    }
+
+    final MapToken? token = _hitTestToken(local, size);
+    if (token != null && widget.onTokenTap != null) {
+      widget.onTokenTap!(token);
       return;
     }
 
@@ -177,9 +294,7 @@ class _MapCanvasState extends State<MapCanvas> with SingleTickerProviderStateMix
       builder: (BuildContext context, BoxConstraints constraints) {
         final Size size = Size(
           constraints.maxWidth,
-          constraints.maxHeight.isFinite
-              ? constraints.maxHeight.clamp(200, widget.maxHeight)
-              : widget.maxHeight,
+          constraints.maxHeight.isFinite ? constraints.maxHeight.clamp(200, widget.maxHeight) : widget.maxHeight,
         );
 
         return CallbackShortcuts(
@@ -217,32 +332,47 @@ class _MapCanvasState extends State<MapCanvas> with SingleTickerProviderStateMix
                         transformationController: _transform,
                         minScale: 1,
                         maxScale: 9,
-                        // Un passo per rotella piu' corto del default (200):
-                        // con 200 un singolo scatto salta a 3x e si perde il
-                        // punto che si stava guardando.
-                        scaleFactor: 90,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTapUp: (TapUpDetails d) => _onTapUp(d, size),
-                          child: AnimatedBuilder(
-                            animation: _pulse,
-                            builder: (BuildContext context, _) => CustomPaint(
-                              painter: NightCityPainter(
-                                style: widget.style,
-                                image: widget.image,
-                                corners: widget.corners ?? MapBackground.defaultCorners,
-                                imageOpacity: widget.imageOpacity,
-                                waypoints: widget.waypoints,
-                                hoveredId: _hoveredId,
-                                selectedId: widget.selectedId,
-                                draft: widget.draft,
-                                scale: _scale,
-                                showLabels: true,
-                                asGameMaster: widget.asGameMaster,
-                                pulse: _pulse,
-                                repaint: _pulse,
+                        scaleEnabled:
+                            false, // Disabilita lo zoom da scroll del mouse: zoom solo tramite i pulsanti + e -
+                        panEnabled: _draggingTokenId == null,
+                        // Il trascinamento usa `Listener` e non un riconoscitore
+                        // di gesti: `Listener` riceve il puntatore *prima* che
+                        // l'arena dei gesti decida, quindi si fa in tempo a
+                        // spegnere lo spostamento della mappa prima che
+                        // cominci. Con un `onPanUpdate` normale, trascinare un
+                        // token farebbe scorrere anche la mappa sotto di lui.
+                        child: Listener(
+                          onPointerDown: (PointerDownEvent e) => _onPointerDown(e.localPosition, size),
+                          onPointerMove: (PointerMoveEvent e) => _onPointerMove(e.localPosition, size),
+                          onPointerUp: (_) => _endDrag(),
+                          onPointerCancel: (_) => _endDrag(),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTapUp: (TapUpDetails d) => _onTapUp(d, size),
+                            child: AnimatedBuilder(
+                              animation: _pulse,
+                              builder: (BuildContext context, _) => CustomPaint(
+                                painter: NightCityPainter(
+                                  style: widget.style,
+                                  image: widget.image,
+                                  corners: widget.corners ?? MapBackground.defaultCorners,
+                                  imageOpacity: widget.imageOpacity,
+                                  waypoints: widget.waypoints,
+                                  tokens: widget.tokens,
+                                  selectedTokenId: widget.selectedTokenId,
+                                  transports: widget.transports,
+                                  selectedTransportId: widget.selectedTransportId,
+                                  hoveredId: _hoveredId,
+                                  selectedId: widget.selectedId,
+                                  draft: widget.draft,
+                                  scale: _scale,
+                                  showLabels: true,
+                                  asGameMaster: widget.asGameMaster,
+                                  pulse: _pulse,
+                                  repaint: _pulse,
+                                ),
+                                size: Size.infinite,
                               ),
-                              size: Size.infinite,
                             ),
                           ),
                         ),
@@ -281,12 +411,7 @@ class _MapCanvasState extends State<MapCanvas> with SingleTickerProviderStateMix
 /// touchpad a due dita il gesto funziona, ma con il mouse serve un modo
 /// esplicito, e a un tavolo il master sta spesso con una mano sola.
 class _ZoomControls extends StatelessWidget {
-  const _ZoomControls({
-    required this.scale,
-    required this.onZoomIn,
-    required this.onZoomOut,
-    required this.onReset,
-  });
+  const _ZoomControls({required this.scale, required this.onZoomIn, required this.onZoomOut, required this.onReset});
 
   final double scale;
   final VoidCallback onZoomIn;
@@ -320,9 +445,7 @@ class _ZoomControls extends StatelessWidget {
             child: Text(
               '${scale.toStringAsFixed(1)}×',
               textAlign: TextAlign.center,
-              style: CprType.numeralSmall.copyWith(
-                color: atBase ? CprPalette.inkFaint : CprPalette.cyan,
-              ),
+              style: CprType.numeralSmall.copyWith(color: atBase ? CprPalette.inkFaint : CprPalette.cyan),
             ),
           ),
           const SizedBox(width: 6),
@@ -381,10 +504,7 @@ class _PlacingHint extends StatelessWidget {
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
               onTap: cancelled,
-              child: Text(
-                'ESC',
-                style: CprType.label.copyWith(color: CprPalette.inkMuted, fontSize: 9),
-              ),
+              child: Text('ESC', style: CprType.label.copyWith(color: CprPalette.inkMuted, fontSize: 9)),
             ),
           ),
         ],
@@ -392,4 +512,3 @@ class _PlacingHint extends StatelessWidget {
     );
   }
 }
-

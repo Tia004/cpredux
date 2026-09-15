@@ -1,12 +1,14 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../../domain/map_token.dart';
+import '../../domain/gm/gm_rules.dart';
 import '../../domain/night_city.dart';
+import '../../domain/transport.dart';
 import '../../domain/world_map.dart';
 import 'map_geometry.dart';
 
@@ -55,6 +57,10 @@ class NightCityPainter extends CustomPainter {
     required this.showLabels,
     required this.asGameMaster,
     required this.pulse,
+    this.tokens = const <MapToken>[],
+    this.selectedTokenId,
+    this.transports = const <Transport>[],
+    this.selectedTransportId,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -70,6 +76,21 @@ class NightCityPainter extends CustomPainter {
   final List<MapWaypoint> waypoints;
   final String? hoveredId;
   final String? selectedId;
+
+  /// Chi c'e' sulla mappa.
+  ///
+  /// Opzionale con valore vuoto: la mappa si disegna anche senza token, e chi
+  /// costruisce il pittore non deve conoscerli per forza.
+  final List<MapToken> tokens;
+  final String? selectedTokenId;
+
+  /// I veicoli in strada, con il loro percorso.
+  ///
+  /// Separati dai token perche' non sono la stessa cosa: un token sta in un
+  /// posto, un veicolo **sta andando** da qualche parte. Il percorso si disegna
+  /// sotto tutto il resto — e' contesto, non un oggetto sulla mappa.
+  final List<Transport> transports;
+  final String? selectedTransportId;
 
   /// Posizione in attesa di conferma, in coordinate mappa.
   final Offset? draft;
@@ -151,7 +172,15 @@ class NightCityPainter extends CustomPainter {
     if (style == MapStyle.digital) _paintScanline(canvas, rect);
     _paintVignette(canvas, rect);
 
+    // Il percorso sotto tutto: e' contesto, e non deve coprire i luoghi.
+    _paintTransportRoutes(canvas, rect);
     _paintWaypoints(canvas, rect);
+    // I token sopra i waypoint: un segnaposto che indica un luogo e' sfondo, la
+    // persona che ci sta dentro e' quello che si guarda.
+    _paintTokens(canvas, rect);
+    // I veicoli sopra i token: chi e' a bordo viaggia con loro, e il veicolo e'
+    // la cosa che si muove, quindi e' quella che si guarda.
+    _paintTransports(canvas, rect);
     if (draft != null) _paintDraft(canvas, rect, draft!);
 
     canvas.restore();
@@ -368,48 +397,40 @@ class NightCityPainter extends CustomPainter {
     final ui.Image? img = image;
     if (img == null) return;
 
-    if (corners.length != 4) {
-      final Rect src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
-      final Paint p = Paint()
-        ..filterQuality = FilterQuality.medium
-        ..isAntiAlias = true;
-      if (imageOpacity < 1) {
-        canvas.saveLayer(rect, Paint()..color = Color.fromRGBO(255, 255, 255, imageOpacity));
-        canvas.drawImageRect(img, src, rect, p);
-        canvas.restore();
-      } else {
-        canvas.drawImageRect(img, src, rect, p);
-      }
-      return;
-    }
-
-    final List<Offset> p = <Offset>[for (final Offset c in corners) mapToLocal(c, rect)];
-    final double w = img.width.toDouble();
-    final double h = img.height.toDouble();
-
-    final ui.Vertices vertices = ui.Vertices.raw(
-      ui.VertexMode.triangles,
-      Float32List.fromList(<double>[
-        p[0].dx, p[0].dy,
-        p[1].dx, p[1].dy,
-        p[2].dx, p[2].dy,
-        p[3].dx, p[3].dy,
-      ]),
-      textureCoordinates: Float32List.fromList(<double>[0, 0, w, 0, w, h, 0, h]),
-      indices: Uint16List.fromList(<int>[0, 1, 2, 0, 2, 3]),
-    );
-
-    final Paint paint = Paint()
-      ..shader = ui.ImageShader(img, TileMode.clamp, TileMode.clamp, Matrix4.identity().storage)
+    final Rect src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+    final Paint p = Paint()
       ..filterQuality = FilterQuality.medium
       ..isAntiAlias = true;
 
-    final bool faded = imageOpacity < 1;
-    if (faded) {
-      canvas.saveLayer(rect, Paint()..color = Color.fromRGBO(255, 255, 255, imageOpacity));
+    // Se i corner sono i 4 di default o non validi, disegna direttamente sull'area della mappa
+    final bool isDefaultRect = corners.length != 4 ||
+        (corners[0] == const Offset(0, 0) &&
+            corners[1] == const Offset(1, 0) &&
+            corners[2] == const Offset(1, 1) &&
+            corners[3] == const Offset(0, 1));
+
+    final Rect targetRect;
+    if (isDefaultRect) {
+      targetRect = rect;
+    } else {
+      final List<Offset> pts = <Offset>[for (final Offset c in corners) mapToLocal(c, rect)];
+      final double left = math.min(pts[0].dx, pts[3].dx);
+      final double right = math.max(pts[1].dx, pts[2].dx);
+      final double top = math.min(pts[0].dy, pts[1].dy);
+      final double bottom = math.max(pts[2].dy, pts[3].dy);
+      targetRect = Rect.fromLTRB(left, top, right, bottom);
     }
-    canvas.drawVertices(vertices, BlendMode.srcOver, paint);
-    if (faded) canvas.restore();
+
+    if (imageOpacity < 1) {
+      canvas.saveLayer(
+        targetRect,
+        Paint()..color = Color.fromRGBO(255, 255, 255, imageOpacity.clamp(0.0, 1.0)),
+      );
+      canvas.drawImageRect(img, src, targetRect, p);
+      canvas.restore();
+    } else {
+      canvas.drawImageRect(img, src, targetRect, p);
+    }
   }
 
   // --- Effetti -------------------------------------------------------------
@@ -596,6 +617,314 @@ class NightCityPainter extends CustomPainter {
     sub.paint(canvas, box.topLeft + Offset(pad + 2 / scale, pad + title.height + 2 / scale));
   }
 
+  void _paintTokens(Canvas canvas, Rect rect) {
+    for (final MapToken t in tokens) {
+      _paintToken(canvas, rect, t);
+    }
+    // Le etichette in un secondo giro, perche' un token disegnato dopo non deve
+    // coprire l'etichetta di quello accanto.
+    for (final MapToken t in tokens) {
+      if (t.id == selectedTokenId) _paintTokenCard(canvas, rect, t);
+    }
+  }
+
+  /// Un token: colore del tipo, e un anello che dice quanti Punti Vita restano.
+  ///
+  /// L'anello e' un arco e non un cerchio pieno di colore: a questa dimensione
+  /// un disco verde e uno rosso si distinguono, ma "quanto manca" si legge solo
+  /// da quanto arco resta. E' la stessa informazione del cuore sulla scheda,
+  /// letta dalla stessa distanza.
+  void _paintToken(Canvas canvas, Rect rect, MapToken token) {
+    final Offset at = mapToLocal(token.position, rect);
+    final Color color = tokenColor(token.kind);
+    final bool selected = token.id == selectedTokenId;
+    final double base = (selected ? 11 : 8.5) / scale;
+
+    if (style == MapStyle.digital) {
+      canvas.drawCircle(
+        at,
+        base * 1.6,
+        Paint()
+          ..color = CprPalette.veil(color, 0.18)
+          ..maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, 5 / scale),
+      );
+    }
+
+    canvas.drawCircle(at, base, Paint()..color = CprPalette.veil(CprPalette.voidBlack, 0.88));
+    canvas.drawCircle(
+      at,
+      base,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (selected ? 1.8 : 1.2) / scale
+        ..color = CprPalette.veil(color, 0.85),
+    );
+
+    // L'anello della salute, sopra il bordo, dal centro verso l'alto.
+    if (token.hasHealth) {
+      final Color health = tokenHealthColor(token);
+      canvas.drawArc(
+        Rect.fromCircle(center: at, radius: base * 1.45),
+        -math.pi / 2,
+        2 * math.pi * token.healthRatio,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2 / scale
+          ..strokeCap = StrokeCap.round
+          ..color = health,
+      );
+      if (token.isDown) {
+        _icon(canvas, Icons.close, at, base * 1.3, CprPalette.healthFlatline);
+      }
+    }
+
+    // Iniziale del nome: a otto pixel non ci sta un nome, ma due lettere si
+    // leggono, e bastano a distinguere "Tyger Claws 3" da "Tyger Claws 4".
+    final String initial = _initial(token.name);
+    if (initial.isNotEmpty) {
+      _text(
+        canvas,
+        initial,
+        at,
+        CprType.label.copyWith(fontSize: base * 0.95, color: CprPalette.veil(color, 0.95)),
+      );
+    }
+  }
+
+  /// Il percorso di un veicolo: una linea punteggiata fra le fermate.
+  ///
+  /// Punteggiata e non continua perche' una linea piena sulla mappa sembra una
+  /// strada o un confine, e le strade di Night City sono gia' disegnate: questa
+  /// e' un'**intenzione** di movimento, non un'infrastruttura.
+  void _paintTransportRoutes(Canvas canvas, Rect rect) {
+    for (final Transport t in transports) {
+      if (t.stops.length < 2) continue;
+      if (t.status == TransportStatus.arrivato && !_isGameMaster) continue;
+      final Color color = transportColor(t);
+      final List<Offset> points = <Offset>[
+        for (final RouteStop s in t.stops) mapToLocal(s.position, rect),
+      ];
+
+      final Paint paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6 / scale
+        ..strokeCap = StrokeCap.round
+        ..color = CprPalette.veil(color, t.status == TransportStatus.fermo ? 0.55 : 0.32);
+
+      for (int i = 0; i < points.length - 1; i++) {
+        _dashedLine(canvas, points[i], points[i + 1], paint, 6 / scale, 5 / scale);
+      }
+
+      // Le fermate: un quadratino per dire dove si passa, non dove si e'.
+      for (final Offset p in points) {
+        canvas.drawRect(
+          Rect.fromCenter(center: p, width: 3.6 / scale, height: 3.6 / scale),
+          Paint()..color = CprPalette.veil(color, 0.7),
+        );
+      }
+    }
+  }
+
+  /// Un veicolo sulla mappa.
+  ///
+  /// La forma e' orientata secondo la direzione di marcia, ed e' la ragione per
+  /// cui un veicolo non si disegna come un token: un cerchio che si sposta non
+  /// dice se sta arrivando o scappando, e al tavolo quella e' la prima cosa che
+  /// si guarda. Fermo, il veicolo mostra una barretta al posto della punta, e
+  /// sulla mappa si vede subito che qualcosa lo ha bloccato.
+  void _paintTransports(Canvas canvas, Rect rect) {
+    for (final Transport t in transports) {
+      final Offset at = mapToLocal(t.position, rect);
+      final Color color = transportColor(t);
+      final bool selected = t.id == selectedTransportId;
+      final bool arrived = t.status == TransportStatus.arrivato;
+      final bool held = t.status == TransportStatus.fermo;
+      final double size = (selected ? 8.5 : 6.5) / scale;
+
+      if (style == MapStyle.digital && !arrived) {
+        canvas.drawCircle(
+          at,
+          size * 2,
+          Paint()
+            ..color = CprPalette.veil(color, held ? 0.10 : 0.2)
+            ..maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, 6 / scale),
+        );
+      }
+
+      canvas.save();
+      canvas.translate(at.dx, at.dy);
+      if (!held && !arrived) {
+        canvas.rotate(headingAlong(t.stops, t.progressMeters, _spanMetersGuess));
+      }
+
+      final Path body = Path()
+        ..moveTo(size * 1.7, 0)
+        ..lineTo(-size, size * 0.85)
+        ..lineTo(-size * 0.45, 0)
+        ..lineTo(-size, -size * 0.85)
+        ..close();
+
+      canvas.drawPath(body, Paint()..color = CprPalette.veil(CprPalette.voidBlack, 0.85));
+      canvas.drawPath(
+        body,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (selected ? 1.7 : 1.2) / scale
+          ..color = CprPalette.veil(color, arrived ? 0.5 : 0.95),
+      );
+
+      if (held) {
+        // La barretta del fermo: due pixel che dicono "qualcosa lo ha bloccato".
+        canvas.drawRect(
+          Rect.fromCenter(center: Offset.zero, width: 1.6 / scale * 2, height: 1.6 / scale * 2),
+          Paint()..color = CprPalette.healthFlatline,
+        );
+      }
+      canvas.restore();
+
+      if (selected) _paintTransportCard(canvas, rect, t);
+    }
+  }
+
+  /// La scheda di un veicolo selezionato: dove va, quanto va, chi c'e' a bordo.
+  void _paintTransportCard(Canvas canvas, Rect rect, Transport t) {
+    final Offset at = mapToLocal(t.position, rect);
+    final Color color = transportColor(t);
+
+    final TextPainter title = _textPainter(
+      t.name,
+      CprType.body.copyWith(fontSize: 9.5 / scale, fontWeight: FontWeight.w600, color: CprPalette.ink),
+    );
+    final TextPainter sub = _textPainter(
+      '${t.routeLine} · ${t.statLine}',
+      CprType.caption.copyWith(fontSize: 8 / scale, color: CprPalette.inkMuted),
+    );
+
+    final double pad = 7 / scale;
+    final double width = math.max(title.width, sub.width) + pad * 2 + 2 / scale;
+    final double height = title.height + sub.height + pad * 2 + 2 / scale;
+    final Rect box = Rect.fromLTWH(at.dx - width / 2, at.dy - 22 / scale - height, width, height);
+
+    canvas.drawRect(box, Paint()..color = CprPalette.veil(CprPalette.surface, 0.96));
+    canvas.drawRect(
+      Rect.fromLTWH(box.left, box.top, 2 / scale, box.height),
+      Paint()..color = t.status == TransportStatus.fermo ? CprPalette.healthFlatline : color,
+    );
+    canvas.drawRect(
+      box,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1 / scale
+        ..color = CprPalette.veil(color, 0.5),
+    );
+
+    title.paint(canvas, box.topLeft + Offset(pad + 2 / scale, pad));
+    sub.paint(canvas, box.topLeft + Offset(pad + 2 / scale, pad + title.height + 2 / scale));
+  }
+
+  static void _dashedLine(Canvas canvas, Offset a, Offset b, Paint paint, double dash, double gap) {
+    final double total = (b - a).distance;
+    if (total <= 0) return;
+    final Offset step = (b - a) / total;
+    double travelled = 0;
+    while (travelled < total) {
+      final double end = math.min(travelled + dash, total);
+      canvas.drawLine(a + step * travelled, a + step * end, paint);
+      travelled = end + gap;
+    }
+  }
+
+  /// Il colore di un veicolo: il modo dice cosa e', lo stato dice come sta.
+  static Color transportColor(Transport t) {
+    if (t.status == TransportStatus.fermo) return CprPalette.healthFlatline;
+    if (t.status == TransportStatus.arrivato) return CprPalette.inkMuted;
+    return switch (t.mode) {
+      TransportMode.taxi => CprPalette.yellow,
+      TransportMode.groundcar => CprPalette.cyan,
+      TransportMode.moto => CprPalette.magenta,
+      TransportMode.aerodyne => CprPalette.info,
+      TransportMode.maglev => CprPalette.violet,
+    };
+  }
+
+  /// Una scala di ripiego per ruotare il veicolo.
+  ///
+  /// L'orientamento e' un rapporto fra due punti, quindi non dipende dalla
+  /// scala: il valore serve solo a far scorrere il percorso lungo i metri
+  /// giusti, e un errore qui sposterebbe di pochi gradi la punta del veicolo.
+  static const double _spanMetersGuess = GmRules.transportMapSpanDefault;
+
+  void _paintTokenCard(Canvas canvas, Rect rect, MapToken token) {
+    final Offset at = mapToLocal(token.position, rect);
+    final Color color = tokenColor(token.kind);
+    final Color health = tokenHealthColor(token);
+
+    final TextPainter title = _textPainter(
+      token.name.trim().isEmpty ? 'Senza nome' : token.name,
+      CprType.body.copyWith(fontSize: 9.5 / scale, fontWeight: FontWeight.w600, color: CprPalette.ink),
+    );
+    final TextPainter sub = _textPainter(
+      token.statLine.isEmpty ? token.kind.label : token.statLine,
+      CprType.caption.copyWith(fontSize: 8 / scale, color: CprPalette.inkMuted),
+    );
+
+    final double pad = 7 / scale;
+    final double width = math.max(title.width, sub.width) + pad * 2 + 2 / scale;
+    final double height = title.height + sub.height + pad * 2 + 2 / scale;
+    final Rect box = Rect.fromLTWH(at.dx - width / 2, at.dy + 14 / scale, width, height);
+
+    canvas.drawRect(
+      box,
+      Paint()
+        ..color = CprPalette.veil(CprPalette.voidBlack, 0.70)
+        ..maskFilter = ui.MaskFilter.blur(ui.BlurStyle.normal, 3 / scale),
+    );
+    canvas.drawRect(box, Paint()..color = CprPalette.veil(CprPalette.surface, 0.96));
+    // La barra a sinistra e' del colore della **salute**, non del tipo: quando
+    // un token e' selezionato la domanda e' "come sta", non "che cos'e'".
+    canvas.drawRect(Rect.fromLTWH(box.left, box.top, 2 / scale, box.height), Paint()..color = health);
+    canvas.drawRect(
+      box,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1 / scale
+        ..color = CprPalette.veil(color, 0.5),
+    );
+
+    title.paint(canvas, box.topLeft + Offset(pad + 2 / scale, pad));
+    sub.paint(canvas, box.topLeft + Offset(pad + 2 / scale, pad + title.height + 2 / scale));
+  }
+
+  /// Il colore di un token in funzione di cosa rappresenta.
+  static Color tokenColor(TokenKind kind) => switch (kind) {
+        TokenKind.alleato => CprPalette.humanityIntact,
+        TokenKind.nemico => CprPalette.danger,
+        TokenKind.neutrale => CprPalette.yellow,
+        TokenKind.veicolo => CprPalette.info,
+      };
+
+  /// Il colore dello stato di salute, coerente con quello del cuore in scheda.
+  static Color tokenHealthColor(MapToken token) {
+    if (!token.hasHealth) return CprPalette.inkMuted;
+    return switch (token.health) {
+      TokenHealth.illeso => CprPalette.healthFull,
+      TokenHealth.ferito => CprPalette.healthWounded,
+      TokenHealth.critico => CprPalette.healthCritical,
+      TokenHealth.aTerra => CprPalette.healthFlatline,
+    };
+  }
+
+  static String _initial(String name) {
+    final String trimmed = name.trim();
+    if (trimmed.isEmpty) return '';
+    final List<String> words = trimmed.split(RegExp(r'\s+'));
+    if (words.length == 1) {
+      return words.first.length <= 2 ? words.first.toUpperCase() : words.first.substring(0, 2).toUpperCase();
+    }
+    return (words.first.substring(0, 1) + words[1].substring(0, 1)).toUpperCase();
+  }
+
   void _paintDraft(Canvas canvas, Rect rect, Offset position) {
     final Offset at = mapToLocal(position, rect);
     final double arm = 9 / scale;
@@ -730,5 +1059,17 @@ class NightCityPainter extends CustomPainter {
       !identical(old.corners, corners) ||
       old.showLabels != showLabels ||
       old.imageOpacity != imageOpacity ||
+      old.selectedTokenId != selectedTokenId ||
+      old.selectedTransportId != selectedTransportId ||
+      !identical(old.tokens, tokens) ||
+      old.tokens.length != tokens.length ||
+      old.transports.length != transports.length ||
+      // La posizione dei veicoli cambia a ogni battito senza che la lista cambi
+      // identita': senza questo confronto la mappa ridisegnerebbe solo quando
+      // un veicolo parte o arriva, cioe' mai, e i taxi resterebbero fermi.
+      _transportSignature(old.transports) != _transportSignature(transports) ||
       old.waypoints.length != waypoints.length;
+
+  static String _transportSignature(List<Transport> list) =>
+      list.map((Transport t) => '${t.id}:${t.x.toStringAsFixed(4)}:${t.y.toStringAsFixed(4)}:${t.status.name}').join('|');
 }

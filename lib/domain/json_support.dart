@@ -44,6 +44,29 @@ bool readBool(Object? value, [bool fallback = false]) {
   return fallback;
 }
 
+/// Una lista di testi, ignorando il resto.
+///
+/// Serve a elenchi di nomi — i passeggeri di un veicolo, le righe del suo
+/// registro — dove un elemento vuoto e' rumore e una virgola in piu' nel file
+/// non deve far apparire una riga bianca nel diario della sessione.
+/// Un oggetto JSON, senza sapere se il cast reggera'.
+///
+/// `message['x']` e' `Object?` e puo' essere qualsiasi cosa: un client di una
+/// versione piu' vecchia, un campo mancante, un valore scritto a mano. Un cast
+/// diretto trasformerebbe ognuno di questi casi in uno stack trace su un socket
+/// condiviso, dove l'errore lo vede un giocatore e non chi ha scritto il codice.
+Map<String, Object?> objectMap(Object? value) {
+  if (value is Map<Object?, Object?>) {
+    return value.map((Object? k, Object? v) => MapEntry(k.toString(), v));
+  }
+  return const <String, Object?>{};
+}
+
+List<String> readStringList(Object? value) {
+  if (value is! List) return const <String>[];
+  return value.map((Object? e) => readString(e)).where((String s) => s.isNotEmpty).toList();
+}
+
 List<Map<String, Object?>> readObjectList(Object? value) {
   if (value is! List) return const <Map<String, Object?>>[];
   return value

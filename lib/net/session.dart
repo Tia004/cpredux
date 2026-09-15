@@ -63,6 +63,19 @@ abstract final class SessionMessage {
   /// L'aspetto della mappa scelto dal master. Viaggia con il resto dello stato
   /// del tavolo: se il master passa alla mappa realistica, la passano tutti.
   static const String mapStyle = 'mapStyle';
+
+  /// Un veicolo in strada, con la sua posizione **adesso**.
+  ///
+  /// La posizione viaggia nel messaggio invece di essere ricalcolata dal
+  /// giocatore: l'orologio dei trasporti gira solo dal master, e un client che
+  /// calcolasse da solo dove si trova il taxi mostrerebbe un taxi in un posto
+  /// diverso da quello che il master sta descrivendo. Se la connessione cade,
+  /// il veicolo si ferma dove era: un mezzo fermo e' meglio di un mezzo che
+  /// arriva a destinazione da solo mentre nessuno lo sta guardando.
+  static const String transport = 'transport';
+
+  /// Un veicolo tolto dalla strada.
+  static const String transportRemove = 'transportRemove';
 }
 
 /// Una connessione in stile "un messaggio JSON per riga".

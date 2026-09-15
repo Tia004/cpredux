@@ -9,6 +9,7 @@ import '../../domain/sheet.dart';
 import '../../domain/skills.dart';
 import '../../domain/stats.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/cyber_help_tooltip.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/dice_roll_dialog.dart';
 import '../../widgets/inputs.dart';
@@ -314,15 +315,24 @@ class _StatRow extends StatelessWidget {
       child: Row(
         children: <Widget>[
           SizedBox(
-            width: 130,
-            child: Tooltip(
-              message: _statDescriptions[stat] ?? stat.label,
-              waitDuration: const Duration(milliseconds: 150),
-              child: Text(
-                stat.label,
-                overflow: TextOverflow.ellipsis,
-                style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
-              ),
+            width: 140,
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    stat.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
+                  ),
+                ),
+                CyberHelpTooltip(
+                  title: stat.label,
+                  message: _statDescriptions[stat] ?? stat.label,
+                  tag: 'Stat',
+                  size: 14.0,
+                ),
+                const SizedBox(width: 4),
+              ],
             ),
           ),
           Expanded(child: _StatSegments(value: calculated, base: base)),

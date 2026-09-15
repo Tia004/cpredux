@@ -46,6 +46,7 @@ class _LibraryViewState extends State<LibraryView> {
     final List<DocumentEntry> filtered = allDocs.where((DocumentEntry doc) {
       if (_categoryFilter == 1 && doc.kind != DocumentKind.sheet) return false;
       if (_categoryFilter == 2 && doc.kind != DocumentKind.campaign) return false;
+      if (_categoryFilter == 3 && !doc.isCloud) return false;
       if (query.isNotEmpty) {
         final bool matchName = doc.name.toLowerCase().contains(query);
         final bool matchFile = doc.fileName.toLowerCase().contains(query);
@@ -152,6 +153,11 @@ class _LibraryViewState extends State<LibraryView> {
                   _filterButton(
                     label: 'Campagne (${allDocs.where((DocumentEntry d) => d.kind == DocumentKind.campaign).length})',
                     index: 2,
+                  ),
+                  const SizedBox(width: 8),
+                  _filterButton(
+                    label: 'Cloud (${allDocs.where((DocumentEntry d) => d.isCloud).length})',
+                    index: 3,
                   ),
                   const Spacer(),
                   TechButton(
@@ -279,6 +285,27 @@ class _LibraryViewState extends State<LibraryView> {
                         style: CprType.caption.copyWith(fontSize: 8.5, color: accent, letterSpacing: 0.6),
                       ),
                     ),
+                    if (entry.isCloud) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: CprPalette.cyan.withValues(alpha: 0.15),
+                          border: Border.all(color: CprPalette.cyan, width: 0.8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Icon(Icons.cloud_done, size: 10, color: CprPalette.cyan),
+                            const SizedBox(width: 4),
+                            Text(
+                              'CLOUD',
+                              style: CprType.label.copyWith(fontSize: 8.5, color: CprPalette.cyan, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 3),

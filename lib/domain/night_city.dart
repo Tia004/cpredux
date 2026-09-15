@@ -1,17 +1,14 @@
-/// La geometria di Night City, disegnata a mano.
+/// Cartografia e geometria di Night City.
 ///
-/// Perche' disegnata e non scaricata: la mappa ufficiale di Night City e' un
-/// asset di R. Talsorian Games / CD Projekt RED. La policy sul materiale dei
-/// fan permette di creare contenuti propri e di citarne i nomi, non di
-/// ridistribuire la loro grafica. Qui non c'e' nessun pixel di quella mappa:
-/// ci sono poligoni disegnati in questo file, con i nomi dei distretti usati
-/// come riferimenti — esattamente cio' che la policy consente.
+/// L'applicazione combina la cartografia ad alta definizione di Night City
+/// (inclusa come risorsa bundle e caricata automaticamente) con la geometria
+/// vettoriale dei distretti e dei settori per consentire misurazioni balistiche,
+/// tracciamento di veicoli, posizionamento token e calcolo delle coperture.
 ///
-/// Conseguenza pratica, ed e' il motivo per cui vale la pena: essendo
-/// *geometria* e non immagine, la stessa mappa si disegna in due aspetti
-/// (realistico e digitale) senza mantenere due file in parallelo, si adatta a
-/// qualunque dimensione di finestra senza sfocare, e i waypoint hanno
-/// coordinate vere invece di pixel.
+/// Conseguenza pratica: la mappa supporta sia l'aspetto realistico ad alta
+/// risoluzione sia la resa digitale tattica, adattandosi a qualunque risoluzione
+/// senza perdita di precisione, con waypoint e token che condividono coordinate
+/// normalizzate.
 ///
 /// Sistema di coordinate: **0..1 su entrambi gli assi**, con l'origine in alto
 /// a sinistra. Non sono metri ne' pixel: e' una griglia normalizzata, cosi' la
