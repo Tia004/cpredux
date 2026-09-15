@@ -169,6 +169,18 @@ class GmRuleBook {
 /// [GmConfidence.proposta].
 abstract final class GmRules {
   // --- Terapia e cyberpsicosi ---------------------------------------------
+  static const GmRule therapyEnabled = GmRule(
+    id: 'therapy.enabled',
+    label: 'Terapia Umanità abilitata',
+    value: 1,
+    unit: '1=attiva, 0=disattiva',
+    confidence: GmConfidence.verificato,
+    note: 'Consente o vieta i cicli di terapia per il recupero di Umanità nella campagna. Se disattivata, il Master esclude la terapia dalla sessione.',
+    group: 'Terapia',
+    min: 0,
+    max: 1,
+  );
+
   static const GmRule therapyCostStandard = GmRule(
     id: 'therapy.cost.standard',
     label: 'Costo di una settimana di terapia standard',
@@ -432,6 +444,7 @@ abstract final class GmRules {
 
   /// Tutte le regole, in ordine di gruppo.
   static const List<GmRule> all = <GmRule>[
+    therapyEnabled,
     therapyCostStandard,
     therapyCostExtreme,
     therapyHumanityStandard,

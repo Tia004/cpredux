@@ -7,6 +7,20 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../../data/app_paths.dart';
+import '../../domain/gm/gm_generators.dart';
+
+/// Risultato di una generazione di bottino (IA o euristica avanzata).
+class AiLootResult {
+  const AiLootResult({
+    required this.eurodollars,
+    required this.entries,
+    required this.source,
+  });
+
+  final int eurodollars;
+  final List<LootEntry> entries;
+  final String source;
+}
 
 /// Archetipi di Personaggi Non Giocanti (PNG) di Cyberpunk RED per il Master.
 enum NpcArchetype {
@@ -83,10 +97,25 @@ class AiAssistantService extends ChangeNotifier {
 
   static final AiAssistantService instance = AiAssistantService._();
 
+  /// Chiave configurata al momento della compilazione tramite
+  /// `--dart-define=GEMINI_API_KEY=xxx`.
+  /// Se presente, l'applicazione la include nel proprio ambiente compilato
+  /// senza scriverla in chiaro in nessun file locale sul disco dell'utente.
+  static const String _envApiKey = String.fromEnvironment('GEMINI_API_KEY');
+
   String _geminiApiKey = '';
   String get geminiApiKey => _geminiApiKey;
 
-  bool get hasGeminiKey => _geminiApiKey.trim().isNotEmpty;
+  /// Restituisce la chiave effettiva: l'impostazione utente ha la priorità,
+  /// altrimenti viene usata la chiave compilata nell'ambiente dell'app.
+  String get effectiveApiKey {
+    if (_geminiApiKey.trim().isNotEmpty) return _geminiApiKey.trim();
+    if (_envApiKey.trim().isNotEmpty) return _envApiKey.trim();
+    return '';
+  }
+
+  bool get hasGeminiKey => effectiveApiKey.isNotEmpty;
+  bool get hasEnvKey => _envApiKey.trim().isNotEmpty;
 
   final List<AiChatMessage> _messages = <AiChatMessage>[];
   List<AiChatMessage> get messages => List<AiChatMessage>.unmodifiable(_messages);
@@ -305,8 +334,10 @@ class AiAssistantService extends ChangeNotifier {
   }
 
   Future<String> _callGeminiApi(String prompt) async {
+    final String key = effectiveApiKey;
+    if (key.isEmpty) throw Exception('Nessuna chiave API Gemini configurata');
     final Uri url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$key',
     );
 
     final HttpClient client = HttpClient();
@@ -345,5 +376,217 @@ class AiAssistantService extends ChangeNotifier {
       }
     }
     throw Exception('Formato risposta Gemini non valido');
+  }
+
+  /// Genera il bottino (loot) per un nemico usando l'IA di Gemini o un generatore procedurale indipendente.
+  ///
+  /// Non si basa mai sul bottino precedente: ogni chiamata produce un risultato fresco e originale.
+  Future<AiLootResult> generateLootWithAi({
+    required String prompt,
+    required int quality,
+  }) async {
+    final int q = quality.clamp(0, 10);
+    _isGenerating = true;
+    notifyListeners();
+
+    if (hasGeminiKey) {
+      try {
+        final String aiPrompt = 'Genera il bottino (loot delle tasche ed equipaggiamento) per questo nemico di Cyberpunk RED.\n'
+            'Nemico: "$prompt"\n'
+            'Livello Qualità Loot: $q su 10 (dove 0 = tasche quasi vuote/spazzatura, 5 = standard da strada, 10 = prototipi militari/cyberware raro/molti soldi).\n\n'
+            'Rispondi ESCLUSIVAMENTE con un JSON valido (senza testo introduttivo) in questo esatto formato:\n'
+            '{\n'
+            '  "eurodollars": 150,\n'
+            '  "items": [\n'
+            '    {"name": "Nome Oggetto", "kind": "denaro|chip|munizioni|droga|arma|equipaggiamento|cyberware|oggetto", "quantity": 1, "note": "Breve nota descrittiva"}\n'
+            '  ]\n'
+            '}';
+
+        final String rawReply = await _callGeminiApi(aiPrompt);
+        final AiLootResult? parsed = _parseLootJson(rawReply);
+        if (parsed != null && parsed.entries.isNotEmpty) {
+          _isGenerating = false;
+          notifyListeners();
+          return parsed;
+        }
+      } catch (_) {}
+    }
+
+    final AiLootResult procedural = _generateProceduralLoot(prompt: prompt, quality: q);
+    _isGenerating = false;
+    notifyListeners();
+    return procedural;
+  }
+
+  AiLootResult? _parseLootJson(String raw) {
+    try {
+      String clean = raw.trim();
+      if (clean.startsWith('```json')) clean = clean.substring(7);
+      if (clean.startsWith('```')) clean = clean.substring(3);
+      if (clean.endsWith('```')) clean = clean.substring(0, clean.length - 3);
+      clean = clean.trim();
+
+      final int start = clean.indexOf('{');
+      final int end = clean.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        clean = clean.substring(start, end + 1);
+      }
+
+      final Object? decoded = jsonDecode(clean);
+      if (decoded is Map) {
+        final int eb = (decoded['eurodollars'] as num?)?.toInt() ?? 0;
+        final List<LootEntry> entries = <LootEntry>[];
+        if (decoded['items'] is List) {
+          for (final item in decoded['items'] as List) {
+            if (item is Map) {
+              final String name = '${item['name'] ?? ''}'.trim();
+              if (name.isEmpty) continue;
+              final String kindStr = '${item['kind'] ?? 'oggetto'}'.toLowerCase();
+              final LootKind kind = switch (kindStr) {
+                'denaro' => LootKind.denaro,
+                'chip' => LootKind.chip,
+                'munizioni' => LootKind.munizioni,
+                'droga' => LootKind.droga,
+                'arma' => LootKind.arma,
+                'equipaggiamento' => LootKind.equipaggiamento,
+                'cyberware' => LootKind.cyberware,
+                _ => LootKind.oggetto,
+              };
+              final int qty = (item['quantity'] as num?)?.toInt() ?? 1;
+              final String note = '${item['note'] ?? ''}'.trim();
+              entries.add(LootEntry(name: name, kind: kind, quantity: math.max(1, qty), note: note));
+            }
+          }
+        }
+        return AiLootResult(eurodollars: math.max(0, eb), entries: entries, source: 'Gemini AI');
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Genera proceduralmente il bottino in modo sincrono e deterministico (o casuale fresco),
+  /// utile per anteprime immediate o quando si opera offline senza attendere l'IA.
+  AiLootResult generateLootWithAiProceduralSync({
+    required String prompt,
+    required int quality,
+    math.Random? random,
+  }) {
+    return _generateProceduralLoot(
+      prompt: prompt,
+      quality: quality.clamp(0, 10),
+      rnd: random,
+    );
+  }
+
+  AiLootResult _generateProceduralLoot({
+    required String prompt,
+    required int quality,
+    math.Random? rnd,
+  }) {
+    final math.Random random = rnd ?? math.Random();
+    final String pLower = prompt.toLowerCase();
+
+    // Eurodollari in base alla qualità
+    final int eurodollars = switch (quality) {
+      0 => random.nextInt(12),
+      1 || 2 => 10 + random.nextInt(50),
+      3 || 4 => 50 + random.nextInt(150),
+      5 || 6 => 150 + random.nextInt(450),
+      7 || 8 => 500 + random.nextInt(1500),
+      9 || 10 => 1800 + random.nextInt(4500),
+      _ => 100,
+    };
+
+    final List<LootEntry> entries = <LootEntry>[];
+
+    if (quality == 0) {
+      final List<LootEntry> junk = <LootEntry>[
+        const LootEntry(name: 'Accendino al plastico rotto', kind: LootKind.oggetto, quantity: 1, note: 'senza gas'),
+        const LootEntry(name: 'Scontrino sporco di fango', kind: LootKind.oggetto, quantity: 1, note: 'Kibble bar di South Night City'),
+        const LootEntry(name: 'Spiccioli di latta', kind: LootKind.denaro, quantity: 1, note: 'valuta locale usurata'),
+        const LootEntry(name: 'Mascherina anti-smog bucata', kind: LootKind.equipaggiamento, quantity: 1),
+        const LootEntry(name: 'Bottiglia di Smash vuota', kind: LootKind.oggetto, quantity: 1),
+      ];
+      entries.add(junk[random.nextInt(junk.length)]);
+      return AiLootResult(eurodollars: eurodollars, entries: entries, source: 'Generatore Procedurale');
+    }
+
+    // Identifica archetipo nemico
+    final bool isCop = pLower.contains('poliziotto') || pLower.contains('ncpd') || pLower.contains('sbirro') || pLower.contains('agente di polizia');
+    final bool isCorp = pLower.contains('corp') || pLower.contains('arasaka') || pLower.contains('militech') || pLower.contains('biotechnica');
+    final bool isNetrunner = pLower.contains('netrunner') || pLower.contains('hacker') || pLower.contains('deck');
+    final bool isDoc = pLower.contains('doc') || pLower.contains('medico') || pLower.contains('ripperdoc') || pLower.contains('chirurgo');
+    final bool isCivilian = pLower.contains('civile') || pLower.contains('passante') || pLower.contains('cittadino') || pLower.contains('impiegato');
+
+    // Pool specifici
+    final List<LootEntry> candidates = <LootEntry>[];
+
+    if (isCop) {
+      candidates.addAll(<LootEntry>[
+        const LootEntry(name: 'Distintivo NCPD', kind: LootKind.oggetto, quantity: 1, note: 'matricola distretto 4'),
+        LootEntry(name: 'Caricatore 9mm Heavy Pistol', kind: LootKind.munizioni, quantity: 1 + quality ~/ 3, note: 'munizioni standard'),
+        const LootEntry(name: 'Manette in legaplastica', kind: LootKind.equipaggiamento, quantity: 1),
+        const LootEntry(name: 'Ricetrasmittente criptata NCPD', kind: LootKind.equipaggiamento, quantity: 1, note: 'frequenze radio di zona'),
+        if (quality >= 5) const LootEntry(name: 'Heavy Pistol (HQ)', kind: LootKind.arma, quantity: 1, note: 'arma d\'ordinanza ben curata'),
+        if (quality >= 7) const LootEntry(name: 'Giubbotto Antiproiettile SP 12', kind: LootKind.equipaggiamento, quantity: 1, note: 'kevlar rinforzato'),
+      ]);
+    } else if (isCorp) {
+      candidates.addAll(<LootEntry>[
+        const LootEntry(name: 'Badge magnetico d\'accesso aziendale', kind: LootKind.chip, quantity: 1, note: 'autorizzazione di sicurezza livello 2'),
+        const LootEntry(name: 'Chip dati cifrato', kind: LootKind.chip, quantity: 1, note: 'contiene report finanziari riservati'),
+        const LootEntry(name: 'Smart Phone Agent d\'alta gamma', kind: LootKind.oggetto, quantity: 1, note: 'contatti di quadri intermedi'),
+        if (quality >= 4) const LootEntry(name: 'Smartgun subdola Arasaka', kind: LootKind.arma, quantity: 1, note: 'collegamento interfaccia neurale'),
+        if (quality >= 6) const LootEntry(name: 'Chip crediti aziendali', kind: LootKind.denaro, quantity: 1, note: 'trasferimento immediato'),
+        if (quality >= 8) const LootEntry(name: 'Subdermal Pocket chirurgica', kind: LootKind.cyberware, quantity: 1, note: 'tasca sottocutanea nascosta'),
+      ]);
+    } else if (isNetrunner) {
+      candidates.addAll(<LootEntry>[
+        const LootEntry(name: 'Cavi neurali di collegamento', kind: LootKind.equipaggiamento, quantity: 1, note: 'interfaccia diretta plug-in'),
+        const LootEntry(name: 'Chip con exploit ICE', kind: LootKind.chip, quantity: 1, note: 'programma Wurm / Eraser monouso'),
+        LootEntry(name: 'Stimolante sinaptico booster', kind: LootKind.droga, quantity: 1 + quality ~/ 4, note: '+2 concentrazione temporaneo'),
+        if (quality >= 5) const LootEntry(name: 'Cyberdeck portatile modificato', kind: LootKind.cyberware, quantity: 1, note: '5 slot programma'),
+        if (quality >= 7) const LootEntry(name: 'Chip chiavi crittografiche', kind: LootKind.chip, quantity: 1, note: 'decritta nodi NET di livello medio'),
+      ]);
+    } else if (isDoc) {
+      candidates.addAll(<LootEntry>[
+        LootEntry(name: 'Fiala di Speedheal', kind: LootKind.droga, quantity: 1 + quality ~/ 3, note: 'stabilizza ferite in emergenza'),
+        const LootEntry(name: 'Kit bisturi chirurgico sonico', kind: LootKind.equipaggiamento, quantity: 1),
+        const LootEntry(name: 'Anestetico sintetico da strada', kind: LootKind.droga, quantity: 2),
+        if (quality >= 5) const LootEntry(name: 'Innesto cibernetico in scatola sterile', kind: LootKind.cyberware, quantity: 1, note: 'Cyberaudio o Occhio cybereye nuovo'),
+      ]);
+    } else if (isCivilian) {
+      candidates.addAll(<LootEntry>[
+        const LootEntry(name: 'Mazzo di chiavi dell\'appartamento', kind: LootKind.oggetto, quantity: 1, note: 'zona Watson / Heywood'),
+        const LootEntry(name: 'Carta d\'identità elettronica (Agent)', kind: LootKind.chip, quantity: 1),
+        const LootEntry(name: 'Pacchetto di sigarette sintetico', kind: LootKind.oggetto, quantity: 1),
+        const LootEntry(name: 'Piccolo coltellino di autodifesa', kind: LootKind.arma, quantity: 1),
+        if (quality >= 5) const LootEntry(name: 'Chip di risparmi personali', kind: LootKind.denaro, quantity: 1, note: 'qualche centinaio di eb'),
+      ]);
+    } else {
+      // Scagnozzo / Ganger da strada
+      candidates.addAll(<LootEntry>[
+        LootEntry(name: 'Munizioni per pistola/fucile', kind: LootKind.munizioni, quantity: 1 + quality ~/ 2, note: 'caricatore sfuso'),
+        const LootEntry(name: 'Dose di Synthcoke', kind: LootKind.droga, quantity: 1, note: 'bustina sigillata'),
+        const LootEntry(name: 'Dose di Black Lace', kind: LootKind.droga, quantity: 1, note: 'fiala da inalare'),
+        const LootEntry(name: 'Coltello da strada affilato', kind: LootKind.arma, quantity: 1),
+        const LootEntry(name: 'Telefono usa e getta (Burner)', kind: LootKind.oggetto, quantity: 1, note: 'tre chiamate perse da un Fixer'),
+        if (quality >= 4) const LootEntry(name: 'Pistola Medium / Heavy Pistol', kind: LootKind.arma, quantity: 1, note: 'graffiata con il simbolo della gang'),
+        if (quality >= 6) const LootEntry(name: 'Braccio cibernetico con lama a scomparsa', kind: LootKind.cyberware, quantity: 1, note: 'necessita smontaggio'),
+        if (quality >= 8) const LootEntry(name: 'Mitraglietta SMG d\'alta cadenza', kind: LootKind.arma, quantity: 1, note: 'completa di caricatore a tamburo'),
+      ]);
+    }
+
+    // Mescola e prendi da 1 a 4 elementi unici
+    candidates.shuffle(random);
+    final int count = math.min(candidates.length, 1 + (quality ~/ 3));
+    for (int i = 0; i < count; i++) {
+      entries.add(candidates[i]);
+    }
+
+    return AiLootResult(
+      eurodollars: eurodollars,
+      entries: entries,
+      source: 'Generatore Procedurale',
+    );
   }
 }

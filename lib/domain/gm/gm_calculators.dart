@@ -628,6 +628,8 @@ class Debt {
     required this.weeksElapsed,
     this.collateral = '',
     this.note = '',
+    this.playerId = '',
+    this.playerName = '',
   });
 
   final String id;
@@ -641,6 +643,10 @@ class Debt {
   final int weeksElapsed;
   final String collateral;
   final String note;
+
+  /// Identificativo o nome del giocatore/personaggio a cui fa capo il debito.
+  final String playerId;
+  final String playerName;
 
   /// Debito composto: l'interesse matura anche sugli interessi.
   ///
@@ -657,6 +663,8 @@ class Debt {
 
   int get owedNow => owedAt(weeksElapsed);
 
+  String get debtorLabel => playerName.trim().isNotEmpty ? playerName.trim() : 'Tavolo / PG';
+
   Debt paid(int amount) => Debt(
         id: id,
         creditor: creditor,
@@ -665,6 +673,8 @@ class Debt {
         weeksElapsed: 0,
         collateral: collateral,
         note: note,
+        playerId: playerId,
+        playerName: playerName,
       );
 
   Debt afterWeeks(int weeks, {bool pay = false}) => Debt(
@@ -675,9 +685,11 @@ class Debt {
         weeksElapsed: pay ? 0 : weeksElapsed + weeks,
         collateral: collateral,
         note: note,
+        playerId: playerId,
+        playerName: playerName,
       );
 
-  String get summary => '$creditor: $owedNow eb'
+  String get summary => '${playerName.trim().isNotEmpty ? '[$playerName] ' : ''}$creditor: $owedNow eb'
       '${weeklyRatePct > 0 ? ' (${weeklyRatePct.toStringAsFixed(1)}%/settimana)' : ' (senza interesse)'}'
       '${collateral.isEmpty ? '' : ' · garanzia: $collateral'}';
 
@@ -689,6 +701,8 @@ class Debt {
         'weeksElapsed': weeksElapsed,
         'collateral': collateral,
         'note': note,
+        'playerId': playerId,
+        'playerName': playerName,
       };
 
   static Debt fromJson(Map<String, Object?> json) => Debt(
@@ -699,6 +713,8 @@ class Debt {
         weeksElapsed: (json['weeksElapsed'] as num?)?.toInt() ?? 0,
         collateral: '${json['collateral'] ?? ''}',
         note: '${json['note'] ?? ''}',
+        playerId: '${json['playerId'] ?? ''}',
+        playerName: '${json['playerName'] ?? ''}',
       );
 }
 
@@ -709,6 +725,27 @@ class DebtLedger {
   final List<Debt> debts;
 
   int get totalOwed => debts.fold<int>(0, (int a, Debt d) => a + d.owedNow);
+
+  /// Debiti per uno specifico giocatore (per nome o id).
+  List<Debt> debtsForPlayer(String nameOrId) {
+    final String n = nameOrId.trim().toLowerCase();
+    if (n.isEmpty) return debts;
+    return debts.where((Debt d) => d.playerId.toLowerCase() == n || d.playerName.toLowerCase() == n).toList();
+  }
+
+  int totalOwedBy(String nameOrId) =>
+      debtsForPlayer(nameOrId).fold<int>(0, (int a, Debt d) => a + d.owedNow);
+
+  /// Nomi univoci dei giocatori debitori nel registro.
+  List<String> get distinctPlayerNames {
+    final Set<String> names = <String>{};
+    for (final Debt d in debts) {
+      if (d.playerName.trim().isNotEmpty) {
+        names.add(d.playerName.trim());
+      }
+    }
+    return names.toList()..sort();
+  }
 
   /// La proiezione: quanto si deve fra `weeks` settimane se non si paga niente.
   /// Serve a rispondere alla domanda che il giocatore fa sempre — "posso

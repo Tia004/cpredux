@@ -1107,8 +1107,16 @@ class _RequestsPanel extends StatelessWidget {
                 onTap: () => state.requestIntent('rest', detail: 'Riposo'),
               ),
               _RequestButton(
-                label: 'Terapia (+6 Umanita)',
-                onTap: () => state.requestIntent('therapy', detail: 'Terapia'),
+                label: state.isTherapyEnabled ? 'Terapia (+6 Umanita)' : 'Terapia (Disattivata)',
+                onTap: state.isTherapyEnabled
+                    ? () => state.requestIntent('therapy', detail: 'Terapia')
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Il Master ha disattivato i cicli di Terapia Umanità per questa campagna.'),
+                          ),
+                        );
+                      },
               ),
               _RequestButton(
                 label: 'Nota al master',

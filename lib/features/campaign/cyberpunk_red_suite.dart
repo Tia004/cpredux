@@ -10,6 +10,7 @@ import '../../domain/sheet.dart';
 import '../../widgets/chamfer_panel.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import 'enemy_loot_dialog.dart';
 
 // =============================================================================
 // 1. SCHEDA RAPIDA PNG / MOOK PER I TOKEN SULLA MAPPA
@@ -368,11 +369,41 @@ class _QuickNpcTokenDialogState extends State<QuickNpcTokenDialog> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Loot / Tasche
-                    TechField(
-                      label: 'Loot nelle tasche (Bottino abbattuto)',
-                      controller: _lootCtrl,
-                      onChanged: (_) => _save(),
+                    // Loot / Tasche con generatore integrato (Base, IA, Manuale)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: <Widget>[
+                        Expanded(
+                          child: TechField(
+                            label: 'Loot nelle tasche (Bottino abbattuto)',
+                            controller: _lootCtrl,
+                            onChanged: (_) => _save(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TechButton(
+                          label: 'Generatore Loot',
+                          icon: Icons.auto_awesome,
+                          variant: TechButtonVariant.primary,
+                          onPressed: () {
+                            showDialog<void>(
+                              context: context,
+                              builder: (_) => EnemyLootDialog(
+                                initialEnemyName: _nameCtrl.text.trim().isNotEmpty
+                                    ? _nameCtrl.text.trim()
+                                    : _roleCtrl.text.trim(),
+                                initialLoot: _lootCtrl.text.trim(),
+                                onApply: (String compiled) {
+                                  setState(() {
+                                    _lootCtrl.text = compiled;
+                                  });
+                                  _save();
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
 
@@ -478,6 +509,7 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
     final totals = widget.state.totals;
     final int currentH = sheet?.identity.currentHumanity ?? 0;
     final int maxH = totals?.maxHumanity ?? 50;
+    final bool enabled = widget.state.isTherapyEnabled;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -486,10 +518,10 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: CprPalette.surface,
-          border: Border.all(color: CprPalette.magenta, width: 1.5),
+          border: Border.all(color: enabled ? CprPalette.magenta : CprPalette.inkMuted, width: 1.5),
           borderRadius: BorderRadius.circular(4),
           boxShadow: <BoxShadow>[
-            BoxShadow(color: CprPalette.magenta.withValues(alpha: 0.3), blurRadius: 16),
+            BoxShadow(color: (enabled ? CprPalette.magenta : CprPalette.inkFaint).withValues(alpha: 0.3), blurRadius: 16),
           ],
         ),
         child: Column(
@@ -498,7 +530,7 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
           children: <Widget>[
             Row(
               children: <Widget>[
-                const Icon(Icons.psychology_outlined, color: CprPalette.magenta, size: 24),
+                Icon(Icons.psychology_outlined, color: enabled ? CprPalette.magenta : CprPalette.inkMuted, size: 24),
                 const SizedBox(width: 8),
                 Text('CLINICA DI RECUPERO UMANITÀ & TERAPIA', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
@@ -509,17 +541,54 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
               ],
             ),
             const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: CprPalette.surfaceSunken,
+                border: Border.all(color: enabled ? CprPalette.hairline : CprPalette.healthFlatline),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Icon(enabled ? Icons.check_circle_outline : Icons.block,
+                      size: 16, color: enabled ? CprPalette.success : CprPalette.healthFlatline),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      enabled ? 'Terapia abilitata nella campagna' : 'TERAPIA DISATTIVATA DAL MASTER',
+                      style: CprType.caption.copyWith(
+                        color: enabled ? CprPalette.success : CprPalette.healthFlatline,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  TechButton(
+                    label: enabled ? 'Disattiva' : 'Abilita',
+                    icon: enabled ? Icons.power_settings_new : Icons.play_arrow,
+                    compact: true,
+                    variant: enabled ? TechButtonVariant.danger : TechButtonVariant.primary,
+                    tooltip: enabled
+                        ? 'Disattiva i cicli di terapia Umanità per la campagna'
+                        : 'Consenti nuovamente i cicli di terapia Umanità',
+                    onPressed: () async {
+                      await widget.state.setTherapyEnabled(!enabled);
+                      setState(() {});
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
             Text(
               'Stato attuale: Umanità $currentH / $maxH · Eurodollari disponibili: ${sheet?.eurobucks ?? 0} eb',
               style: CprType.caption.copyWith(color: CprPalette.cyan),
             ),
             const SizedBox(height: 14),
             ChamferPanel(
-              accent: CprPalette.cyan,
+              accent: enabled ? CprPalette.cyan : CprPalette.inkFaint,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('TERAPIA STANDARD (PAG. 229)', style: CprType.label.copyWith(color: CprPalette.cyan)),
+                  Text('TERAPIA STANDARD (PAG. 229)', style: CprType.label.copyWith(color: enabled ? CprPalette.cyan : CprPalette.inkMuted)),
                   const SizedBox(height: 4),
                   Text(
                     'Costo: 500 eb · Degenza: 7 giorni · Recupero: 2d6 punti Umanità (massimo consentito da Empatia di base).',
@@ -527,24 +596,26 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
                   ),
                   const SizedBox(height: 8),
                   TechButton(
-                    label: 'Esegui Terapia Standard (500 eb)',
+                    label: enabled ? 'Esegui Terapia Standard (500 eb)' : 'Terapia Non Disponibile',
                     icon: Icons.healing,
                     variant: TechButtonVariant.primary,
-                    onPressed: () {
-                      final int r = (math.Random().nextInt(6) + 1) + (math.Random().nextInt(6) + 1);
-                      _applyTherapy(type: 'Terapia Standard', cost: 500, days: 7, diceRoll: r);
-                    },
+                    onPressed: enabled
+                        ? () {
+                            final int r = (math.Random().nextInt(6) + 1) + (math.Random().nextInt(6) + 1);
+                            _applyTherapy(type: 'Terapia Standard', cost: 500, days: 7, diceRoll: r);
+                          }
+                        : null,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 10),
             ChamferPanel(
-              accent: CprPalette.magenta,
+              accent: enabled ? CprPalette.magenta : CprPalette.inkFaint,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('TERAPIA ESTREMA IN VASCA AMNIOTICA (PAG. 230)', style: CprType.label.copyWith(color: CprPalette.magenta)),
+                  Text('TERAPIA ESTREMA IN VASCA AMNIOTICA (PAG. 230)', style: CprType.label.copyWith(color: enabled ? CprPalette.magenta : CprPalette.inkMuted)),
                   const SizedBox(height: 4),
                   Text(
                     'Costo: 1000 eb · Degenza: 14 giorni · Recupero: 4d6 punti Umanità. Trattamento intensivo per chi è vicino al baratro cyberpsicotico.',
@@ -552,16 +623,18 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
                   ),
                   const SizedBox(height: 8),
                   TechButton(
-                    label: 'Esegui Terapia Estrema (1000 eb)',
+                    label: enabled ? 'Esegui Terapia Estrema (1000 eb)' : 'Terapia Non Disponibile',
                     icon: Icons.biotech,
                     variant: TechButtonVariant.secondary,
-                    onPressed: () {
-                      int r = 0;
-                      for (int i = 0; i < 4; i++) {
-                        r += math.Random().nextInt(6) + 1;
-                      }
-                      _applyTherapy(type: 'Terapia Estrema', cost: 1000, days: 14, diceRoll: r);
-                    },
+                    onPressed: enabled
+                        ? () {
+                            int r = 0;
+                            for (int i = 0; i < 4; i++) {
+                              r += math.Random().nextInt(6) + 1;
+                            }
+                            _applyTherapy(type: 'Terapia Estrema', cost: 1000, days: 14, diceRoll: r);
+                          }
+                        : null,
                   ),
                 ],
               ),

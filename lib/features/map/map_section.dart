@@ -23,6 +23,7 @@ import 'map_canvas.dart';
 import 'night_city_painter.dart';
 import 'waypoint_dialog.dart';
 import '../campaign/cyberpunk_red_suite.dart';
+import '../campaign/enemy_loot_dialog.dart';
 
 /// La mappa di Night City, con i segni del tavolo.
 ///
@@ -171,6 +172,20 @@ class _MapSectionState extends State<MapSection> {
       return a.label.toLowerCase().compareTo(b.label.toLowerCase());
     });
     return filtered;
+  }
+
+  void _showCreateEnemyDialog(AppState state) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext ctx) => _CreateEnemyDialog(
+        onCreate: (MapToken token) {
+          state.addTokens(tokens: <MapToken>[token]);
+          setState(() {
+            _selectedTokenId = token.id;
+          });
+        },
+      ),
+    );
   }
 
   // --- Azioni ---------------------------------------------------------------
@@ -444,6 +459,7 @@ class _MapSectionState extends State<MapSection> {
           onHeal: (MapToken t) => state.healToken(t.id, 5),
           onDelete: (MapToken t) => state.removeToken(t.id),
           onClearGroup: state.removeTokenGroup,
+          onAddEnemy: widget.asGameMaster ? () => _showCreateEnemyDialog(state) : null,
         ),
         if (widget.asGameMaster) ...<Widget>[
           const SizedBox(height: 14),
@@ -704,6 +720,7 @@ class _TokenList extends StatelessWidget {
     required this.onHeal,
     required this.onDelete,
     required this.onClearGroup,
+    this.onAddEnemy,
   });
 
   final List<MapToken> tokens;
@@ -716,6 +733,7 @@ class _TokenList extends StatelessWidget {
   final ValueChanged<MapToken> onHeal;
   final ValueChanged<MapToken> onDelete;
   final ValueChanged<String> onClearGroup;
+  final VoidCallback? onAddEnemy;
 
   @override
   Widget build(BuildContext context) {
@@ -727,7 +745,22 @@ class _TokenList extends StatelessWidget {
     return ChamferPanel(
       title: 'Token sulla mappa',
       accent: CprPalette.danger,
-      trailing: Text('${tokens.length}', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (onAddEnemy != null) ...<Widget>[
+            TechButton(
+              label: '+ Nemico',
+              icon: Icons.person_add_alt_1_outlined,
+              compact: true,
+              variant: TechButtonVariant.primary,
+              onPressed: onAddEnemy,
+            ),
+            const SizedBox(width: 8),
+          ],
+          Text('${tokens.length}', style: CprType.label.copyWith(color: CprPalette.inkFaint)),
+        ],
+      ),
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1573,6 +1606,171 @@ class _InlineWarning extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CreateEnemyDialog extends StatefulWidget {
+  const _CreateEnemyDialog({required this.onCreate});
+
+  final ValueChanged<MapToken> onCreate;
+
+  @override
+  State<_CreateEnemyDialog> createState() => _CreateEnemyDialogState();
+}
+
+class _CreateEnemyDialogState extends State<_CreateEnemyDialog> {
+  final TextEditingController _nameCtrl = TextEditingController(text: 'Scagnozzo Boostergang');
+  final TextEditingController _roleCtrl = TextEditingController(text: 'Scagnozzo');
+  final TextEditingController _hpCtrl = TextEditingController(text: '30');
+  final TextEditingController _spCtrl = TextEditingController(text: '7');
+  final TextEditingController _weaponCtrl = TextEditingController(text: 'Pistola Pesante');
+  final TextEditingController _damageCtrl = TextEditingController(text: '3d6');
+  final TextEditingController _lootCtrl = TextEditingController(text: 'Munizioni x20, Chip dati');
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _roleCtrl.dispose();
+    _hpCtrl.dispose();
+    _spCtrl.dispose();
+    _weaponCtrl.dispose();
+    _damageCtrl.dispose();
+    _lootCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String name = _nameCtrl.text.trim().isEmpty ? 'Nemico' : _nameCtrl.text.trim();
+    final int hp = int.tryParse(_hpCtrl.text.trim()) ?? 30;
+    final int sp = int.tryParse(_spCtrl.text.trim()) ?? 7;
+
+    final MapToken token = MapToken(
+      id: 'enemy_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      role: _roleCtrl.text.trim(),
+      kind: TokenKind.nemico,
+      hp: hp,
+      maxHp: hp,
+      sp: sp,
+      combat: 12,
+      defense: 12,
+      weaponName: _weaponCtrl.text.trim(),
+      damage: _damageCtrl.text.trim(),
+      loot: _lootCtrl.text.trim(),
+      x: 0.5,
+      y: 0.5,
+    );
+    widget.onCreate(token);
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: 500,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: CprPalette.surface,
+          border: Border.all(color: CprPalette.danger, width: 1.5),
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: <BoxShadow>[
+            BoxShadow(color: CprPalette.danger.withValues(alpha: 0.25), blurRadius: 16),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.person_add_alt_1_outlined, color: CprPalette.danger, size: 20),
+                const SizedBox(width: 8),
+                Text('CREA NUOVO NEMICO SULLA MAPPA', style: CprType.title.copyWith(color: CprPalette.danger, fontSize: 16)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  flex: 3,
+                  child: TechField(label: 'Nome Nemico', controller: _nameCtrl),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TechField(label: 'Ruolo / Archetipo', controller: _roleCtrl),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: <Widget>[
+                Expanded(child: TechField(label: 'Punti Vita (PV)', controller: _hpCtrl)),
+                const SizedBox(width: 8),
+                Expanded(child: TechField(label: 'Armatura (SP)', controller: _spCtrl)),
+                const SizedBox(width: 8),
+                Expanded(child: TechField(label: 'Arma', controller: _weaponCtrl)),
+                const SizedBox(width: 8),
+                Expanded(child: TechField(label: 'Danno', controller: _damageCtrl)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Expanded(
+                  child: TechField(label: 'Bottino / Loot', controller: _lootCtrl),
+                ),
+                const SizedBox(width: 8),
+                TechButton(
+                  label: 'Generatore Loot',
+                  icon: Icons.auto_awesome,
+                  variant: TechButtonVariant.primary,
+                  onPressed: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (_) => EnemyLootDialog(
+                        initialEnemyName: _nameCtrl.text.trim().isNotEmpty
+                            ? _nameCtrl.text.trim()
+                            : _roleCtrl.text.trim(),
+                        initialLoot: _lootCtrl.text.trim(),
+                        onApply: (String compiled) {
+                          setState(() => _lootCtrl.text = compiled);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                TechButton(
+                  label: 'Annulla',
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                const SizedBox(width: 10),
+                TechButton(
+                  label: 'Posiziona sulla Mappa',
+                  icon: Icons.add_location_alt_outlined,
+                  variant: TechButtonVariant.danger,
+                  onPressed: _submit,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

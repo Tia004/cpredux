@@ -21,6 +21,7 @@ import '../../widgets/chamfer_panel.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import '../campaign/enemy_loot_dialog.dart';
 
 /// La console del Master.
 ///
@@ -1547,6 +1548,27 @@ class _LootPanelState extends State<_LootPanel> {
                 _loot = LootGenerator.band(MookGenerator.band(_tier, _count, _random), _random);
               }),
             ),
+            TechButton(
+              label: 'Generatore Loot (Base/IA/Manuale)',
+              icon: Icons.auto_awesome,
+              variant: TechButtonVariant.primary,
+              onPressed: () {
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => EnemyLootDialog(
+                    initialEnemyName: _tier.label,
+                    onApply: (String compiled) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Bottino configurato:\n$compiled'),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -2082,6 +2104,43 @@ class _TherapyPanelState extends State<_TherapyPanel> {
               'Qui si vede quanto manca, quanto costa tornare indietro e in quante settimane.',
           confidence: GmConfidence.daVerificare,
         ),
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.state.isTherapyEnabled ? CprPalette.surfaceSunken : CprPalette.veil(CprPalette.healthFlatline, 0.12),
+            border: Border.all(color: widget.state.isTherapyEnabled ? CprPalette.hairline : CprPalette.healthFlatline),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                widget.state.isTherapyEnabled ? Icons.check_circle_outline : Icons.block,
+                size: 16,
+                color: widget.state.isTherapyEnabled ? CprPalette.success : CprPalette.healthFlatline,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.state.isTherapyEnabled ? 'Terapia Umanità: ABILITATA' : 'Terapia Umanità: DISATTIVATA DAL MASTER',
+                  style: CprType.caption.copyWith(
+                    color: widget.state.isTherapyEnabled ? CprPalette.success : CprPalette.healthFlatline,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              TechButton(
+                label: widget.state.isTherapyEnabled ? 'Disattiva' : 'Abilita',
+                icon: widget.state.isTherapyEnabled ? Icons.power_settings_new : Icons.play_arrow,
+                compact: true,
+                variant: widget.state.isTherapyEnabled ? TechButtonVariant.danger : TechButtonVariant.primary,
+                onPressed: () async {
+                  await widget.state.setTherapyEnabled(!widget.state.isTherapyEnabled);
+                  setState(() {});
+                },
+              ),
+            ],
+          ),
+        ),
         Row(
           children: <Widget>[
             Expanded(
@@ -2471,49 +2530,122 @@ class _DebtPanelState extends State<_DebtPanel> {
       weeksElapsed: 0,
       collateral: 'la tua pistola',
       note: 'Paga entro tre settimane o la pistola resta a lui.',
+      playerName: 'Johnny Vane',
     ),
   ]);
 
+  String _filterPlayer = 'Tutti';
+  String _newPlayer = '';
   String _newCreditor = '';
   String _newAmount = '500';
   String _newRate = '5';
 
   @override
   Widget build(BuildContext context) {
-    final Debt? worst = _ledger.fastestGrowing;
+    final String currentSheetName = (widget.state.sheet?.identity.tag.trim().isNotEmpty ?? false)
+        ? widget.state.sheet!.identity.tag.trim()
+        : ((widget.state.sheet?.identity.playerName.trim().isNotEmpty ?? false)
+            ? widget.state.sheet!.identity.playerName.trim()
+            : (widget.state.sheet?.meta.name.trim() ?? ''));
+    final List<String> playerOptions = <String>{
+      if (currentSheetName.isNotEmpty) currentSheetName,
+      if (widget.state.campaign != null)
+        for (final p in widget.state.campaign!.players) ...<String>[
+          if (p.characterName.trim().isNotEmpty) p.characterName.trim(),
+          if (p.playerName.trim().isNotEmpty) p.playerName.trim(),
+        ],
+      ..._ledger.distinctPlayerNames,
+    }.toList();
+
+    final List<Debt> visibleDebts = _filterPlayer == 'Tutti'
+        ? _ledger.debts
+        : _ledger.debtsForPlayer(_filterPlayer);
+
+    final int totalOwed = _filterPlayer == 'Tutti'
+        ? _ledger.totalOwed
+        : _ledger.totalOwedBy(_filterPlayer);
+
+    final Debt? worst = visibleDebts.isEmpty ? null : _ledger.fastestGrowing;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _ToolIntro(
           text:
-              'Un debito cresce ogni settimana che passa. Il tasso lo decide il Master: un usuraio di '
-              'strada e una banca non chiedono la stessa cosa, ed è giusto che siano diversi.',
+              'Un debito cresce ogni settimana che passa. Il tasso lo decide il Master. '
+              'Ora i debiti sono assegnati specificamente a ciascun giocatore o al gruppo.',
           confidence: GmConfidence.proposta,
         ),
-        if (_ledger.debts.isEmpty)
-          Text('Nessun debito aperto.', style: CprType.caption.copyWith(color: CprPalette.inkFaint))
+        if (playerOptions.isNotEmpty) ...<Widget>[
+          Row(
+            children: <Widget>[
+              Text('Filtra per Giocatore:', style: CprType.caption.copyWith(color: CprPalette.inkMuted)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: <Widget>[
+                      for (final String opt in <String>['Tutti', ...playerOptions])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: InkWell(
+                            onTap: () => setState(() => _filterPlayer = opt),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _filterPlayer == opt ? CprPalette.yellow : CprPalette.surfaceSunken,
+                                border: Border.all(
+                                  color: _filterPlayer == opt ? CprPalette.yellow : CprPalette.hairline,
+                                ),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                              child: Text(
+                                opt,
+                                style: CprType.caption.copyWith(
+                                  color: _filterPlayer == opt ? Colors.black : CprPalette.ink,
+                                  fontWeight: _filterPlayer == opt ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (visibleDebts.isEmpty)
+          Text(
+            _filterPlayer == 'Tutti'
+                ? 'Nessun debito aperto.'
+                : 'Nessun debito aperto per $_filterPlayer.',
+            style: CprType.caption.copyWith(color: CprPalette.inkFaint),
+          )
         else ...<Widget>[
           Wrap(
             crossAxisAlignment: WrapCrossAlignment.end,
             spacing: 26,
             runSpacing: 10,
             children: <Widget>[
-              _BigNumber(value: '${_ledger.totalOwed}', label: 'eb dovuti ora', accent: CprPalette.warning),
-              _BigNumber(value: '${_ledger.projectedAt(4)}', label: 'eb fra 4 settimane', accent: CprPalette.danger),
+              _BigNumber(value: '$totalOwed', label: 'eb dovuti ora ($_filterPlayer)', accent: CprPalette.warning),
+              _BigNumber(value: '${visibleDebts.fold<int>(0, (int a, Debt d) => a + d.owedAt(d.weeksElapsed + 4))}', label: 'eb fra 4 settimane', accent: CprPalette.danger),
             ],
           ),
           if (worst != null) ...<Widget>[
             const SizedBox(height: 10),
             _Notice(
               text:
-                  'Da pagare per primo: ${worst.creditor}. Non è il più grosso, è quello che costa di più '
-                  'aspettare.',
+                  'Da pagare per primo: [${worst.debtorLabel}] ${worst.creditor}. Non è il più grosso, è quello che costa di più aspettare.',
               tone: Tone.info,
             ),
           ],
           const SizedBox(height: 16),
-          for (final Debt debt in _ledger.debts)
+          for (final Debt debt in visibleDebts)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Container(
@@ -2527,6 +2659,19 @@ class _DebtPanelState extends State<_DebtPanel> {
                   children: <Widget>[
                     Row(
                       children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: CprPalette.veil(CprPalette.cyan, 0.15),
+                            border: Border.all(color: CprPalette.cyan, width: 0.8),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: Text(
+                            debt.debtorLabel,
+                            style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 10),
+                          ),
+                        ),
                         Expanded(
                           child: Text(debt.creditor, style: CprType.body.copyWith(fontWeight: FontWeight.w600)),
                         ),
@@ -2541,6 +2686,7 @@ class _DebtPanelState extends State<_DebtPanel> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
                     Text(debt.summary, style: CprType.caption.copyWith(color: CprPalette.inkMuted)),
                     if (debt.note.isNotEmpty)
                       Text(debt.note, style: CprType.caption.copyWith(color: CprPalette.inkFaint, fontSize: 11)),
@@ -2574,12 +2720,24 @@ class _DebtPanelState extends State<_DebtPanel> {
         ],
         const SizedBox(height: 20),
         TechSection(
-          title: 'Nuovo debito',
+          title: 'Nuovo debito per giocatore',
           children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.end,
+              spacing: 10,
+              runSpacing: 10,
               children: <Widget>[
-                Expanded(
+                SizedBox(
+                  width: 170,
+                  child: TechField(
+                    label: 'Giocatore / PG Debitore',
+                    value: _newPlayer,
+                    hint: 'es. Johnny Vane',
+                    onChanged: (String v) => setState(() => _newPlayer = v),
+                  ),
+                ),
+                SizedBox(
+                  width: 180,
                   child: TechField(
                     label: 'Creditore',
                     value: _newCreditor,
@@ -2587,19 +2745,17 @@ class _DebtPanelState extends State<_DebtPanel> {
                     onChanged: (String v) => setState(() => _newCreditor = v),
                   ),
                 ),
-                const SizedBox(width: 10),
                 SizedBox(
-                  width: 130,
+                  width: 110,
                   child: TechField(
-                    label: 'Capitale',
+                    label: 'Capitale (eb)',
                     value: _newAmount,
                     numeric: true,
                     onChanged: (String v) => setState(() => _newAmount = v),
                   ),
                 ),
-                const SizedBox(width: 10),
                 SizedBox(
-                  width: 130,
+                  width: 110,
                   child: TechField(
                     label: 'Interesse %/sett.',
                     value: _newRate,
@@ -2607,7 +2763,6 @@ class _DebtPanelState extends State<_DebtPanel> {
                     onChanged: (String v) => setState(() => _newRate = v),
                   ),
                 ),
-                const SizedBox(width: 10),
                 TechButton(
                   label: 'Apri',
                   icon: Icons.add,
@@ -2622,6 +2777,9 @@ class _DebtPanelState extends State<_DebtPanel> {
                           principal: int.tryParse(_newAmount) ?? 0,
                           weeklyRatePct: double.tryParse(_newRate) ?? 0,
                           weeksElapsed: 0,
+                          playerName: _newPlayer.trim().isEmpty
+                              ? (_filterPlayer != 'Tutti' ? _filterPlayer : 'Tavolo / PG')
+                              : _newPlayer.trim(),
                         ),
                       );
                       _newCreditor = '';
@@ -2630,6 +2788,34 @@ class _DebtPanelState extends State<_DebtPanel> {
                 ),
               ],
             ),
+            if (playerOptions.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: <Widget>[
+                  for (final String opt in playerOptions)
+                    InkWell(
+                      onTap: () => setState(() => _newPlayer = opt),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _newPlayer == opt ? CprPalette.yellow : CprPalette.surfaceSunken,
+                          border: Border.all(color: CprPalette.hairline),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: Text(
+                          '+ $opt',
+                          style: CprType.caption.copyWith(
+                            color: _newPlayer == opt ? Colors.black : CprPalette.inkMuted,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ],

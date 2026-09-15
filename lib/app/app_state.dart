@@ -300,6 +300,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool get isTherapyEnabled => gmRuleBook.rule(GmRules.therapyEnabled).value > 0.5;
+
+  Future<void> setTherapyEnabled(bool enabled) =>
+      setGmRule(GmRules.therapyEnabled.id, enabled ? 1.0 : 0.0);
+
   List<DiceMacro> get gmMacros => List<DiceMacro>.unmodifiable(settings.gmMacros);
 
   Future<void> saveGmMacro(DiceMacro macro) async {
@@ -2155,7 +2160,14 @@ class AppState extends ChangeNotifier {
       case 'rest':
         masterRestoreAll(player.id, reason: 'Riposo (${entry.characterName})');
       case 'therapy':
-        masterRestoreHumanity(player.id, 6, reason: 'Terapia (${entry.characterName})');
+        if (!isTherapyEnabled) {
+          _appendSession(
+            description: 'Richiesta di Terapia di ${entry.characterName} non applicata: la Terapia Umanità è disattivata dal Master.',
+            playerId: player.id,
+          );
+        } else {
+          masterRestoreHumanity(player.id, 6, reason: 'Terapia (${entry.characterName})');
+        }
       default:
         _appendSession(
           description: detail.isEmpty ? 'Richiesta: $action' : 'Richiesta: $action — $detail',

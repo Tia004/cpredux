@@ -156,6 +156,7 @@ class CorporateDebtsDialog extends StatefulWidget {
 }
 
 class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
+  final TextEditingController _playerCtrl = TextEditingController(text: 'Tavolo / PG');
   final TextEditingController _creditorCtrl = TextEditingController(text: 'Strozzino Tyger Claws');
   final TextEditingController _amountCtrl = TextEditingController(text: '2000');
   final TextEditingController _interestCtrl = TextEditingController(text: '10'); // % settimanale
@@ -163,7 +164,27 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
   AppState get _state => widget.state ?? AppScope.of(context);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final appState = _state;
+      final String sheetName = (appState.sheet?.identity.tag.trim().isNotEmpty ?? false)
+          ? appState.sheet!.identity.tag.trim()
+          : ((appState.sheet?.identity.playerName.trim().isNotEmpty ?? false)
+              ? appState.sheet!.identity.playerName.trim()
+              : (appState.sheet?.meta.name.trim() ?? ''));
+      if (sheetName.isNotEmpty) {
+        _playerCtrl.text = sheetName;
+      } else if (appState.campaign?.players.isNotEmpty ?? false) {
+        _playerCtrl.text = appState.campaign!.players.first.characterName;
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _playerCtrl.dispose();
     _creditorCtrl.dispose();
     _amountCtrl.dispose();
     _interestCtrl.dispose();
@@ -172,6 +193,21 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = _state;
+    final String currentSheetName = (appState.sheet?.identity.tag.trim().isNotEmpty ?? false)
+        ? appState.sheet!.identity.tag.trim()
+        : ((appState.sheet?.identity.playerName.trim().isNotEmpty ?? false)
+            ? appState.sheet!.identity.playerName.trim()
+            : (appState.sheet?.meta.name.trim() ?? ''));
+    final List<String> playerOptions = <String>{
+      if (currentSheetName.isNotEmpty) currentSheetName,
+      if (appState.campaign != null)
+        for (final p in appState.campaign!.players) ...<String>[
+          if (p.characterName.trim().isNotEmpty) p.characterName.trim(),
+          if (p.playerName.trim().isNotEmpty) p.playerName.trim(),
+        ],
+    }.toList();
+
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
@@ -203,10 +239,49 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Tieni traccia dei prestiti contratti con banche Arasaka o usurai di quartiere. Gli interessi maturano ogni settimana di gioco.',
+              'Tieni traccia dei prestiti contratti dai singoli giocatori con banche Arasaka o usurai di quartiere. Gli interessi maturano ogni settimana.',
               style: CprType.caption.copyWith(color: CprPalette.inkMuted),
             ),
             const SizedBox(height: 14),
+            TextField(
+              controller: _playerCtrl,
+              style: CprType.body.copyWith(color: CprPalette.ink),
+              decoration: const InputDecoration(
+                labelText: 'Giocatore / Personaggio Debitore',
+                filled: true,
+                fillColor: CprPalette.surfaceSunken,
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person_outline, size: 20, color: CprPalette.yellow),
+              ),
+            ),
+            if (playerOptions.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: <Widget>[
+                  for (final String opt in playerOptions)
+                    InkWell(
+                      onTap: () => setState(() => _playerCtrl.text = opt),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _playerCtrl.text == opt ? CprPalette.yellow : CprPalette.surfaceSunken,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: Text(
+                          opt,
+                          style: CprType.caption.copyWith(
+                            color: _playerCtrl.text == opt ? Colors.black : CprPalette.inkMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 10),
             TextField(
               controller: _creditorCtrl,
               style: CprType.body.copyWith(color: CprPalette.ink),
@@ -255,13 +330,14 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
               icon: Icons.save,
               variant: TechButtonVariant.danger,
               onPressed: () {
+                final p = _playerCtrl.text.trim().isEmpty ? 'Tavolo' : _playerCtrl.text.trim();
                 final c = _creditorCtrl.text.trim();
                 final a = _amountCtrl.text.trim();
                 final i = _interestCtrl.text.trim();
-                final appState = _state;
-                if (appState.campaign != null) {
-                  appState.mutateCampaign((Campaign camp) {
-                    camp.description += '\n[DEBITO] $c: $a eb (Interesse: $i%/settimana)';
+                final state = _state;
+                if (state.campaign != null) {
+                  state.mutateCampaign((Campaign camp) {
+                    camp.description += '\n[DEBITO: $p] $c: $a eb (Interesse: $i%/settimana)';
                   });
                 }
                 Navigator.of(context).pop();
