@@ -48,7 +48,7 @@ abstract final class CprPalette {
 
   /// Restituisce il colore del cuore in funzione della percentuale di vita.
   static Color healthColorFor(double ratio) {
-    if (ratio <= 0) return healthFlatline;
+    if (ratio <= 0) return healthCritical;
     if (ratio <= 0.30) return healthCritical;
     if (ratio <= 0.60) return healthWounded;
     return healthFull;
@@ -56,4 +56,37 @@ abstract final class CprPalette {
 
   /// Opacita' utile per "velare" un colore senza perderne la tinta.
   static Color veil(Color c, double alpha) => c.withValues(alpha: alpha);
+}
+
+/// Palette per schermi OLED: neri assoluti `#000000` con bordi e superfici ad alto contrasto.
+abstract final class CprPaletteOled {
+  static const Color voidBlack = Color(0xFF000000);
+  static const Color surfaceSunken = Color(0xFF000000);
+  static const Color surface = Color(0xFF070708);
+  static const Color surfaceRaised = Color(0xFF101012);
+  static const Color surfaceHover = Color(0xFF18181C);
+  static const Color hairline = Color(0xFF26262B);
+  static const Color hairlineBright = Color(0xFF3E3E46);
+
+  static const Color ink = Color(0xFFF2F4F7);
+  static const Color inkMuted = Color(0xFFA0ABB5);
+  static const Color inkFaint = Color(0xFF65707A);
+}
+
+/// Accenti cromatici per i sottotemi dell'applicazione.
+abstract final class CprSubThemes {
+  // 1. Cyberpunk 2077 (Default / Attuale)
+  static const Color cp77Yellow = Color(0xFFFCEE0A);
+  static const Color cp77Cyan = Color(0xFF22E6D2);
+  static const Color cp77Magenta = Color(0xFFFF2E88);
+
+  // 2. Cyberpunk RED (Rosso cremisi/sangue)
+  static const Color cpredPrimary = Color(0xFFE8002D);
+  static const Color cpredSecondary = Color(0xFFFF4D63);
+  static const Color cpredTertiary = Color(0xFFFF8500);
+
+  // 3. Militech (Verde tattico fosforo e smeraldo militare)
+  static const Color militechPrimary = Color(0xFF00FF66);
+  static const Color militechSecondary = Color(0xFF22E694);
+  static const Color militechTertiary = Color(0xFF8AE02B);
 }

@@ -623,14 +623,16 @@ class _ActionsState extends State<_Actions> {
             accent: CprPalette.info,
             onTap: () => _compareDocuments(context),
           ),
-          const SizedBox(height: 8),
-          MenuRow(
-            label: 'Strumenti del Master',
-            description: 'Incontri, bottino, DV, terapia, debiti, rete: tredici strumenti da tavolo',
-            icon: Icons.dashboard_customize_outlined,
-            accent: CprPalette.violet,
-            onTap: state.goToGmTools,
-          ),
+          if (state.isMaster) ...<Widget>[
+            const SizedBox(height: 8),
+            MenuRow(
+              label: 'Strumenti del Master',
+              description: 'Incontri, bottino, DV, terapia, debiti, rete: tredici strumenti da tavolo',
+              icon: Icons.dashboard_customize_outlined,
+              accent: CprPalette.violet,
+              onTap: state.goToGmTools,
+            ),
+          ],
           const SizedBox(height: 8),
           ExpandableMenuRow(
             label: 'Apri campagna',

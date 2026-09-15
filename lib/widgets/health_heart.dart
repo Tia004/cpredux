@@ -163,31 +163,24 @@ class _HealthHeartState extends State<HealthHeart> with TickerProviderStateMixin
                 builder: (BuildContext context, _) {
                   final double ratio = _fill.value.clamp(0.0, 1.0);
                   final Color healthColor = CprPalette.healthColorFor(ratio);
-
-                  // Quando il livello del liquido e' alto, il testo siede sopra
-                  // il riempimento colorato: servono colori chiari con ombra per
-                  // restare leggibili. Sotto il 50% il testo e' sullo sfondo
-                  // scuro e si puo' usare il colore di salute direttamente.
                   final bool onLiquid = ratio > 0.50;
 
                   final Color numberColor = onLiquid
                       ? const Color(0xFFFFFFFF)
-                      : healthColor;
+                      : (ratio <= 0 ? const Color(0xFFFF3B47) : healthColor);
                   final Color maxColor = onLiquid
                       ? const Color(0xCCFFFFFF)
-                      : CprPalette.veil(healthColor, 0.65);
+                      : CprPalette.veil(const Color(0xFFE9EEF2), 0.7);
                   final Color labelColor = onLiquid
                       ? const Color(0xB3FFFFFF)
-                      : CprPalette.veil(healthColor, 0.7);
+                      : (ratio <= 0 ? const Color(0xFFFF525E) : CprPalette.veil(healthColor, 0.9));
 
-                  final List<Shadow> shadows = onLiquid
-                      ? <Shadow>[
-                          Shadow(
-                            color: CprPalette.veil(const Color(0xFF000000), 0.55),
-                            blurRadius: 4,
-                          ),
-                        ]
-                      : const <Shadow>[];
+                  final List<Shadow> shadows = <Shadow>[
+                    Shadow(
+                      color: (ratio <= 0 ? const Color(0xFFFF3B47) : healthColor).withValues(alpha: 0.6),
+                      blurRadius: 10,
+                    ),
+                  ];
 
                   return Align(
                     alignment: const Alignment(0, 0.30),
@@ -291,7 +284,7 @@ class _HeartPainter extends CustomPainter {
     canvas.drawPath(
       heart,
       Paint()
-        ..color = CprPalette.veil(color, showFlatline ? 0.4 : 0.85)
+        ..color = CprPalette.veil(color, 0.85)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );

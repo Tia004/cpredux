@@ -24,6 +24,8 @@ import '../../widgets/dialogs.dart';
 import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
+import '../ai/ai_assistant_drawer.dart';
+import '../gm/gm_screen.dart';
 import '../map/map_section.dart';
 import 'net_architecture_editor.dart';
 import 'ai_fleet_section.dart';
@@ -40,13 +42,18 @@ enum CampaignSection {
   aiBots('IA & Servizi', Icons.smart_toy_outlined, CprPalette.magenta),
   dice('Dadi', Icons.casino_outlined, CprPalette.yellow),
   notebook('Quaderno', Icons.menu_book_outlined, CprPalette.violet),
+  gmTools('Strumenti GM', Icons.dashboard_customize_outlined, CprPalette.violet, masterOnly: true),
+  aiChat('Cyber-Assistente IA', Icons.smart_toy_outlined, CprPalette.cyan, masterOnly: true),
   settings('Impostazioni', Icons.tune_outlined, CprPalette.inkFaint);
 
-  const CampaignSection(this.label, this.icon, this.accent);
+  const CampaignSection(this.label, this.icon, this.accent, {this.masterOnly = false});
 
   final String label;
   final IconData icon;
   final Color accent;
+
+  /// Se `true` la sezione e' visibile solo al Master della campagna.
+  final bool masterOnly;
 }
 
 /// La schermata del master.
@@ -83,6 +90,13 @@ class _CampaignScreenState extends State<CampaignScreen> {
         return const _DiceSection();
       case CampaignSection.notebook:
         return const _NotebookSection();
+      case CampaignSection.gmTools:
+        return const Padding(
+          padding: EdgeInsets.fromLTRB(18, 16, 18, 18),
+          child: GmConsole(),
+        );
+      case CampaignSection.aiChat:
+        return const AiAssistantDrawer(isFullWidth: true);
       case CampaignSection.settings:
         return const _SettingsSection();
     }
@@ -1054,40 +1068,49 @@ class _CampaignRail extends StatelessWidget {
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            for (final CampaignSection s in CampaignSection.values)
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () => onSelect(s),
-                  child: AnimatedContainer(
-                    duration: CprMotion.fast,
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-                    margin: const EdgeInsets.only(bottom: 2),
-                    color: s == current ? CprPalette.veil(s.accent, 0.10) : null,
-                    child: Row(
-                      children: <Widget>[
-                        Icon(s.icon, size: 15, color: s == current ? s.accent : CprPalette.inkMuted),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            s.label,
-                            overflow: TextOverflow.ellipsis,
-                            style: CprType.caption.copyWith(
-                              color: s == current ? s.accent : CprPalette.inkMuted,
-                              fontSize: 12.5,
-                              fontWeight: s == current ? FontWeight.w600 : FontWeight.w400,
+        child: Builder(
+          builder: (BuildContext context) {
+            final AppState state = AppScope.of(context);
+            // Le sezioni master-only vengono filtrate per i giocatori connessi.
+            final List<CampaignSection> visible = CampaignSection.values
+                .where((CampaignSection s) => !s.masterOnly || state.isMaster)
+                .toList();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                for (final CampaignSection s in visible)
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => onSelect(s),
+                      child: AnimatedContainer(
+                        duration: CprMotion.fast,
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                        margin: const EdgeInsets.only(bottom: 2),
+                        color: s == current ? CprPalette.veil(s.accent, 0.10) : null,
+                        child: Row(
+                          children: <Widget>[
+                            Icon(s.icon, size: 15, color: s == current ? s.accent : CprPalette.inkMuted),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                s.label,
+                                overflow: TextOverflow.ellipsis,
+                                style: CprType.caption.copyWith(
+                                  color: s == current ? s.accent : CprPalette.inkMuted,
+                                  fontSize: 12.5,
+                                  fontWeight: s == current ? FontWeight.w600 : FontWeight.w400,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );

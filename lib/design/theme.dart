@@ -41,16 +41,128 @@ abstract final class CprTheme {
     BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, 10)),
   ];
 
-  static ThemeData dark() {
-    const ColorScheme scheme = ColorScheme(
+  /// Costruisce il tema completo in base a tema base e sottotema.
+  static ThemeData buildTheme({
+    String baseTheme = 'dark',
+    String subTheme = 'cyberpunk2077',
+    Color? customAccent,
+  }) {
+    final bool isLight = baseTheme == 'light';
+    final bool isOled = baseTheme == 'oled';
+
+    // 1. Accenti cromatici dal sottotema
+    Color primary;
+    Color secondary;
+    Color tertiary;
+
+    switch (subTheme) {
+      case 'cyberpunkRed':
+        primary = isLight ? const Color(0xFFC40026) : CprSubThemes.cpredPrimary;
+        secondary = CprSubThemes.cpredSecondary;
+        tertiary = CprSubThemes.cpredTertiary;
+      case 'militech':
+        primary = isLight ? const Color(0xFF00993D) : CprSubThemes.militechPrimary;
+        secondary = CprSubThemes.militechSecondary;
+        tertiary = CprSubThemes.militechTertiary;
+      case 'custom':
+        primary = customAccent ?? (isLight ? CprPaletteLight.accent : CprPalette.yellow);
+        secondary = isLight ? CprPaletteLight.cyan : CprPalette.cyan;
+        tertiary = isLight ? CprPaletteLight.magenta : CprPalette.magenta;
+      case 'cyberpunk2077':
+      default:
+        primary = isLight ? CprPaletteLight.accent : CprSubThemes.cp77Yellow;
+        secondary = isLight ? CprPaletteLight.cyan : CprSubThemes.cp77Cyan;
+        tertiary = isLight ? CprPaletteLight.magenta : CprSubThemes.cp77Magenta;
+    }
+
+    if (isLight) {
+      final ColorScheme scheme = ColorScheme(
+        brightness: Brightness.light,
+        primary: primary,
+        onPrimary: Colors.white,
+        primaryContainer: CprPaletteLight.accentSoft,
+        onPrimaryContainer: CprPaletteLight.ink,
+        secondary: secondary,
+        onSecondary: Colors.white,
+        tertiary: tertiary,
+        onTertiary: Colors.white,
+        error: CprPalette.danger,
+        onError: Colors.white,
+        surface: CprPaletteLight.surface,
+        onSurface: CprPaletteLight.ink,
+        surfaceContainerLowest: CprPaletteLight.background,
+        surfaceContainerLow: CprPaletteLight.surfaceSunken,
+        surfaceContainer: CprPaletteLight.surface,
+        surfaceContainerHigh: CprPaletteLight.surfaceRaised,
+        surfaceContainerHighest: CprPaletteLight.surfaceSunken,
+        outline: CprPaletteLight.hairline,
+        outlineVariant: CprPaletteLight.hairlineBright,
+      );
+
+      return _base(
+        scheme: scheme,
+        scaffold: CprPaletteLight.background,
+        canvas: CprPaletteLight.surface,
+        ink: CprPaletteLight.ink,
+        inkMuted: CprPaletteLight.inkMuted,
+        inkFaint: CprPaletteLight.inkFaint,
+        hairline: CprPaletteLight.hairline,
+        hairlineBright: CprPaletteLight.hairlineBright,
+        sunken: CprPaletteLight.surfaceSunken,
+        raised: CprPaletteLight.surfaceRaised,
+        accent: primary,
+      );
+    }
+
+    if (isOled) {
+      final ColorScheme scheme = ColorScheme(
+        brightness: Brightness.dark,
+        primary: primary,
+        onPrimary: CprPaletteOled.voidBlack,
+        primaryContainer: primary.withValues(alpha: 0.8),
+        onPrimaryContainer: CprPaletteOled.voidBlack,
+        secondary: secondary,
+        onSecondary: CprPaletteOled.voidBlack,
+        tertiary: tertiary,
+        onTertiary: CprPaletteOled.voidBlack,
+        error: CprPalette.danger,
+        onError: CprPaletteOled.voidBlack,
+        surface: CprPaletteOled.surface,
+        onSurface: CprPaletteOled.ink,
+        surfaceContainerLowest: CprPaletteOled.voidBlack,
+        surfaceContainerLow: CprPaletteOled.surfaceSunken,
+        surfaceContainer: CprPaletteOled.surface,
+        surfaceContainerHigh: CprPaletteOled.surfaceRaised,
+        surfaceContainerHighest: CprPaletteOled.surfaceHover,
+        outline: CprPaletteOled.hairline,
+        outlineVariant: CprPaletteOled.hairlineBright,
+      );
+
+      return _base(
+        scheme: scheme,
+        scaffold: CprPaletteOled.voidBlack,
+        canvas: CprPaletteOled.surface,
+        ink: CprPaletteOled.ink,
+        inkMuted: CprPaletteOled.inkMuted,
+        inkFaint: CprPaletteOled.inkFaint,
+        hairline: CprPaletteOled.hairline,
+        hairlineBright: CprPaletteOled.hairlineBright,
+        sunken: CprPaletteOled.surfaceSunken,
+        raised: CprPaletteOled.surfaceRaised,
+        accent: primary,
+      );
+    }
+
+    // Default dark theme
+    final ColorScheme scheme = ColorScheme(
       brightness: Brightness.dark,
-      primary: CprPalette.yellow,
+      primary: primary,
       onPrimary: CprPalette.voidBlack,
       primaryContainer: CprPalette.yellowDeep,
       onPrimaryContainer: CprPalette.voidBlack,
-      secondary: CprPalette.cyan,
+      secondary: secondary,
       onSecondary: CprPalette.voidBlack,
-      tertiary: CprPalette.magenta,
+      tertiary: tertiary,
       onTertiary: CprPalette.voidBlack,
       error: CprPalette.danger,
       onError: CprPalette.voidBlack,
@@ -76,48 +188,18 @@ abstract final class CprTheme {
       hairlineBright: CprPalette.hairlineBright,
       sunken: CprPalette.surfaceSunken,
       raised: CprPalette.surfaceRaised,
-      accent: CprPalette.yellow,
+      accent: primary,
     );
   }
 
-  static ThemeData light() {
-    const ColorScheme scheme = ColorScheme(
-      brightness: Brightness.light,
-      primary: CprPaletteLight.accent,
-      onPrimary: Colors.white,
-      primaryContainer: CprPaletteLight.accentSoft,
-      onPrimaryContainer: CprPaletteLight.ink,
-      secondary: CprPaletteLight.cyan,
-      onSecondary: Colors.white,
-      tertiary: CprPaletteLight.magenta,
-      onTertiary: Colors.white,
-      error: CprPalette.danger,
-      onError: Colors.white,
-      surface: CprPaletteLight.surface,
-      onSurface: CprPaletteLight.ink,
-      surfaceContainerLowest: CprPaletteLight.background,
-      surfaceContainerLow: CprPaletteLight.surfaceSunken,
-      surfaceContainer: CprPaletteLight.surface,
-      surfaceContainerHigh: CprPaletteLight.surfaceRaised,
-      surfaceContainerHighest: CprPaletteLight.surfaceSunken,
-      outline: CprPaletteLight.hairline,
-      outlineVariant: CprPaletteLight.hairlineBright,
-    );
+  static ThemeData dark({String subTheme = 'cyberpunk2077', Color? customAccent}) =>
+      buildTheme(baseTheme: 'dark', subTheme: subTheme, customAccent: customAccent);
 
-    return _base(
-      scheme: scheme,
-      scaffold: CprPaletteLight.background,
-      canvas: CprPaletteLight.surface,
-      ink: CprPaletteLight.ink,
-      inkMuted: CprPaletteLight.inkMuted,
-      inkFaint: CprPaletteLight.inkFaint,
-      hairline: CprPaletteLight.hairline,
-      hairlineBright: CprPaletteLight.hairlineBright,
-      sunken: CprPaletteLight.surfaceSunken,
-      raised: CprPaletteLight.surfaceRaised,
-      accent: CprPaletteLight.accent,
-    );
-  }
+  static ThemeData light({String subTheme = 'cyberpunk2077', Color? customAccent}) =>
+      buildTheme(baseTheme: 'light', subTheme: subTheme, customAccent: customAccent);
+
+  static ThemeData oled({String subTheme = 'cyberpunk2077', Color? customAccent}) =>
+      buildTheme(baseTheme: 'oled', subTheme: subTheme, customAccent: customAccent);
 
   static ThemeData _base({
     required ColorScheme scheme,

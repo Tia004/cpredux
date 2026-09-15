@@ -18,6 +18,7 @@ import '../../domain/gm/gm_generators.dart';
 import '../../domain/gm/gm_rules.dart';
 import '../../domain/map_token.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/cyber_markdown_view.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
@@ -493,10 +494,11 @@ class _Result extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          if (selectable)
-            SelectableText(text, style: CprType.body.copyWith(height: 1.5))
-          else
-            Text(text, style: CprType.body.copyWith(height: 1.5)),
+          CyberMarkdownView(
+            markdown: text,
+            accent: accent,
+            selectable: selectable,
+          ),
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
@@ -1900,17 +1902,26 @@ class _BallisticsPanel extends StatefulWidget {
 
 class _BallisticsPanelState extends State<_BallisticsPanel> {
   WeaponClass _weapon = WeaponClass.pistola;
-  String _distance = '10';
+  double _meters = 10.0;
   bool _aimed = false;
   bool _cover = false;
   bool _moving = false;
 
+  static const List<double> _presetDistances = <double>[3, 6, 10, 15, 25, 35, 50, 75, 100, 150];
+
+  void _selectBand(RangeBand band) {
+    // Imposta la distanza al punto medio logico della fascia
+    final double mid = band.minMeters == 0
+        ? band.maxMeters / 2
+        : (band.minMeters + band.maxMeters) / 2;
+    setState(() => _meters = mid);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final double meters = double.tryParse(_distance.replaceAll(',', '.')) ?? 0;
     final BallisticSolution solution = Ballistics.solve(
       weapon: _weapon,
-      meters: meters,
+      meters: _meters,
       aimedShot: _aimed,
       targetInCover: _cover,
       movingTarget: _moving,
@@ -1922,8 +1933,8 @@ class _BallisticsPanelState extends State<_BallisticsPanel> {
       children: <Widget>[
         _ToolIntro(
           text:
-              'Il DV dipende dalla fascia di distanza, non dal metro esatto: è per questo che basta '
-              'una casella. La tabella è una lettura di questa applicazione e va confrontata con il manuale.',
+              'Il DV dipende dalla fascia di distanza balistica. Puoi cliccare direttamente '
+              'sulle caselle delle fasce o usare i preset di metri reali per calcolare istantaneamente il tiro.',
           confidence: GmConfidence.daVerificare,
         ),
         Row(
@@ -1943,19 +1954,84 @@ class _BallisticsPanelState extends State<_BallisticsPanel> {
             SizedBox(
               width: 130,
               child: TechField(
-                label: 'Distanza (m)',
-                value: _distance,
+                label: 'Distanza reale (m)',
+                value: _meters.toStringAsFixed(_meters.truncateToDouble() == _meters ? 0 : 1),
                 numeric: true,
-                onChanged: (String v) => setState(() => _distance = v),
+                onChanged: (String v) {
+                  final double? parsed = double.tryParse(v.replaceAll(',', '.'));
+                  if (parsed != null && parsed >= 0) {
+                    setState(() => _meters = parsed);
+                  }
+                },
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Selettore e Slider Distanza Reale in Metri
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: CprPalette.yellow,
+                  inactiveTrackColor: CprPalette.veil(CprPalette.yellow, 0.2),
+                  thumbColor: CprPalette.yellow,
+                  overlayColor: CprPalette.veil(CprPalette.yellow, 0.2),
+                  trackHeight: 3,
+                ),
+                child: Slider(
+                  min: 0,
+                  max: 200,
+                  value: _meters.clamp(0, 200),
+                  onChanged: (double val) => setState(() => _meters = val.roundToDouble()),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${_meters.toStringAsFixed(0)} m',
+              style: CprType.label.copyWith(color: CprPalette.yellow, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: <Widget>[
+            for (final double d in _presetDistances)
+              InkWell(
+                onTap: () => setState(() => _meters = d),
+                borderRadius: BorderRadius.circular(3),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (_meters - d).abs() < 0.5
+                        ? CprPalette.veil(CprPalette.yellow, 0.22)
+                        : CprPalette.surfaceSunken,
+                    border: Border.all(
+                      color: (_meters - d).abs() < 0.5 ? CprPalette.yellow : CprPalette.hairline,
+                    ),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    '${d.toStringAsFixed(0)} m',
+                    style: CprType.caption.copyWith(
+                      fontSize: 11,
+                      fontWeight: (_meters - d).abs() < 0.5 ? FontWeight.bold : FontWeight.normal,
+                      color: (_meters - d).abs() < 0.5 ? CprPalette.yellow : CprPalette.inkMuted,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 14),
         Wrap(
           spacing: 18,
           children: <Widget>[
-            _Toggle(label: 'Tiro mirato', value: _aimed, onChanged: (bool v) => setState(() => _aimed = v)),
+            _Toggle(label: 'Tiro mirato (-8 al tiro)', value: _aimed, onChanged: (bool v) => setState(() => _aimed = v)),
             _Toggle(label: 'Bersaglio in copertura', value: _cover, onChanged: (bool v) => setState(() => _cover = v)),
             _Toggle(
               label: 'Bersaglio in movimento',
@@ -1987,30 +2063,51 @@ class _BallisticsPanelState extends State<_BallisticsPanel> {
             ),
           const SizedBox(height: 16),
           TechSection(
-            title: '${_weapon.label}: tutte le fasce',
+            title: '${_weapon.label}: tutte le fasce (clicca per selezionare)',
             children: <Widget>[
               Wrap(
                 spacing: 6,
+                runSpacing: 6,
                 children: <Widget>[
                   for (final RangeBand band in RangeBand.values)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: band == solution.band
-                            ? CprPalette.veil(CprPalette.yellow, 0.16)
-                            : CprPalette.surfaceSunken,
-                        border: Border.all(color: band == solution.band ? CprPalette.yellow : CprPalette.hairline),
-                      ),
-                      child: Column(
-                        children: <Widget>[
-                          Text(band.label, style: CprType.caption.copyWith(fontSize: 10, color: CprPalette.inkFaint)),
-                          Text(
-                            '${Ballistics.dvAtBand(_weapon, band, rules: widget.state.gmRuleBook)}',
-                            style: CprType.numeralSmall.copyWith(
-                              color: band == solution.band ? CprPalette.yellow : CprPalette.ink,
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _selectBand(band),
+                        borderRadius: BorderRadius.circular(3),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: band == solution.band
+                                ? CprPalette.veil(CprPalette.yellow, 0.20)
+                                : CprPalette.surfaceSunken,
+                            border: Border.all(
+                              color: band == solution.band ? CprPalette.yellow : CprPalette.hairline,
+                              width: band == solution.band ? 1.5 : 1,
                             ),
+                            borderRadius: BorderRadius.circular(3),
                           ),
-                        ],
+                          child: Column(
+                            children: <Widget>[
+                              Text(
+                                band.label,
+                                style: CprType.caption.copyWith(
+                                  fontSize: 10,
+                                  fontWeight: band == solution.band ? FontWeight.bold : FontWeight.normal,
+                                  color: band == solution.band ? CprPalette.yellow : CprPalette.inkFaint,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${Ballistics.dvAtBand(_weapon, band, rules: widget.state.gmRuleBook)}',
+                                style: CprType.numeralSmall.copyWith(
+                                  color: band == solution.band ? CprPalette.yellow : CprPalette.ink,
+                                  fontWeight: band == solution.band ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -2195,6 +2292,90 @@ class _TherapyPanelState extends State<_TherapyPanel> {
         ),
         const SizedBox(height: 8),
         Text(report.status.explanation, style: CprType.caption.copyWith(color: CprPalette.inkMuted)),
+        const SizedBox(height: 12),
+        // Se il soggetto è cyberpsicopatico: avviso che è irreversibile / morto
+        if (report.status == HumanityStatus.cyberpsicosi)
+          Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: CprPalette.veil(CprPalette.healthFlatline, 0.18),
+              border: Border.all(color: CprPalette.healthFlatline, width: 1.5),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Icon(Icons.dangerous, color: CprPalette.healthFlatline, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'SOGGETTO CYBERPSICOPATICO (DA CONSIDERARE MORTO / PERSO)',
+                        style: CprType.title.copyWith(fontSize: 13, color: CprPalette.healthFlatline, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Empatia azzerata e Umanità inferiore a 10. Il personaggio ha superato il punto di non ritorno: '
+                        'non ci sono terapie standard per curarlo (solo trattamenti estremi/sperimentali corporativi o Max-Tac). '
+                        'Il personaggio cessa di essere un PG ed è da considerare perso/morto: diventa un PNG ostile in mano al Master.',
+                        style: CprType.body.copyWith(fontSize: 11.5, color: CprPalette.ink),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        // Tabella soglie Umanità da manuale Cyberpunk RED
+        TechSection(
+          title: 'Soglie Umanità & Sintomi (Manuale Ufficiale Cyberpunk RED)',
+          children: <Widget>[
+            Container(
+              decoration: BoxDecoration(
+                color: CprPalette.surfaceSunken,
+                border: Border.all(color: CprPalette.hairline),
+              ),
+              child: Column(
+                children: <Widget>[
+                  _ThresholdRow(
+                    range: '> 40 UMA',
+                    state: 'Stabile',
+                    color: CprPalette.humanityIntact,
+                    desc: 'Nessun sintomo evidente. Il sistema nervoso tollera bene il cyberware.',
+                    isCurrent: report.current > 40,
+                  ),
+                  const Divider(height: 1),
+                  _ThresholdRow(
+                    range: '≤ 40 UMA',
+                    state: 'In erosione',
+                    color: CprPalette.warning,
+                    desc: 'Inizio decadimento sistema nervoso e dissociazione. Necessari immunosoppressori per rallentare il degrado neuronale.',
+                    isCurrent: report.current <= 40 && report.current > 20,
+                  ),
+                  const Divider(height: 1),
+                  _ThresholdRow(
+                    range: '≤ 20 UMA (≥ 10)',
+                    state: 'Al limite',
+                    color: CprPalette.danger,
+                    desc: 'Dissociazione acuta e sbalzi violenti. Con Umanità ≥ 10 NON si è ancora cyberpsicopatici conclamati.',
+                    isCurrent: report.current <= 20 && report.current >= 10,
+                  ),
+                  const Divider(height: 1),
+                  _ThresholdRow(
+                    range: '< 10 UMA (EMP 0)',
+                    state: 'CYBERPSICOSI',
+                    color: CprPalette.healthFlatline,
+                    desc: 'Cyberpsicopatico irreversibile. Nessuna cura convenzionale. Il PG è perso / morto e diventa PNG del GM.',
+                    isCurrent: report.status == HumanityStatus.cyberpsicosi,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 18),
         TechSection(
           title: 'Terapia',
@@ -2206,7 +2387,13 @@ class _TherapyPanelState extends State<_TherapyPanel> {
               onChanged: (TherapyProgram p) => setState(() => _program = p),
             ),
             const SizedBox(height: 14),
-            if (plan.weeks == 0)
+            if (report.status == HumanityStatus.cyberpsicosi)
+              _Notice(
+                text: 'La terapia ordinaria non ha effetto su un soggetto cyberpsicopatico conclamato. '
+                    'Esistono solo cure sperimentali corporative estreme con asportazione forzata di ogni impianto e lobotomizzazione parziale.',
+                tone: Tone.danger,
+              )
+            else if (plan.weeks == 0)
               Text('Nessuna terapia pianificata.', style: CprType.caption.copyWith(color: CprPalette.inkFaint))
             else ...<Widget>[
               Text(plan.summary, style: CprType.title.copyWith(fontSize: 16)),
@@ -2268,6 +2455,76 @@ class _StatusChip extends StatelessWidget {
         border: Border.all(color: CprPalette.veil(color, 0.6)),
       ),
       child: Text(status.label.toUpperCase(), style: CprType.label.copyWith(color: color)),
+    );
+  }
+}
+
+class _ThresholdRow extends StatelessWidget {
+  const _ThresholdRow({
+    required this.range,
+    required this.state,
+    required this.color,
+    required this.desc,
+    required this.isCurrent,
+  });
+
+  final String range;
+  final String state;
+  final Color color;
+  final String desc;
+  final bool isCurrent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      color: isCurrent ? CprPalette.veil(color, 0.16) : Colors.transparent,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 110,
+            child: Row(
+              children: <Widget>[
+                if (isCurrent)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 5),
+                    child: Icon(Icons.arrow_right, size: 16, color: color),
+                  ),
+                Expanded(
+                  child: Text(
+                    range,
+                    style: CprType.caption.copyWith(
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrent ? color : CprPalette.inkMuted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 100,
+            child: Text(
+              state.toUpperCase(),
+              style: CprType.caption.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontSize: 10.5,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              desc,
+              style: CprType.caption.copyWith(
+                color: isCurrent ? CprPalette.ink : CprPalette.inkFaint,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

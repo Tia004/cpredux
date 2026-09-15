@@ -415,12 +415,17 @@ void main() {
     HumanityReport report({required int empathy, required int lost, int implants = 3}) =>
         Cyberpsychosis.report(empathyAtCreation: empathy, currentEmpathy: empathy, humanityLost: lost, implantCount: implants);
 
-    test('lo stato segue la percentuale, e a zero non si discute', () {
-      // 80 di massimo: 20 persi restano sopra meta', 60 lasciano 20/80 (25%),
-      // 66 lasciano 14/80 (17,5%) che e' la zona critica, 80 azzera.
+    test('lo stato segue le soglie manualistiche CPRed (>40 stabile, <=40 erosione/immunosoppressori, <=20 al limite, <10 cyberpsicosi)', () {
+      // 80 di massimo:
+      // 20 persi -> UMA 60 (> 40): Stabile
+      // 45 persi -> UMA 35 (<= 40 e > 20): In erosione (richiede immunosoppressori)
+      // 66 persi -> UMA 14 (<= 20 e >= 10): Al limite (NON ancora cyberpsicopatico conclamato)
+      // 72 persi -> UMA 8 (< 10 ed EMP 0): Cyberpsicosi conclamata irreversibile
+      // 80 persi -> UMA 0: Cyberpsicosi
       expect(report(empathy: 8, lost: 20).status, HumanityStatus.stabile);
-      expect(report(empathy: 8, lost: 60).status, HumanityStatus.inErosione);
+      expect(report(empathy: 8, lost: 45).status, HumanityStatus.inErosione);
       expect(report(empathy: 8, lost: 66).status, HumanityStatus.alLimite);
+      expect(report(empathy: 8, lost: 72).status, HumanityStatus.cyberpsicosi);
       expect(report(empathy: 8, lost: 80).status, HumanityStatus.cyberpsicosi);
       expect(report(empathy: 8, lost: 80).current, 0);
       expect(report(empathy: 8, lost: 80).summary, contains('0/80'));

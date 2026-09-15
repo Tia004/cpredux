@@ -4,7 +4,6 @@ import 'package:cpredux/app/app_state.dart';
 import 'package:cpredux/data/settings_store.dart';
 import 'package:cpredux/domain/gm/gm_calculators.dart';
 import 'package:cpredux/domain/gm/gm_rules.dart';
-import 'package:cpredux/domain/gm/gm_generators.dart';
 import 'package:cpredux/features/ai/ai_assistant_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 

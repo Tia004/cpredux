@@ -580,8 +580,58 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
             const SizedBox(height: 10),
             Text(
               'Stato attuale: Umanità $currentH / $maxH · Eurodollari disponibili: ${sheet?.eurobucks ?? 0} eb',
-              style: CprType.caption.copyWith(color: CprPalette.cyan),
+              style: CprType.caption.copyWith(color: CprPalette.cyan, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
+            // Banner soglie manuale CPRed
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: CprPalette.surfaceSunken,
+                border: Border.all(color: CprPalette.hairline),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'SOGLIE UFFICIALI CYBERPUNK RED:',
+                    style: CprType.label.copyWith(fontSize: 9, color: CprPalette.inkMuted, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '• UMA > 40: Stabile, nessun sintomo.\n'
+                    '• UMA ≤ 40: Primi sintomi di dissociazione; necessari immunosoppressori per rallentare il decadimento del sistema nervoso.\n'
+                    '• UMA ≤ 20 (≥ 10): Al limite critico, ma NON ancora cyberpsicopatico.\n'
+                    '• UMA < 10 (EMP 0): CYBERPSICOPATICO IRREVERSIBILE. Nessuna cura standard, PG da considerare perso/morto.',
+                    style: CprType.caption.copyWith(fontSize: 10, color: CprPalette.inkFaint, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            if (currentH < 10) ...<Widget>[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: CprPalette.veil(CprPalette.healthFlatline, 0.2),
+                  border: Border.all(color: CprPalette.healthFlatline, width: 1.5),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    const Icon(Icons.dangerous, color: CprPalette.healthFlatline, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'SOGGETTO CYBERPSICOPATICO CONCLAMATO: Umanità < 10. Non esistono cure standard (solo trattamenti sperimentali corporativi). Il personaggio è da considerare perso / morto e diventa un PNG del Master.',
+                        style: CprType.caption.copyWith(color: CprPalette.healthFlatline, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             ChamferPanel(
               accent: enabled ? CprPalette.cyan : CprPalette.inkFaint,
@@ -848,8 +898,39 @@ class _BallisticDvCalculatorDialogState extends State<BallisticDvCalculatorDialo
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text('Distanza bersaglio: ${_meters.round()} metri', style: CprType.caption.copyWith(color: CprPalette.cyan)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Text('Distanza bersaglio: ${_meters.round()} metri', style: CprType.caption.copyWith(color: CprPalette.cyan, fontWeight: FontWeight.bold)),
+                Wrap(
+                  spacing: 4,
+                  children: <Widget>[
+                    for (final int m in const <int>[3, 6, 12, 20, 35, 50, 80])
+                      InkWell(
+                        onTap: () => setState(() => _meters = m.toDouble()),
+                        borderRadius: BorderRadius.circular(3),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: (_meters.round() == m) ? CprPalette.veil(CprPalette.cyan, 0.25) : CprPalette.surfaceSunken,
+                            border: Border.all(color: (_meters.round() == m) ? CprPalette.cyan : CprPalette.hairline),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            '${m}m',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: (_meters.round() == m) ? FontWeight.bold : FontWeight.normal,
+                              color: (_meters.round() == m) ? CprPalette.cyan : CprPalette.inkMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             Slider(
               value: _meters,
               min: 1,

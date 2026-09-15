@@ -497,6 +497,9 @@ class _ActiveDie {
     required this.spinX,
     required this.spinY,
     required this.spinZ,
+    required this.targetRx,
+    required this.targetRy,
+    required this.targetRz,
   });
 
   final int targetValue;
@@ -508,29 +511,58 @@ class _ActiveDie {
   final double spinX;
   final double spinY;
   final double spinZ;
+  final double targetRx;
+  final double targetRy;
+  final double targetRz;
+}
 
-  /// Rotazione calcolata per allineare la faccia target verso l'alto
-  (double, double, double) getTargetAngles(_DieModel model) {
-    // Cerca la faccia con il valore target
-    _PolyFace? targetFace;
-    for (final _PolyFace f in model.faces) {
-      if (f.value == targetValue) {
-        targetFace = f;
-        break;
-      }
-    }
-    targetFace ??= model.faces.first;
+/// Cache statico dei modelli 3D dei dadi per azzerare il lag all'apertura del tab dadi.
+class _DieModelCache {
+  static final Map<DiceType, _DieModel> _cache = <DiceType, _DieModel>{};
 
-    // Vogliamo che la normale della faccia punti verso (0, 0, 1) nello spazio camera
-    final _Vec3 n = targetFace.normal;
-    // Angoli di rotazione per orientare n perfettamente verso la camera (nCamZ = 1.0)
-    // compensando l'inclinazione prospettica camTilt del tavolo (~30° = 0.52 rad)
-    const double camTilt = 0.52;
-    final double ry = -math.atan2(n.x, n.z);
-    final double zPrime = math.sqrt(n.x * n.x + n.z * n.z);
-    final double rx = math.atan2(n.y, zPrime) - camTilt;
-    return (rx, ry, 0.0);
+  static _DieModel get(DiceType dieType) {
+    return _cache.putIfAbsent(dieType, () {
+      final double dieSize = switch (dieType) {
+        DiceType.d4 => 38.0,
+        DiceType.d6 => 38.0,
+        DiceType.d8 => 36.0,
+        DiceType.d10 => 33.0,
+        DiceType.d12 => 34.0,
+        DiceType.d20 => 35.0,
+        DiceType.d100 => 38.0,
+        DiceType.coin => 34.0,
+      };
+
+      return switch (dieType) {
+        DiceType.d4 => _DieModel.createD4(dieSize * 0.85),
+        DiceType.d6 => _DieModel.createD6(dieSize),
+        DiceType.d8 => _DieModel.createD8(dieSize * 0.82),
+        DiceType.d10 => _DieModel.createD10(dieSize * 0.72),
+        DiceType.d12 => _DieModel.createD12(dieSize * 0.75),
+        DiceType.d20 => _DieModel.createD20(dieSize * 0.78),
+        DiceType.d100 => _DieModel.createD100(dieSize * 0.82),
+        DiceType.coin => _DieModel.createCoin(dieSize * 0.88),
+      };
+    });
   }
+}
+
+(double, double, double) _calculateTargetAngles(_DieModel model, int targetValue) {
+  _PolyFace? targetFace;
+  for (final _PolyFace f in model.faces) {
+    if (f.value == targetValue) {
+      targetFace = f;
+      break;
+    }
+  }
+  targetFace ??= model.faces.first;
+
+  const double camTilt = 0.52;
+  final _Vec3 n = targetFace.normal;
+  final double ry = -math.atan2(n.x, n.z);
+  final double zPrime = math.sqrt(n.x * n.x + n.z * n.z);
+  final double rx = math.atan2(n.y, zPrime) - camTilt;
+  return (rx, ry, 0.0);
 }
 
 /// Visualizer 3D dei dadi tirati su un tavolo spazioso cyberpunk.
@@ -633,6 +665,9 @@ class _Dice3DTableState extends State<Dice3DTable>
           ? (_rng.nextDouble() * 0.4 - 0.2) * math.pi
           : (_rng.nextDouble() * 10.0 + 6.0) * math.pi;
 
+      final (double targetRx, double targetRy, double targetRz) =
+          _calculateTargetAngles(_DieModelCache.get(widget.die), res[i]);
+
       list.add(
         _ActiveDie(
           targetValue: res[i],
@@ -644,6 +679,9 @@ class _Dice3DTableState extends State<Dice3DTable>
           spinX: spinX,
           spinY: spinY,
           spinZ: spinZ,
+          targetRx: targetRx,
+          targetRy: targetRy,
+          targetRz: targetRz,
         ),
       );
     }
@@ -935,28 +973,8 @@ class _Dice3DRenderer extends CustomPainter {
 
     final Offset center = Offset(size.width / 2, size.height * 0.44);
 
-    // Crea modello geometrico reale in base al tipo di dado
-    final double dieSize = switch (dieType) {
-      DiceType.d4 => 38.0,
-      DiceType.d6 => 38.0,
-      DiceType.d8 => 36.0,
-      DiceType.d10 => 33.0,
-      DiceType.d12 => 34.0,
-      DiceType.d20 => 35.0,
-      DiceType.d100 => 38.0,
-      DiceType.coin => 34.0,
-    };
-
-    final _DieModel model = switch (dieType) {
-      DiceType.d4 => _DieModel.createD4(dieSize * 0.85),
-      DiceType.d6 => _DieModel.createD6(dieSize),
-      DiceType.d8 => _DieModel.createD8(dieSize * 0.82),
-      DiceType.d10 => _DieModel.createD10(dieSize * 0.72),
-      DiceType.d12 => _DieModel.createD12(dieSize * 0.75),
-      DiceType.d20 => _DieModel.createD20(dieSize * 0.78),
-      DiceType.d100 => _DieModel.createD100(dieSize * 0.82),
-      DiceType.coin => _DieModel.createCoin(dieSize * 0.88),
-    };
+    // Modello geometrico 3D ottenuto istantaneamente dal cache statico
+    final _DieModel model = _DieModelCache.get(dieType);
 
     // Direzione luce: da in alto a sinistra verso il tavolo
     final _Vec3 lightDir = const _Vec3(-0.45, -0.65, 0.75).normalized();
@@ -996,13 +1014,11 @@ class _Dice3DRenderer extends CustomPainter {
       bounceZ = 0.0;
     }
 
-    // Angoli di rotazione: all'inizio ruotano velocemente, alla fine si assestano sul target
-    final (double targetRx, double targetRy, double targetRz) = die.getTargetAngles(model);
-
+    // Angoli di rotazione: all'inizio ruotano velocemente, alla fine si assestano sul target precalcolato
     final double spinDecay = math.pow(1.0 - t, 2.5).toDouble();
-    final double rx = targetRx + die.spinX * spinDecay;
-    final double ry = targetRy + die.spinY * spinDecay;
-    final double rz = targetRz + die.spinZ * spinDecay;
+    final double rx = die.targetRx + die.spinX * spinDecay;
+    final double ry = die.targetRy + die.spinY * spinDecay;
+    final double rz = die.targetRz + die.spinZ * spinDecay;
 
     // 1. Disegna ombra proiettata sul tavolo a Z = 0
     final double shadowScale = (1.0 - (bounceZ / 120.0).clamp(0.0, 0.7));

@@ -178,12 +178,21 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return AppScope(
       state: _state,
-      child: MaterialApp(
-        navigatorKey: _navigatorKey,
-        title: 'CPRedux Desktop',
-        debugShowCheckedModeBanner: false,
-        theme: CprTheme.dark(),
-        home: const _Root(),
+      child: AnimatedBuilder(
+        animation: _state,
+        builder: (BuildContext context, _) {
+          return MaterialApp(
+            navigatorKey: _navigatorKey,
+            title: 'CPRedux Desktop',
+            debugShowCheckedModeBanner: false,
+            theme: CprTheme.buildTheme(
+              baseTheme: _state.settings.baseTheme,
+              subTheme: _state.settings.subTheme,
+              customAccent: Color(_state.settings.customAccentColorValue),
+            ),
+            home: const _Root(),
+          );
+        },
       ),
     );
   }
@@ -244,7 +253,7 @@ class _Root extends StatelessWidget {
                             AiAssistantDrawer(
                               onClose: () => state.setAiAssistantOpen(false),
                             ),
-                          if (state.isGmPanelOpen)
+                          if (state.isGmPanelOpen && state.isMaster)
                             GmPanel(
                               onClose: () => state.setGmPanelOpen(false),
                             ),
@@ -258,11 +267,8 @@ class _Root extends StatelessWidget {
                             onTap: state.toggleAiAssistant,
                           ),
                         ),
-                      // La linguetta del Master resta raggiungibile anche con
-                      // l'assistente aperto: sono due cose che si usano in
-                      // momenti diversi della stessa serata, e aprirne uno non
-                      // deve voler dire non poter aprire l'altro.
-                      if (!state.isGmPanelOpen)
+                      // La linguetta del Master è visibile solo al Master della campagna
+                      if (!state.isGmPanelOpen && state.isMaster)
                         Positioned(
                           right: 0,
                           top: 196,

@@ -114,3 +114,31 @@ class Proficiency {
             .toList(growable: false),
       );
 }
+
+/// Correzione a una competenza (es. chip linguistici, droghe, modifiche cibernetiche).
+class ProficiencyModifier {
+  ProficiencyModifier({
+    required this.proficiencyId,
+    this.value = 0,
+    this.isActive = true,
+  });
+
+  final String proficiencyId;
+  int value;
+  bool isActive;
+
+  int get contribution => isActive ? value : 0;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'proficiencyId': proficiencyId,
+        'value': value,
+        'active': isActive,
+      };
+
+  static ProficiencyModifier fromJson(Map<String, Object?> json) => ProficiencyModifier(
+        proficiencyId: readString(json['proficiencyId']),
+        value: readInt(json['value']),
+        isActive: readBool(json['active'], true),
+      );
+}
+

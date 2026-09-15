@@ -250,9 +250,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Gli strumenti del Master, come il pannello delle impostazioni: una sola
+  /// Gli strumenti del Master, riservati al Master della campagna: una sola
   /// tab riusata, perche' non ha senso averne due aperte.
   void goToGmTools() {
+    if (isJoined) {
+      _errorMessage = 'Accesso negato: gli strumenti del Master sono riservati esclusivamente al Master.';
+      notifyListeners();
+      return;
+    }
     _screen = AppScreen.gm;
     final int idx = _tabs.indexWhere((AppTab t) => t.kind == AppTabKind.gm);
     if (idx != -1) {
@@ -594,6 +599,9 @@ class AppState extends ChangeNotifier {
   /// diversi, e mostrarli uguali e' il motivo per cui si preme "Collega" tre
   /// volte di seguito.
   bool get isJoining => _client != null && !_client!.isConnected;
+
+  /// True quando l'utente corrente è il Master (ha aperto il file della campagna e non è un client connesso).
+  bool get isMaster => hasCampaign && !isJoined;
 
   /// Log della sessione in corso: chat, tiri, eventi applicati dal master.
   ///
@@ -3105,6 +3113,19 @@ class AppState extends ChangeNotifier {
         identity: identity,
         statBase: statBase,
       );
+      final SheetTotals initialTotals = computeTotals(sheet, lookup: catalogLookup);
+      if (sheet.identity.currentHp <= 0 || sheet.identity.currentHp == 40) {
+        sheet.identity.currentHp = initialTotals.maxHitPoints;
+      }
+      if (sheet.identity.currentHumanity <= 0 || sheet.identity.currentHumanity == 40) {
+        sheet.identity.currentHumanity = initialTotals.maxHumanity;
+      }
+      if (sheet.identity.currentEmpathy <= 0 || sheet.identity.currentEmpathy == 4) {
+        sheet.identity.currentEmpathy = initialTotals.maxEmpathy;
+      }
+      if (sheet.identity.currentLuck <= 0 || sheet.identity.currentLuck == 5) {
+        sheet.identity.currentLuck = initialTotals.statValue(Stat.luck);
+      }
       doc.writePayload(sheet.toJson(), name: cleanName, now: now);
     } finally {
       doc.close();
@@ -3255,6 +3276,14 @@ class AppState extends ChangeNotifier {
       _sheet = CharacterSheet.fromJson(effective);
       _campaign = null;
       _totals = computeTotals(_sheet!, lookup: catalogLookup);
+      if (_sheet!.identity.currentHp <= 0 &&
+          _sheet!.identity.totalImprovementPoints == 0 &&
+          _sheet!.meta.createdAt == _sheet!.meta.updatedAt) {
+        _sheet!.identity.currentHp = _totals!.maxHitPoints;
+        if (_sheet!.identity.currentHumanity <= 0) _sheet!.identity.currentHumanity = _totals!.maxHumanity;
+        if (_sheet!.identity.currentEmpathy <= 0) _sheet!.identity.currentEmpathy = _totals!.maxEmpathy;
+        if (_sheet!.identity.currentLuck <= 0) _sheet!.identity.currentLuck = _totals!.statValue(Stat.luck);
+      }
       _afterOpen(path, AppScreen.sheet);
     }
   }

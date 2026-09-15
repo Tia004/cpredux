@@ -189,7 +189,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     // Il risultato sta fra 8 e 17: quello che conta e' che il tiro sia
     // avvenuto, non quanto e' uscito.
-    expect(find.textContaining('1d10 + 7 ='), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (Widget w) => w is RichText && w.text.toPlainText().contains('1d10 + 7 ='),
+      ),
+      findsOneWidget,
+    );
 
     await state.deleteGmMacro('macro_test');
     await tester.pump(const Duration(milliseconds: 200));

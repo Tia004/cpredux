@@ -205,12 +205,24 @@ abstract final class Ballistics {
 // Cyberpsicosi e terapia
 // --------------------------------------------------------------------------
 
-/// Dove sta un personaggio rispetto alla propria Umanita'.
+/// Dove sta un personaggio rispetto alla propria Umanità secondo il manuale Cyberpunk RED.
 enum HumanityStatus {
-  stabile('Stabile', 'Nessun sintomo. Il cyberware e\' sotto controllo.'),
-  inErosione('In erosione', 'Siriscchia l\'irritabilita\' e l\'insonnia. Da tenere d\'occhio, non ancora un problema clinico.'),
-  alLimite('Al limite', 'Il personaggio e\' a un impianto dalla rottura. Ogni nuova installazione puo\' essere quella decisiva.'),
-  cyberpsicosi('Cyberpsicosi', 'Umanita\' a zero: il personaggio esce dal controllo del giocatore finche\' non viene curato.');
+  stabile(
+    'Stabile',
+    'Umanità > 40: Nessun sintomo evidente. Il sistema nervoso tollera bene il cyberware.',
+  ),
+  inErosione(
+    'In erosione',
+    'Umanità ≤ 40: Primi sintomi di dissociazione e deterioramento neuronale. Necessità di immunosoppressori per rallentare il decadimento del sistema nervoso.',
+  ),
+  alLimite(
+    'Al limite',
+    'Umanità ≤ 20 (≥ 10): Dissociazione grave e rischio clinico elevato, ma con Umanità ≥ 10 NON si è ancora cyberpsicopatici conclamati.',
+  ),
+  cyberpsicosi(
+    'Cyberpsicosi',
+    'Empatia = 0 e Umanità < 10: Cyberpsicopatico conclamato. Non esistono cure standard (solo trattamenti estremi/sperimentali). Il personaggio è da considerare perso / morto e diventa un PNG ostile del GM.',
+  );
 
   const HumanityStatus(this.label, this.explanation);
 
@@ -241,10 +253,22 @@ class HumanityReport {
 
   double get ratio => maxHumanity == 0 ? 0 : current / maxHumanity;
 
+  /// Empatia calcolata dall'Umanità corrente (1 ogni 10 punti interi di Umanità).
+  int get calculatedEmpathy => (current / 10).floor();
+
   HumanityStatus get status {
-    if (current <= 0) return HumanityStatus.cyberpsicosi;
-    if (ratio <= 0.20) return HumanityStatus.alLimite;
-    if (ratio <= 0.50) return HumanityStatus.inErosione;
+    // Si diventa cyberpsicopatici SOLO quando Empatia va a 0 E l'Umanità è sotto 10 (< 10).
+    // Con Umanità >= 10 NON si diventa cyberpsicopatici.
+    final int effEmp = currentEmpathy <= 0 ? 0 : calculatedEmpathy;
+    if (effEmp == 0 && current < 10) {
+      return HumanityStatus.cyberpsicosi;
+    }
+    if (current <= 20) {
+      return HumanityStatus.alLimite;
+    }
+    if (current <= 40) {
+      return HumanityStatus.inErosione;
+    }
     return HumanityStatus.stabile;
   }
 
@@ -420,10 +444,10 @@ abstract final class Cyberpsychosis {
   /// Descrive il passaggio di una soglia, non il numero.
   static String _milestone(int before, int after, HumanityReport report, HumanityStatus start) {
     HumanityStatus statusAt(int humanity) {
-      final double ratio = report.maxHumanity == 0 ? 0 : humanity / report.maxHumanity;
-      if (humanity <= 0) return HumanityStatus.cyberpsicosi;
-      if (ratio <= 0.20) return HumanityStatus.alLimite;
-      if (ratio <= 0.50) return HumanityStatus.inErosione;
+      final int effEmp = (humanity / 10).floor();
+      if (effEmp <= 0 && humanity < 10) return HumanityStatus.cyberpsicosi;
+      if (humanity <= 20) return HumanityStatus.alLimite;
+      if (humanity <= 40) return HumanityStatus.inErosione;
       return HumanityStatus.stabile;
     }
 

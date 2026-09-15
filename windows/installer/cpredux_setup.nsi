@@ -7,7 +7,7 @@ Unicode True
 
 !define PRODUCT_NAME "CPRedux Desktop"
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "0.2.5"
+  !define PRODUCT_VERSION "0.2.6"
   !define PRODUCT_PUBLISHER "CPRedux Community"
   !define PRODUCT_WEB_SITE "https://github.com/Tia2045/CPRedVisualizer"
   !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\cpredux.exe"
@@ -15,7 +15,7 @@ Unicode True
   !define PRODUCT_UNINST_ROOT_KEY "HKLM"
   !define PRODUCT_STARTMENU_REGVAL "NSIS:StartMenuDir"
   
-  !define OUTPUT_EXE "cpredux-v0.2.5-setup.exe"
+  !define OUTPUT_EXE "cpredux-v0.2.6-setup.exe"
 !endif
 !ifndef BUILD_DIR
   !define BUILD_DIR "..\..\build\windows\x64\runner\Release"

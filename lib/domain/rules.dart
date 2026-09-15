@@ -22,6 +22,7 @@ class SheetTotals {
   const SheetTotals({
     required this.stats,
     required this.skills,
+    this.proficiencies = const <String, int>{},
     required this.maxHitPoints,
     required this.severeInjuriesThreshold,
     required this.maxEmpathy,
@@ -38,6 +39,9 @@ class SheetTotals {
 
   /// Livelli abilita' calcolati, correzioni gia' incluse.
   final Map<Skill, int> skills;
+
+  /// Livelli competenze calcolati (per id competenza), con correzioni manuali e cyberware.
+  final Map<String, int> proficiencies;
 
   final int maxHitPoints;
 
@@ -56,6 +60,15 @@ class SheetTotals {
   int statValue(Stat stat) => stats[stat] ?? 0;
 
   int skillValue(Skill skill) => skills[skill] ?? 0;
+
+  /// Livello calcolato della specifica competenza
+  int proficiencyValue(Proficiency prof) => proficiencies[prof.id] ?? prof.level;
+
+  /// Totale di un tiro di competenza: caratteristica dell'abilità master + livello calcolato competenza.
+  int proficiencyCheck(Proficiency prof) {
+    final Stat stat = prof.masterSkill?.stat ?? Stat.intelligence;
+    return statValue(stat) + proficiencyValue(prof);
+  }
 
   /// Totale di un tiro di abilita': caratteristica + livello abilita'.
   ///
@@ -216,9 +229,26 @@ SheetTotals computeTotals(CharacterSheet sheet, {CatalogLookup? lookup}) {
     if (e.isActive) applySkill(e.skillModifiers);
   }
 
+  // 6. Correzioni alle competenze (da modifiche manuali e cyberware)
+  final Map<String, int> profLevels = <String, int>{
+    for (final Proficiency p in sheet.proficiencies) p.id: p.level,
+  };
+  void applyProf(List<ProficiencyModifier> mods) {
+    for (final ProficiencyModifier m in mods) {
+      if (!m.isActive) continue;
+      profLevels[m.proficiencyId] = (profLevels[m.proficiencyId] ?? 0) + m.value;
+    }
+  }
+
+  applyProf(sheet.proficiencyModifiers);
+  for (final Cyberware c in sheet.cyberware) {
+    applyProf(c.proficiencyModifiers);
+  }
+
   return SheetTotals(
     stats: stats,
     skills: skills,
+    proficiencies: profLevels,
     maxHitPoints: maxHitPoints,
     severeInjuriesThreshold: severeThreshold,
     maxEmpathy: maxEmpathy,

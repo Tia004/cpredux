@@ -49,7 +49,7 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter build macos --release
+      - run: flutter build macos --release --dart-define=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
       - name: Verifica l'architettura
         run: |
           set -euo pipefail
@@ -118,7 +118,7 @@ jobs:
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter build windows --release
+      - run: flutter build windows --release --dart-define=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
       - name: Archivia la cartella ZIP portabile
         shell: pwsh
         run: |
@@ -162,7 +162,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build libgtk-3-dev libblkid-dev liblzma-dev
       - run: flutter pub get
-      - run: flutter build linux --release
+      - run: flutter build linux --release --dart-define=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
       - name: Costruisci l'AppImage
         # E' il passo piu' delicato della pipeline. L'AppImage serve perche' e' un
         # file singolo: l'aggiornamento automatico sostituisce **quello**, mentre

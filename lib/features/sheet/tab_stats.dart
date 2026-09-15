@@ -183,27 +183,39 @@ class _StatsTabState extends State<StatsTab> {
       ),
     );
 
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(20),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints c) {
           final bool twoColumns = c.maxWidth >= 980;
           if (!twoColumns) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                statsCol,
-                const SizedBox(height: 16),
-                skillsCol,
-              ],
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  statsCol,
+                  const SizedBox(height: 16),
+                  skillsCol,
+                ],
+              ),
             );
           }
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(flex: 5, child: statsCol),
+              Expanded(
+                flex: 5,
+                child: SingleChildScrollView(
+                  child: statsCol,
+                ),
+              ),
               const SizedBox(width: 16),
-              Expanded(flex: 6, child: skillsCol),
+              Expanded(
+                flex: 6,
+                child: SingleChildScrollView(
+                  child: skillsCol,
+                ),
+              ),
             ],
           );
         },
@@ -483,62 +495,87 @@ class _SkillRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          _MiniStepper(value: base, onChanged: onChanged, min: 0, max: 10),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 34,
-            child: Text(
-              '$calculated',
-              textAlign: TextAlign.right,
-              style: CprType.numeralSmall.copyWith(
-                fontSize: 14,
-                color: delta > 0
-                    ? CprPalette.cyan
-                    : delta < 0
-                        ? CprPalette.danger
-                        : CprPalette.ink,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Tooltip(
-            message: 'Tira 1d10 + ${skill.stat.short} ($statValue) + abilita ($calculated)',
-            child: InkWell(
-              borderRadius: BorderRadius.circular(3),
-              onTap: () {
-                showCombatOrSkillRollDialog(
-                  context,
-                  title: 'Prova: ${skill.name}',
-                  die: DiceType.d10,
-                  count: 1,
-                  modifier: checkTotal,
-                  modifierLabel: '${skill.stat.short} + ${skill.name}',
-                  skill: skill,
-                );
-              },
+          if (skill.isMaster) ...<Widget>[
+            Tooltip(
+              message:
+                  '${skill.name} è un\'abilità ombrello (Musica, Lingua, Scienza, Conoscenza della Zona) non livellabile direttamente.\n'
+                  'Crea e livella le singole competenze specifiche nel pannello a sinistra!',
+              waitDuration: const Duration(milliseconds: 200),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: CprPalette.veil(CprPalette.yellow, 0.08),
-                  border: Border.all(color: CprPalette.veil(CprPalette.yellow, 0.4)),
+                  color: CprPalette.veil(CprPalette.cyan, 0.12),
+                  border: Border.all(color: CprPalette.veil(CprPalette.cyan, 0.5)),
                   borderRadius: BorderRadius.circular(2),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$checkTotal',
-                      textAlign: TextAlign.right,
-                      style: CprType.numeralSmall.copyWith(color: CprPalette.yellow, fontSize: 12),
-                    ),
-                  ],
+                child: Text(
+                  'SPECIALIZZAZIONI (COMPETENZE)',
+                  style: CprType.caption.copyWith(
+                    color: CprPalette.cyan,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ),
-          ),
+          ] else ...<Widget>[
+            _MiniStepper(value: base, onChanged: onChanged, min: 0, max: 10),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 34,
+              child: Text(
+                '$calculated',
+                textAlign: TextAlign.right,
+                style: CprType.numeralSmall.copyWith(
+                  fontSize: 14,
+                  color: delta > 0
+                      ? CprPalette.cyan
+                      : delta < 0
+                          ? CprPalette.danger
+                          : CprPalette.ink,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Tooltip(
+              message: 'Tira 1d10 + ${skill.stat.short} ($statValue) + abilita ($calculated)',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(3),
+                onTap: () {
+                  showCombatOrSkillRollDialog(
+                    context,
+                    title: 'Prova: ${skill.name}',
+                    die: DiceType.d10,
+                    count: 1,
+                    modifier: checkTotal,
+                    modifierLabel: '${skill.stat.short} + ${skill.name}',
+                    skill: skill,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: CprPalette.veil(CprPalette.yellow, 0.08),
+                    border: Border.all(color: CprPalette.veil(CprPalette.yellow, 0.4)),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$checkTotal',
+                        textAlign: TextAlign.right,
+                        style: CprType.numeralSmall.copyWith(color: CprPalette.yellow, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -626,7 +663,7 @@ class _MiniButton extends StatelessWidget {
   }
 }
 
-/// Correzioni manuali a caratteristiche e abilita'.
+/// Correzioni manuali a caratteristiche, abilita e competenze (droghe, chip, cyberware).
 class _ManualModifiersPanel extends StatelessWidget {
   const _ManualModifiersPanel({required this.state});
 
@@ -635,25 +672,41 @@ class _ManualModifiersPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sheet = state.sheet!;
-    final int total = sheet.statModifiers.length + sheet.skillModifiers.length;
+    final int total = sheet.statModifiers.length +
+        sheet.skillModifiers.length +
+        sheet.proficiencyModifiers.length;
 
     return ChamferPanel(
       title: 'Correzioni manuali',
       accent: CprPalette.cyan,
-      trailing: TechButton(
-        label: 'Aggiungi',
-        icon: Icons.add,
-        variant: TechButtonVariant.ghost,
-        compact: true,
-        onPressed: () => _addModifier(context),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const CyberHelpTooltip(
+            title: 'Modificatori Manuali',
+            message:
+                'In Cyberpunk puoi alterare statistiche, abilità e competenze con droghe (es. Black Lace, Blue Glass), chip di abilità e innesti provvisori.\n'
+                'Usa lo switch a destra per attivare o disattivare istantaneamente ciascun bonus.',
+            tag: 'Mod',
+            accent: CprPalette.cyan,
+          ),
+          const SizedBox(width: 8),
+          TechButton(
+            label: 'Aggiungi',
+            icon: Icons.add,
+            variant: TechButtonVariant.ghost,
+            compact: true,
+            onPressed: () => _addModifier(context),
+          ),
+        ],
       ),
       child: total == 0
           ? const TechWell(
               child: Text(
                 'Nessuna correzione manuale.\n'
                 'I bonus di cyberware ed effetti vengono applicati automaticamente: '
-                'qui vanno solo quelli che decidi tu (droghe, equipaggiamento speciale, '
-                'concessioni del master).',
+                'qui vanno solo quelli che decidi tu (droghe, chip di competenza, '
+                'equipaggiamento speciale, concessioni del master).',
                 style: TextStyle(color: CprPalette.inkFaint, height: 1.5, fontSize: 12),
               ),
             )
@@ -677,6 +730,28 @@ class _ManualModifiersPanel extends StatelessWidget {
                     onValue: (int v) => state.mutate((s) => s.skillModifiers[i].value = v),
                     onRemove: () => state.mutate((s) => s.skillModifiers.removeAt(i)),
                   ),
+                for (int i = 0; i < sheet.proficiencyModifiers.length; i++) ...<Widget>[
+                  () {
+                    final pMod = sheet.proficiencyModifiers[i];
+                    final p = sheet.proficiencies.firstWhere(
+                      (elem) => elem.id == pMod.proficiencyId,
+                      orElse: () => Proficiency(
+                        id: '',
+                        masterSkillId: 1,
+                        name: 'Competenza non trovata',
+                      ),
+                    );
+                    return _ModifierRow(
+                      label: 'Competenza: ${p.name}',
+                      value: pMod.value,
+                      active: pMod.isActive,
+                      onToggle: (bool v) =>
+                          state.mutate((s) => s.proficiencyModifiers[i].isActive = v),
+                      onValue: (int v) => state.mutate((s) => s.proficiencyModifiers[i].value = v),
+                      onRemove: () => state.mutate((s) => s.proficiencyModifiers.removeAt(i)),
+                    );
+                  }(),
+                ],
               ],
             ),
     );
@@ -685,17 +760,20 @@ class _ManualModifiersPanel extends StatelessWidget {
   Future<void> _addModifier(BuildContext context) async {
     final _ModifierDraft? draft = await showDialog<_ModifierDraft>(
       context: context,
-      builder: (BuildContext context) => const _AddModifierDialog(),
+      builder: (BuildContext context) => _AddModifierDialog(sheet: state.sheet!),
     );
     if (draft == null) return;
 
     state.mutate((s) {
       final Stat? stat = draft.stat;
       final Skill? skill = draft.skill;
+      final String? profId = draft.proficiencyId;
       if (stat != null) {
         s.statModifiers.add(StatModifier(target: stat, value: draft.value));
       } else if (skill != null) {
         s.skillModifiers.add(SkillModifier(skillId: skill.id, value: draft.value));
+      } else if (profId != null) {
+        s.proficiencyModifiers.add(ProficiencyModifier(proficiencyId: profId, value: draft.value));
       }
     });
   }
@@ -721,7 +799,7 @@ class _ModifierRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: <Widget>[
           Expanded(
@@ -729,15 +807,13 @@ class _ModifierRow extends StatelessWidget {
               label,
               style: CprType.body.copyWith(
                 color: active ? CprPalette.ink : CprPalette.inkFaint,
-                fontSize: 13,
+                decoration: active ? null : TextDecoration.lineThrough,
               ),
             ),
           ),
-          TechSegmented<bool>(
+          Switch(
             value: active,
-            items: const <bool>[true, false],
-            labelOf: (bool v) => v ? 'Attiva' : 'Spenta',
-            accent: CprPalette.cyan,
+            activeThumbColor: CprPalette.cyan,
             onChanged: onToggle,
           ),
           const SizedBox(width: 10),
@@ -765,25 +841,44 @@ class _ModifierRow extends StatelessWidget {
 }
 
 class _ModifierDraft {
-  const _ModifierDraft({this.stat, this.skill, required this.value});
+  const _ModifierDraft({
+    this.stat,
+    this.skill,
+    this.proficiencyId,
+    required this.value,
+  });
 
   final Stat? stat;
   final Skill? skill;
+  final String? proficiencyId;
   final int value;
 }
 
+enum _ModifierTargetCategory { stat, skill, proficiency }
+
 class _AddModifierDialog extends StatefulWidget {
-  const _AddModifierDialog();
+  const _AddModifierDialog({required this.sheet});
+
+  final CharacterSheet sheet;
 
   @override
   State<_AddModifierDialog> createState() => _AddModifierDialogState();
 }
 
 class _AddModifierDialogState extends State<_AddModifierDialog> {
-  bool _isStat = true;
+  _ModifierTargetCategory _targetCategory = _ModifierTargetCategory.stat;
   Stat _stat = Stat.intelligence;
   Skill _skill = Skill.perception;
+  String? _selectedProficiencyId;
   int _value = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.sheet.proficiencies.isNotEmpty) {
+      _selectedProficiencyId = widget.sheet.proficiencies.first.id;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -791,24 +886,36 @@ class _AddModifierDialogState extends State<_AddModifierDialog> {
       backgroundColor: CprPalette.surface,
       shape: const RoundedRectangleBorder(),
       child: SizedBox(
-        width: 460,
+        width: 480,
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              Text('NUOVA CORREZIONE', style: CprType.label.copyWith(color: CprPalette.yellow)),
+              Text(
+                'NUOVA CORREZIONE MANUALE',
+                style: CprType.label.copyWith(color: CprPalette.yellow, fontSize: 12),
+              ),
               const SizedBox(height: 16),
-              TechSegmented<bool>(
-                value: _isStat,
-                items: const <bool>[true, false],
-                labelOf: (bool v) => v ? 'Caratteristica' : 'Abilita',
+              TechSegmented<_ModifierTargetCategory>(
+                value: _targetCategory,
+                items: _ModifierTargetCategory.values,
+                labelOf: (_ModifierTargetCategory c) {
+                  switch (c) {
+                    case _ModifierTargetCategory.stat:
+                      return 'Caratteristica';
+                    case _ModifierTargetCategory.skill:
+                      return 'Abilità';
+                    case _ModifierTargetCategory.proficiency:
+                      return 'Competenza';
+                  }
+                },
                 accent: CprPalette.cyan,
-                onChanged: (bool v) => setState(() => _isStat = v),
+                onChanged: (_ModifierTargetCategory c) => setState(() => _targetCategory = c),
               ),
               const SizedBox(height: 14),
-              if (_isStat)
+              if (_targetCategory == _ModifierTargetCategory.stat)
                 TechDropdown<Stat>(
                   label: 'Caratteristica',
                   value: _stat,
@@ -816,14 +923,39 @@ class _AddModifierDialogState extends State<_AddModifierDialog> {
                   labelOf: (Stat s) => s.label,
                   onChanged: (Stat s) => setState(() => _stat = s),
                 )
-              else
+              else if (_targetCategory == _ModifierTargetCategory.skill)
                 TechDropdown<Skill>(
-                  label: 'Abilita',
+                  label: 'Abilità',
                   value: _skill,
                   items: Skill.values,
                   labelOf: (Skill s) => s.name,
                   onChanged: (Skill s) => setState(() => _skill = s),
-                ),
+                )
+              else ...<Widget>[
+                if (widget.sheet.proficiencies.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Nessuna competenza presente sulla scheda.\n'
+                      'Crea prima una competenza nel pannello Competenze per poter applicare correzioni manuali.',
+                      style: TextStyle(color: CprPalette.inkMuted, fontSize: 12, height: 1.4),
+                    ),
+                  )
+                else
+                  TechDropdown<String>(
+                    label: 'Competenza target (chip / droga)',
+                    value: _selectedProficiencyId ?? widget.sheet.proficiencies.first.id,
+                    items: widget.sheet.proficiencies.map((Proficiency p) => p.id).toList(),
+                    labelOf: (String id) {
+                      final Proficiency p = widget.sheet.proficiencies.firstWhere(
+                        (elem) => elem.id == id,
+                        orElse: () => Proficiency(id: id, masterSkillId: 1, name: id),
+                      );
+                      return '${p.name} (${p.masterSkill?.name ?? ""})';
+                    },
+                    onChanged: (String id) => setState(() => _selectedProficiencyId = id),
+                  ),
+              ],
               const SizedBox(height: 14),
               TechNumberStepper(
                 label: 'Valore della correzione',
@@ -846,13 +978,22 @@ class _AddModifierDialogState extends State<_AddModifierDialog> {
                   TechButton(
                     label: 'Aggiungi',
                     variant: TechButtonVariant.primary,
-                    onPressed: () => Navigator.of(context).pop(
-                      _ModifierDraft(
-                        stat: _isStat ? _stat : null,
-                        skill: _isStat ? null : _skill,
-                        value: _value,
-                      ),
-                    ),
+                    onPressed: (_targetCategory == _ModifierTargetCategory.proficiency &&
+                            widget.sheet.proficiencies.isEmpty)
+                        ? null
+                        : () => Navigator.of(context).pop(
+                              _ModifierDraft(
+                                stat: _targetCategory == _ModifierTargetCategory.stat ? _stat : null,
+                                skill:
+                                    _targetCategory == _ModifierTargetCategory.skill ? _skill : null,
+                                proficiencyId:
+                                    _targetCategory == _ModifierTargetCategory.proficiency
+                                        ? (_selectedProficiencyId ??
+                                            widget.sheet.proficiencies.first.id)
+                                        : null,
+                                value: _value,
+                              ),
+                            ),
                   ),
                 ],
               ),
@@ -873,16 +1014,31 @@ class _ProficienciesPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sheet = state.sheet!;
+    final totals = state.totals!;
 
     return ChamferPanel(
       title: 'Competenze',
       accent: CprPalette.cyan,
-      trailing: TechButton(
-        label: 'Nuova competenza',
-        icon: Icons.add,
-        variant: TechButtonVariant.ghost,
-        compact: true,
-        onPressed: () => _add(context),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const CyberHelpTooltip(
+            title: 'Competenze Specializzate',
+            message:
+                'Le competenze sono le specializzazioni concrete delle 4 abilità master (Musica, Lingua, Scienza, Conoscenza della Zona).\n'
+                'Il totale del tiro è 1d10 + Statistica dell\'abilità principale + Livello competenza + Modificatori.',
+            tag: 'Regole',
+            accent: CprPalette.cyan,
+          ),
+          const SizedBox(width: 8),
+          TechButton(
+            label: 'Nuova competenza',
+            icon: Icons.add,
+            variant: TechButtonVariant.ghost,
+            compact: true,
+            onPressed: () => _add(context),
+          ),
+        ],
       ),
       child: sheet.proficiencies.isEmpty
           ? const TechWell(
@@ -895,51 +1051,159 @@ class _ProficienciesPanel extends StatelessWidget {
             )
           : Column(
               children: <Widget>[
-                for (int i = 0; i < sheet.proficiencies.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: <Widget>[
-                        SizedBox(
-                          width: 150,
-                          child: Text(
-                            sheet.proficiencies[i].masterSkill?.name ?? 'Abilita sconosciuta',
-                            style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9.5),
+                for (int i = 0; i < sheet.proficiencies.length; i++) ...<Widget>[
+                  () {
+                    final p = sheet.proficiencies[i];
+                    final Skill? master = p.masterSkill;
+                    final Stat stat = master?.stat ?? Stat.intelligence;
+                    final int calcLevel = totals.proficiencyValue(p);
+                    final int statVal = totals.statValue(stat);
+                    final int checkTotal = totals.proficiencyCheck(p);
+                    final int delta = calcLevel - p.level;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: <Widget>[
+                          SizedBox(
+                            width: 44,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: CprPalette.surfaceSunken,
+                                border: Border.all(color: CprPalette.cyan.withValues(alpha: 0.4)),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                stat.short,
+                                style: CprType.label.copyWith(
+                                  color: CprPalette.cyan,
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: TechField(
-                            label: '',
-                            value: sheet.proficiencies[i].name,
-                            hint: 'Nome della competenza',
-                            onChanged: (String v) =>
-                                state.mutate((s) => s.proficiencies[i].name = v),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  p.name.isEmpty ? '(Senza nome)' : p.name,
+                                  style: CprType.body.copyWith(
+                                    color: CprPalette.ink,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  '${master?.name ?? "Abilità"} • ${stat.label}',
+                                  style: CprType.caption.copyWith(
+                                    color: CprPalette.inkFaint,
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          width: 110,
-                          child: TechNumberStepper(
-                            label: '',
-                            value: sheet.proficiencies[i].level,
+                          const SizedBox(width: 6),
+                          _MiniStepper(
+                            value: p.level,
+                            min: 0,
                             max: 10,
-                            compact: true,
-                            accent: CprPalette.cyan,
-                            onChanged: (int v) =>
-                                state.mutate((s) => s.proficiencies[i].level = v),
+                            onChanged: (int v) => state.mutate((s) => s.proficiencies[i].level = v),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        TechButton(
-                          label: '',
-                          icon: Icons.delete_outline,
-                          variant: TechButtonVariant.danger,
-                          compact: true,
-                          onPressed: () => state.mutate((s) => s.proficiencies.removeAt(i)),
-                        ),
-                      ],
-                    ),
-                  ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 28,
+                            child: Text(
+                              '$calcLevel',
+                              textAlign: TextAlign.right,
+                              style: CprType.numeralSmall.copyWith(
+                                fontSize: 13.5,
+                                color: delta > 0
+                                    ? CprPalette.cyan
+                                    : (delta < 0 ? CprPalette.danger : CprPalette.ink),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message: 'Statistica base ${stat.label} ($statVal)',
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: CprPalette.surfaceRaised,
+                                border: Border.all(color: CprPalette.hairline),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                              child: Text(
+                                '${stat.short} $statVal',
+                                style: CprType.label.copyWith(
+                                  color: CprPalette.inkMuted,
+                                  fontSize: 8.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message:
+                                'Tira 1d10 + ${stat.short} ($statVal) + ${p.name} ($calcLevel) = Base $checkTotal',
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(3),
+                              onTap: () {
+                                showCombatOrSkillRollDialog(
+                                  context,
+                                  title: 'Prova: ${p.name} (${master?.name ?? ""})',
+                                  die: DiceType.d10,
+                                  count: 1,
+                                  modifier: checkTotal,
+                                  modifierLabel: '${stat.short} ($statVal) + ${p.name} ($calcLevel)',
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: CprPalette.veil(CprPalette.yellow, 0.08),
+                                  border: Border.all(color: CprPalette.veil(CprPalette.yellow, 0.4)),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    const Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$checkTotal',
+                                      textAlign: TextAlign.right,
+                                      style: CprType.numeralSmall.copyWith(
+                                        color: CprPalette.yellow,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 14, color: CprPalette.danger),
+                            tooltip: 'Rimuovi competenza',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                            splashRadius: 14,
+                            onPressed: () => state.mutate((s) => s.proficiencies.removeAt(i)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }(),
+                ],
               ],
             ),
     );

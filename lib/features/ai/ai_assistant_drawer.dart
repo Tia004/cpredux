@@ -3,15 +3,21 @@ import 'package:flutter/material.dart';
 import '../../app/app_state.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../../widgets/cyber_markdown_view.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/tech_button.dart';
 import 'ai_assistant_service.dart';
 
-/// Pannello laterale / Dock sempre accessibile per il Chatbot IA e il generatore PNG per il Master.
+/// Pannello laterale o schermata a tutto schermo per il Chatbot IA e il generatore PNG per il Master.
 class AiAssistantDrawer extends StatefulWidget {
-  const AiAssistantDrawer({super.key, required this.onClose});
+  const AiAssistantDrawer({
+    super.key,
+    this.onClose,
+    this.isFullWidth = false,
+  });
 
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
+  final bool isFullWidth;
 
   @override
   State<AiAssistantDrawer> createState() => _AiAssistantDrawerState();
@@ -46,17 +52,21 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
     final AiAssistantService ai = AiAssistantService.instance;
 
     return Container(
-      width: 360,
+      width: widget.isFullWidth ? double.infinity : 360,
       decoration: BoxDecoration(
         color: CprPalette.surfaceRaised,
-        border: const Border(left: BorderSide(color: CprPalette.cyan, width: 1.5)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 16,
-            offset: const Offset(-4, 0),
-          ),
-        ],
+        border: widget.isFullWidth
+            ? null
+            : const Border(left: BorderSide(color: CprPalette.cyan, width: 1.5)),
+        boxShadow: widget.isFullWidth
+            ? null
+            : <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 16,
+                  offset: const Offset(-4, 0),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -106,11 +116,12 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
             tooltip: 'Configura Chiave Google Gemini Gratuita',
             onPressed: () => _promptConfigApiKey(context, ai),
           ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18, color: CprPalette.ink),
-            tooltip: 'Chiudi assistente',
-            onPressed: widget.onClose,
-          ),
+          if (widget.onClose != null)
+            IconButton(
+              icon: const Icon(Icons.close, size: 18, color: CprPalette.ink),
+              tooltip: 'Chiudi assistente',
+              onPressed: widget.onClose,
+            ),
         ],
       ),
     );
@@ -382,10 +393,15 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          m.text,
-                          style: CprType.body.copyWith(fontSize: 12, height: 1.35),
-                        ),
+                        m.isUser
+                            ? Text(
+                                m.text,
+                                style: CprType.body.copyWith(fontSize: 12, height: 1.35),
+                              )
+                            : CyberMarkdownView(
+                                markdown: m.text,
+                                accent: CprPalette.cyan,
+                              ),
                       ],
                     ),
                   );

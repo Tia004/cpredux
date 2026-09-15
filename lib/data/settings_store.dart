@@ -9,7 +9,10 @@ import 'app_paths.dart';
 /// Impostazioni dell'applicazione.
 class AppSettings {
   AppSettings({
-    this.enableDarkMode = true,
+    this.baseTheme = 'dark',
+    this.subTheme = 'cyberpunk2077',
+    this.customAccentColorValue = 0xFFFCEE0A,
+    bool? enableDarkMode,
     this.enableLoad = true,
     this.enableDiscordRichPresence = true,
     this.autosave = true,
@@ -26,7 +29,11 @@ class AppSettings {
     List<DiceMacro>? gmMacros,
   })  : recentFiles = recentFiles ?? <String>[],
         gmRuleOverrides = gmRuleOverrides ?? <String, double>{},
-        gmMacros = gmMacros ?? <DiceMacro>[];
+        gmMacros = gmMacros ?? <DiceMacro>[] {
+    if (enableDarkMode != null && !enableDarkMode) {
+      baseTheme = 'light';
+    }
+  }
 
   /// Indirizzo predefinito del manifesto degli aggiornamenti su GitHub raw.
   static const String defaultUpdateFeedUrl = 'https://raw.githubusercontent.com/Tia004/cpredux/main/site/latest.json';
@@ -40,10 +47,19 @@ class AppSettings {
   /// Application ID Discord ufficiale di CPRED Visualizer.
   static const String defaultDiscordClientId = '1541315898835472408';
 
-  /// Tema scuro. Il progetto ha sempre avuto un tema chiaro alternativo, e
-  /// vale la pena tenerlo: in una stanza illuminata una scheda chiara si legge
-  /// meglio, anche se lo stile "cyber" e' scuro per natura.
-  bool enableDarkMode;
+  /// Tema base: 'dark' (predefinito), 'light', 'oled'.
+  String baseTheme;
+
+  /// Sottotema: 'cyberpunk2077' (predefinito), 'cyberpunkRed', 'militech', 'custom'.
+  String subTheme;
+
+  /// Valore ARGB del colore d'accento personalizzato.
+  int customAccentColorValue;
+
+  bool get enableDarkMode => baseTheme != 'light';
+  set enableDarkMode(bool value) {
+    baseTheme = value ? 'dark' : 'light';
+  }
 
   /// Calcolo automatico del carico e delle sue penalita'.
   bool enableLoad;
@@ -148,6 +164,9 @@ class AppSettings {
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
+        'baseTheme': baseTheme,
+        'subTheme': subTheme,
+        'customAccentColorValue': customAccentColorValue,
         'enableDarkMode': enableDarkMode,
         'enableLoad': enableLoad,
         'enableDiscordRichPresence': enableDiscordRichPresence,
@@ -167,8 +186,17 @@ class AppSettings {
 
   static AppSettings fromJson(Map<String, Object?> json) {
     final Object? recent = json['recentFiles'];
+    final bool? legacyDarkMode = json['enableDarkMode'] is bool ? json['enableDarkMode']! as bool : null;
+    final String base = json['baseTheme'] is String
+        ? (json['baseTheme']! as String)
+        : (legacyDarkMode == false ? 'light' : 'dark');
+
     return AppSettings(
-      enableDarkMode: json['enableDarkMode'] is bool ? json['enableDarkMode']! as bool : true,
+      baseTheme: base,
+      subTheme: json['subTheme'] is String ? (json['subTheme']! as String) : 'cyberpunk2077',
+      customAccentColorValue: json['customAccentColorValue'] is int
+          ? (json['customAccentColorValue']! as int)
+          : 0xFFFCEE0A,
       enableLoad: json['enableLoad'] is bool ? json['enableLoad']! as bool : true,
       enableDiscordRichPresence:
           json['enableDiscordRichPresence'] is bool ? json['enableDiscordRichPresence']! as bool : true,

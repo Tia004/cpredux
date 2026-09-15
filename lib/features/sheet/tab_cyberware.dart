@@ -10,14 +10,23 @@ import '../../design/typography.dart';
 import '../../domain/cyberware.dart';
 import '../../domain/enums.dart';
 import '../../widgets/chamfer_panel.dart';
+import '../../widgets/cyber_body_viewer.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/humanity_gauge.dart';
 import '../../widgets/inputs.dart';
 import '../../widgets/tech_button.dart';
 import 'editors.dart';
 
-class CyberwareTab extends StatelessWidget {
+class CyberwareTab extends StatefulWidget {
   const CyberwareTab({super.key});
+
+  @override
+  State<CyberwareTab> createState() => _CyberwareTabState();
+}
+
+class _CyberwareTabState extends State<CyberwareTab> {
+  String? _selectedZone;
+  bool _viewerExpanded = true;
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +34,13 @@ class CyberwareTab extends StatelessWidget {
     final sheet = state.sheet!;
     final totals = state.totals!;
 
+    final List<Cyberware> displayedCyberware = _selectedZone != null
+        ? sheet.cyberware.where((Cyberware c) => c.bodyZone.toLowerCase() == _selectedZone!.toLowerCase()).toList()
+        : sheet.cyberware;
+
     final Map<CyberwareCategory, List<Cyberware>> grouped =
         <CyberwareCategory, List<Cyberware>>{};
-    for (final Cyberware c in sheet.cyberware) {
+    for (final Cyberware c in displayedCyberware) {
       grouped.putIfAbsent(c.category, () => <Cyberware>[]).add(c);
     }
 
@@ -36,6 +49,7 @@ class CyberwareTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          // 1. Humanity & Summary
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints c) {
               final Widget gauge = ChamferPanel(
@@ -115,6 +129,113 @@ class CyberwareTab extends StatelessWidget {
             },
           ),
           const SizedBox(height: 16),
+
+          // 2. Interactive CyberBodyViewer Anatomical Scanner
+          ChamferPanel(
+            title: 'Diagnostica Corporea // Cyber-Scan Anatomico',
+            accent: CprPalette.cyan,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (_selectedZone != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InkWell(
+                      onTap: () => setState(() => _selectedZone = null),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: CprPalette.veil(CprPalette.cyan, 0.2),
+                          border: Border.all(color: CprPalette.cyan, width: 0.8),
+                        ),
+                        child: Text(
+                          'FILTRO: ${CyberBodyZone.fromId(_selectedZone).label.toUpperCase()} ✕',
+                          style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 9),
+                        ),
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  icon: Icon(
+                    _viewerExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: CprPalette.inkMuted,
+                  ),
+                  onPressed: () => setState(() => _viewerExpanded = !_viewerExpanded),
+                  tooltip: _viewerExpanded ? 'Comprimi scanner' : 'Espandi scanner',
+                ),
+              ],
+            ),
+            child: _viewerExpanded
+                ? CyberBodyViewer(
+                    cyberware: sheet.cyberware,
+                    selectedZone: _selectedZone,
+                    onZoneSelected: (String? z) => setState(() => _selectedZone = z),
+                    onInstallInZone: (String zoneId) => _add(context, state, initialZone: zoneId),
+                  )
+                : InkWell(
+                    onTap: () => setState(() => _viewerExpanded = true),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        children: <Widget>[
+                          const Icon(Icons.biotech, size: 16, color: CprPalette.cyan),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Scanner anatomico compresso. Clicca per espandere il visualizzatore 3D.',
+                            style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 16),
+
+          // 3. Active Zone Filter Bar
+          if (_selectedZone != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: CprPalette.veil(CprPalette.cyan, 0.12),
+                border: Border.all(color: CprPalette.cyan),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.filter_alt, size: 16, color: CprPalette.cyan),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'FILTRO ZONA ATTIVO: ${CyberBodyZone.fromId(_selectedZone).label.toUpperCase()} '
+                      '(${displayedCyberware.length} ${displayedCyberware.length == 1 ? "impianto" : "impianti"})',
+                      style: CprType.label.copyWith(
+                        color: CprPalette.cyan,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  TechButton(
+                    label: 'Installa in questa zona',
+                    icon: Icons.add,
+                    variant: TechButtonVariant.primary,
+                    compact: true,
+                    onPressed: () => _add(context, state, initialZone: _selectedZone),
+                  ),
+                  const SizedBox(width: 8),
+                  TechButton(
+                    label: 'Mostra tutti',
+                    icon: Icons.close,
+                    variant: TechButtonVariant.secondary,
+                    compact: true,
+                    onPressed: () => setState(() => _selectedZone = null),
+                  ),
+                ],
+              ),
+            ),
+
+          // 4. Cyberware List
           if (sheet.cyberware.isEmpty)
             ChamferPanel(
               title: 'Impianti installati',
@@ -130,6 +251,36 @@ class CyberwareTab extends StatelessWidget {
                 ),
               ),
             )
+          else if (displayedCyberware.isEmpty)
+            ChamferPanel(
+              title: 'Zona: ${CyberBodyZone.fromId(_selectedZone).label}',
+              accent: CprPalette.magenta,
+              trailing: TechButton(
+                label: 'Mostra tutti',
+                icon: Icons.clear_all,
+                compact: true,
+                onPressed: () => setState(() => _selectedZone = null),
+              ),
+              child: TechWell(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Nessun cyberware installato nella zona ${CyberBodyZone.fromId(_selectedZone).label.toUpperCase()}.',
+                      style: const TextStyle(color: CprPalette.inkMuted, fontSize: 12),
+                    ),
+                    const SizedBox(height: 10),
+                    TechButton(
+                      label: 'Installa impianto in ${CyberBodyZone.fromId(_selectedZone).label}',
+                      icon: Icons.add,
+                      variant: TechButtonVariant.primary,
+                      compact: true,
+                      onPressed: () => _add(context, state, initialZone: _selectedZone),
+                    ),
+                  ],
+                ),
+              ),
+            )
           else
             for (final CyberwareCategory category in CyberwareCategory.values)
               if (grouped.containsKey(category)) ...<Widget>[
@@ -142,37 +293,9 @@ class CyberwareTab extends StatelessWidget {
                   ),
                   child: Column(
                     children: <Widget>[
-                      for (final Cyberware item in grouped[category]!)
-                        _CyberwareRow(
-                          item: item,
-                          onEdit: () async {
-                            final Cyberware? updated =
-                                await showCyberwareEditor(context, existing: item);
-                            if (updated != null) {
-                              state.mutate((s) {
-                                final int index =
-                                    s.cyberware.indexWhere((Cyberware c) => c.id == item.id);
-                                if (index >= 0) s.cyberware[index] = updated;
-                              });
-                            }
-                          },
-                          onDelete: () async {
-                            final bool ok = await showTechConfirm(
-                              context,
-                              title: 'Rimuovere l\'impianto?',
-                              message: '${item.name} verra\' rimosso dalla scheda.\n\n'
-                                  'Le correzioni alle caratteristiche e alle abilita\' '
-                                  'verranno tolte. L\'Umanita\' persa resta persa.',
-                              confirmLabel: 'Rimuovi',
-                              danger: true,
-                            );
-                            if (ok) {
-                              state.mutate(
-                                (s) => s.cyberware.removeWhere((Cyberware c) => c.id == item.id),
-                              );
-                            }
-                          },
-                        ),
+                      for (final Cyberware item in grouped[category]!) ...<Widget>[
+                        _buildCyberwareItem(context, state, item),
+                      ],
                     ],
                   ),
                 ),
@@ -181,15 +304,90 @@ class CyberwareTab extends StatelessWidget {
           if (sheet.cyberware.isNotEmpty)
             Align(
               alignment: Alignment.centerLeft,
-              child: _AddButton(onPressed: () => _add(context, state)),
+              child: _AddButton(onPressed: () => _add(context, state, initialZone: _selectedZone)),
             ),
         ],
       ),
     );
   }
 
-  Future<void> _add(BuildContext context, AppState state) async {
-    final Cyberware? item = await showCyberwareEditor(context);
+  Widget _buildCyberwareItem(BuildContext context, AppState state, Cyberware item) {
+    final sheet = state.sheet!;
+    Cyberware? parentItem;
+    if (item.parentFoundationId != null) {
+      for (final Cyberware c in sheet.cyberware) {
+        if (c.id == item.parentFoundationId) {
+          parentItem = c;
+          break;
+        }
+      }
+    }
+
+    int usedSlots = 0;
+    if (item.isFoundational) {
+      usedSlots = sheet.cyberware
+          .where((Cyberware c) => c.parentFoundationId == item.id)
+          .fold<int>(0, (int sum, Cyberware c) => sum + c.slotsRequired);
+    }
+
+    final bool isFull = item.isFoundational && item.optionSlots > 0 && usedSlots >= item.optionSlots;
+
+    return Column(
+      children: <Widget>[
+        _CyberwareRow(
+          item: item,
+          parentItem: parentItem,
+          usedSlots: usedSlots,
+          isFull: isFull,
+          onAddOption: item.isFoundational && !isFull
+              ? () => _add(context, state, initialParentFoundationId: item.id, initialZone: item.bodyZone)
+              : null,
+          onEdit: () async {
+            final Cyberware? updated = await showCyberwareEditor(
+              context,
+              existing: item,
+              allInstalled: sheet.cyberware,
+            );
+            if (updated != null) {
+              state.mutate((s) {
+                final int index = s.cyberware.indexWhere((Cyberware c) => c.id == item.id);
+                if (index >= 0) s.cyberware[index] = updated;
+              });
+            }
+          },
+          onDelete: () async {
+            final bool ok = await showTechConfirm(
+              context,
+              title: 'Rimuovere l\'impianto?',
+              message: '${item.name} verra\' rimosso dalla scheda.\n\n'
+                  'Le correzioni alle caratteristiche e alle abilita\' '
+                  'verranno tolte. L\'Umanita\' persa resta persa.',
+              confirmLabel: 'Rimuovi',
+              danger: true,
+            );
+            if (ok) {
+              state.mutate(
+                (s) => s.cyberware.removeWhere((Cyberware c) => c.id == item.id),
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _add(
+    BuildContext context,
+    AppState state, {
+    String? initialZone,
+    String? initialParentFoundationId,
+  }) async {
+    final Cyberware? item = await showCyberwareEditor(
+      context,
+      allInstalled: state.sheet!.cyberware,
+      initialBodyZone: initialZone,
+      initialParentFoundationId: initialParentFoundationId,
+    );
     if (item != null) {
       state.mutate((s) => s.cyberware.add(item));
     }
@@ -234,12 +432,6 @@ class _Tile extends StatelessWidget {
   }
 }
 
-/// Avviso sull'Empatia.
-///
-/// La regola e' che l'Umanita' persa abbassa il massimo di Empatia, e sotto una
-/// certa soglia il personaggio diventa un PNG. Un'app che mostra solo il numero
-/// di Umanita' lascia il giocatore a fare il conto a mente proprio mentre la
-/// cosa diventa drammatica: qui il conto e' esplicito.
 class _EmpathyWarning extends StatelessWidget {
   const _EmpathyWarning({required this.maxEmpathy, required this.humanityLost});
 
@@ -290,11 +482,19 @@ class _EmpathyWarning extends StatelessWidget {
 class _CyberwareRow extends StatefulWidget {
   const _CyberwareRow({
     required this.item,
+    this.parentItem,
+    this.usedSlots = 0,
+    this.isFull = false,
+    this.onAddOption,
     required this.onEdit,
     required this.onDelete,
   });
 
   final Cyberware item;
+  final Cyberware? parentItem;
+  final int usedSlots;
+  final bool isFull;
+  final VoidCallback? onAddOption;
   final Future<void> Function() onEdit;
   final Future<void> Function() onDelete;
 
@@ -313,7 +513,11 @@ class _CyberwareRowState extends State<_CyberwareRow> {
         '${m.target.label} ${m.value > 0 ? '+' : ''}${m.value}',
       for (final dynamic m in item.skillModifiers)
         '${m.skill?.name ?? 'Abilita'} ${m.value > 0 ? '+' : ''}${m.value}',
+      for (final dynamic m in item.proficiencyModifiers)
+        '${m.proficiency.label} ${m.value > 0 ? '+' : ''}${m.value}',
     ];
+
+    final bool isOption = !item.isFoundational && widget.parentItem != null;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -323,16 +527,28 @@ class _CyberwareRowState extends State<_CyberwareRow> {
         onTap: widget.onEdit,
         child: AnimatedContainer(
           duration: CprMotion.hover,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          padding: EdgeInsets.only(
+            left: isOption ? 24 : 8,
+            right: 8,
+            top: 8,
+            bottom: 8,
+          ),
           margin: const EdgeInsets.only(bottom: 4),
           decoration: BoxDecoration(
             color: _hover ? CprPalette.veil(CprPalette.magenta, 0.06) : null,
             border: Border(
-              left: BorderSide(color: CprPalette.veil(item.rarity.color, 0.9), width: 3),
+              left: BorderSide(
+                color: CprPalette.veil(item.rarity.color, 0.9),
+                width: isOption ? 2 : 3,
+              ),
             ),
           ),
           child: Row(
             children: <Widget>[
+              if (isOption) ...<Widget>[
+                const Icon(Icons.subdirectory_arrow_right, size: 14, color: CprPalette.cyan),
+                const SizedBox(width: 6),
+              ],
               Container(
                 width: 36,
                 height: 36,
@@ -360,20 +576,84 @@ class _CyberwareRowState extends State<_CyberwareRow> {
                           child: Text(
                             item.name,
                             overflow: TextOverflow.ellipsis,
-                            style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
+                            style: CprType.body.copyWith(
+                              color: CprPalette.ink,
+                              fontSize: 13,
+                              fontWeight: item.isFoundational ? FontWeight.bold : FontWeight.normal,
+                            ),
                           ),
                         ),
                         if (item.isFoundational) ...<Widget>[
                           const SizedBox(width: 7),
-                          Tooltip(
-                            message: 'Impianto fondamentale',
-                            child: Icon(
-                              Icons.lock_outline,
-                              size: 11,
-                              color: CprPalette.veil(CprPalette.warning, 0.9),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: CprPalette.veil(CprPalette.warning, 0.15),
+                              border: Border.all(color: CprPalette.warning, width: 0.8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                const Icon(Icons.lock_outline, size: 9, color: CprPalette.warning),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'BASE',
+                                  style: CprType.label.copyWith(color: CprPalette.warning, fontSize: 8),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          if (item.optionSlots > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: widget.isFull
+                                    ? CprPalette.veil(CprPalette.danger, 0.2)
+                                    : CprPalette.veil(CprPalette.cyan, 0.15),
+                                border: Border.all(
+                                  color: widget.isFull ? CprPalette.danger : CprPalette.cyan,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                widget.isFull
+                                    ? 'TUTTI GLI SLOT OCCUPATI (${widget.usedSlots}/${item.optionSlots})'
+                                    : 'SLOT: ${widget.usedSlots}/${item.optionSlots}',
+                                style: CprType.label.copyWith(
+                                  color: widget.isFull ? CprPalette.danger : CprPalette.cyan,
+                                  fontWeight: widget.isFull ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 8,
+                                ),
+                              ),
+                            ),
+                        ],
+                        if (isOption) ...<Widget>[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: CprPalette.veil(CprPalette.cyan, 0.10),
+                              border: Border.all(color: CprPalette.hairline, width: 0.8),
+                            ),
+                            child: Text(
+                              '${item.slotsRequired} ${item.slotsRequired == 1 ? "slot" : "slot"} · ${widget.parentItem!.name}',
+                              style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 8),
                             ),
                           ),
                         ],
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: CprPalette.surfaceSunken,
+                            border: Border.all(color: CprPalette.hairline),
+                          ),
+                          child: Text(
+                            CyberBodyZone.fromId(item.bodyZone).label.toUpperCase(),
+                            style: CprType.label.copyWith(color: CprPalette.inkMuted, fontSize: 7.5),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -396,6 +676,16 @@ class _CyberwareRowState extends State<_CyberwareRow> {
                 ),
               ),
               const SizedBox(width: 10),
+              if (widget.onAddOption != null) ...<Widget>[
+                TechButton(
+                  label: '+ Opzione',
+                  icon: Icons.add,
+                  variant: TechButtonVariant.ghost,
+                  compact: true,
+                  onPressed: widget.onAddOption,
+                ),
+                const SizedBox(width: 8),
+              ],
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,

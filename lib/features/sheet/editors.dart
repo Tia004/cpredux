@@ -51,11 +51,22 @@ Future<CatalogItem?> showCustomItemEditor(BuildContext context, {ResolvedItem? e
   );
 }
 /// Apre l'editor di un impianto cyberware.
-Future<Cyberware?> showCyberwareEditor(BuildContext context, {Cyberware? existing}) {
+Future<Cyberware?> showCyberwareEditor(
+  BuildContext context, {
+  Cyberware? existing,
+  List<Cyberware> allInstalled = const <Cyberware>[],
+  String? initialBodyZone,
+  String? initialParentFoundationId,
+}) {
   return showDialog<Cyberware>(
     context: context,
     barrierColor: CprPalette.veil(CprPalette.voidBlack, 0.7),
-    builder: (BuildContext context) => _CyberwareEditor(existing: existing),
+    builder: (BuildContext context) => _CyberwareEditor(
+      existing: existing,
+      allInstalled: allInstalled,
+      initialBodyZone: initialBodyZone,
+      initialParentFoundationId: initialParentFoundationId,
+    ),
   );
 }
 
@@ -864,9 +875,17 @@ class _ImageRow extends StatelessWidget {
 }
 
 class _CyberwareEditor extends StatefulWidget {
-  const _CyberwareEditor({this.existing});
+  const _CyberwareEditor({
+    this.existing,
+    this.allInstalled = const <Cyberware>[],
+    this.initialBodyZone,
+    this.initialParentFoundationId,
+  });
 
   final Cyberware? existing;
+  final List<Cyberware> allInstalled;
+  final String? initialBodyZone;
+  final String? initialParentFoundationId;
 
   @override
   State<_CyberwareEditor> createState() => _CyberwareEditorState();
@@ -876,7 +895,13 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
   late String _name = widget.existing?.name ?? '';
   late CyberwareCategory _category = widget.existing?.category ?? CyberwareCategory.neuralware;
   late Rarity _rarity = widget.existing?.rarity ?? Rarity.common;
-  late bool _foundational = widget.existing?.isFoundational ?? false;
+  late bool _foundational = widget.existing?.isFoundational ?? (widget.initialParentFoundationId != null ? false : false);
+  late int _optionSlots = widget.existing?.optionSlots != null && widget.existing!.optionSlots > 0
+      ? widget.existing!.optionSlots
+      : defaultFoundationSlotsFor(_category, widget.existing?.name);
+  late int _slotsRequired = widget.existing?.slotsRequired ?? 1;
+  late String? _parentFoundationId = widget.existing?.parentFoundationId ?? widget.initialParentFoundationId;
+  late String _bodyZone = widget.existing?.bodyZone ?? widget.initialBodyZone ?? defaultBodyZoneFor(_category, widget.existing?.name);
   late String _description = widget.existing?.description ?? '';
   late String? _imagePath = widget.existing?.imagePath;
   late int _humanityLost = widget.existing?.humanityLost ?? 0;
@@ -892,6 +917,9 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
   );
   late final List<SkillModifier> _skillMods = List<SkillModifier>.from(
     widget.existing?.skillModifiers ?? const <SkillModifier>[],
+  );
+  late final List<ProficiencyModifier> _proficiencyMods = List<ProficiencyModifier>.from(
+    widget.existing?.proficiencyModifiers ?? const <ProficiencyModifier>[],
   );
 
   Future<void> _pickImage() async {
@@ -912,6 +940,10 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
         category: _category,
         rarity: _rarity,
         isFoundational: _foundational,
+        optionSlots: _foundational ? _optionSlots : 0,
+        slotsRequired: _foundational ? 0 : _slotsRequired,
+        parentFoundationId: _foundational ? null : _parentFoundationId,
+        bodyZone: _bodyZone,
         description: _description,
         imagePath: _imagePath,
         installedAt: widget.existing?.installedAt ?? DateTime.now().toIso8601String().substring(0, 10),
@@ -924,26 +956,61 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
         loadPercentEffect: _loadPercent,
         statModifiers: _statMods,
         skillModifiers: _skillMods,
+        proficiencyModifiers: _proficiencyMods,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final List<Cyberware> foundations = widget.allInstalled
+        .where((Cyberware c) => c.isFoundational && c.id != widget.existing?.id)
+        .toList();
+
+    Cyberware? selectedFoundation;
+    int usedSlots = 0;
+    int maxSlots = 0;
+    bool isSlotOvercapacity = false;
+
+    if (!_foundational && _parentFoundationId != null) {
+      for (final Cyberware f in foundations) {
+        if (f.id == _parentFoundationId) {
+          selectedFoundation = f;
+          break;
+        }
+      }
+      if (selectedFoundation != null) {
+        maxSlots = selectedFoundation.optionSlots;
+        usedSlots = widget.allInstalled
+            .where((Cyberware c) => c.parentFoundationId == selectedFoundation!.id && c.id != widget.existing?.id)
+            .fold<int>(0, (int sum, Cyberware c) => sum + c.slotsRequired);
+        if (usedSlots + _slotsRequired > maxSlots) {
+          isSlotOvercapacity = true;
+        }
+      }
+    }
+
+    final bool saveEnabled = _name.trim().isNotEmpty && !isSlotOvercapacity;
+
     return _EditorFrame(
       title: widget.existing == null ? 'Nuovo impianto' : 'Modifica impianto',
       accent: CprPalette.magenta,
       saveLabel: widget.existing == null ? 'Installa' : 'Salva',
-      saveEnabled: _name.trim().isNotEmpty,
+      saveEnabled: saveEnabled,
       onSave: _save,
       width: 720,
       children: <Widget>[
         TechField(
           label: 'Nome',
           value: _name,
-          hint: 'Es. Interfaccia Neurale',
+          hint: 'Es. Interfaccia Neurale, Cyberbraccio, ecc.',
           accent: CprPalette.magenta,
-          onChanged: (String v) => setState(() => _name = v),
+          onChanged: (String v) => setState(() {
+            _name = v;
+            if (_foundational && widget.existing == null) {
+              _optionSlots = defaultFoundationSlotsFor(_category, _name);
+            }
+          }),
         ),
         const SizedBox(height: 12),
         _Row2(
@@ -953,7 +1020,15 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
             items: CyberwareCategory.values,
             labelOf: (CyberwareCategory c) => c.label,
             accent: CprPalette.magenta,
-            onChanged: (CyberwareCategory c) => setState(() => _category = c),
+            onChanged: (CyberwareCategory c) => setState(() {
+              _category = c;
+              if (widget.existing == null) {
+                _bodyZone = defaultBodyZoneFor(c, _name);
+                if (_foundational) {
+                  _optionSlots = defaultFoundationSlotsFor(c, _name);
+                }
+              }
+            }),
           ),
           right: TechDropdown<Rarity>(
             label: 'Rarita',
@@ -1057,13 +1132,219 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
         const SizedBox(height: 12),
         _ImageRow(path: _imagePath, onPick: _pickImage, onClear: () => setState(() => _imagePath = null)),
         const SizedBox(height: 18),
-        TechSegmented<bool>(
-          value: _foundational,
-          items: const <bool>[true, false],
-          labelOf: (bool v) => v ? 'Fondamentale' : 'Rimovibile',
-          accent: CprPalette.magenta,
-          onChanged: (bool v) => setState(() => _foundational = v),
+        // Checkbox Componente Fondamentale
+        InkWell(
+          onTap: () {
+            setState(() {
+              _foundational = !_foundational;
+              if (_foundational) {
+                _parentFoundationId = null;
+                _slotsRequired = 0;
+                if (_optionSlots <= 0) {
+                  _optionSlots = defaultFoundationSlotsFor(_category, _name);
+                }
+              } else {
+                if (_slotsRequired <= 0) _slotsRequired = 1;
+              }
+            });
+          },
+          borderRadius: BorderRadius.circular(2),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _foundational ? CprPalette.veil(CprPalette.magenta, 0.12) : CprPalette.surfaceRaised,
+              border: Border.all(
+                color: _foundational ? CprPalette.magenta : CprPalette.hairline,
+                width: _foundational ? 1.6 : 1.0,
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: _foundational ? CprPalette.magenta : Colors.transparent,
+                    border: Border.all(
+                      color: _foundational ? CprPalette.magenta : CprPalette.inkMuted,
+                      width: 1.6,
+                    ),
+                  ),
+                  child: _foundational
+                      ? const Icon(Icons.check, size: 16, color: CprPalette.surface)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Componente Fondamentale',
+                        style: CprType.body.copyWith(
+                          color: _foundational ? CprPalette.magenta : CprPalette.ink,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _foundational
+                            ? 'Base strutturale (es. Collegamento Neuronale, Cyberocchio, Cyberbraccio) che fornisce slot per opzioni secondarie.'
+                            : 'Opzione/innesto (consuma slot all\'interno di una base fondamentale o installabile come modulo libero).',
+                        style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
+        const SizedBox(height: 14),
+        if (_foundational) ...<Widget>[
+          _SectionLabel('Configurazione Base Strutturale', CprPalette.magenta),
+          _Row2(
+            left: TechNumberStepper(
+              label: 'Slot Opzioni Forniti',
+              value: _optionSlots,
+              min: 1,
+              max: 10,
+              accent: CprPalette.magenta,
+              onChanged: (int v) => setState(() => _optionSlots = v),
+            ),
+            right: TechDropdown<CyberBodyZone>(
+              label: 'Zona Corporea',
+              value: CyberBodyZone.fromId(_bodyZone),
+              items: CyberBodyZone.values,
+              labelOf: (CyberBodyZone z) => z.label,
+              accent: CprPalette.magenta,
+              onChanged: (CyberBodyZone z) => setState(() => _bodyZone = z.id),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: CprPalette.veil(CprPalette.magenta, 0.07),
+              border: Border.all(color: CprPalette.veil(CprPalette.magenta, 0.3)),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.hub_outlined, size: 16, color: CprPalette.magenta),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Questa base ospitera\' fino a $_optionSlots opzioni/innesti aggiuntivi. '
+                    '(Da manuale: Collegamento Neuronale 5, Cyberocchio 3, Cyberaudio 3, Cyberbraccio 4, Cybergamba 3).',
+                    style: CprType.caption.copyWith(color: CprPalette.inkFaint, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...<Widget>[
+          _SectionLabel('Installazione Opzione & Slot', CprPalette.cyan),
+          _Row2(
+            left: TechNumberStepper(
+              label: 'Slot Richiesti',
+              value: _slotsRequired,
+              min: 1,
+              max: 5,
+              accent: CprPalette.cyan,
+              onChanged: (int v) => setState(() => _slotsRequired = v),
+            ),
+            right: TechDropdown<CyberBodyZone>(
+              label: 'Zona Corporea',
+              value: CyberBodyZone.fromId(_bodyZone),
+              items: CyberBodyZone.values,
+              labelOf: (CyberBodyZone z) => z.label,
+              accent: CprPalette.cyan,
+              onChanged: (CyberBodyZone z) => setState(() => _bodyZone = z.id),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (foundations.isNotEmpty) ...<Widget>[
+            TechDropdown<String?>(
+              label: 'Componente Fondamentale di Riferimento',
+              value: _parentFoundationId,
+              items: <String?>[
+                null,
+                ...foundations.map((Cyberware f) => f.id),
+              ],
+              labelOf: (String? id) {
+                if (id == null) return '[Nessuna base / Modulo Indipendente]';
+                final Cyberware? f = foundations.where((Cyberware c) => c.id == id).firstOrNull;
+                if (f == null) return 'Base sconosciuta';
+                final int used = widget.allInstalled
+                    .where((Cyberware c) => c.parentFoundationId == f.id && c.id != widget.existing?.id)
+                    .fold<int>(0, (int sum, Cyberware c) => sum + c.slotsRequired);
+                return '${f.name} ($used/${f.optionSlots} slot occupati)';
+              },
+              accent: isSlotOvercapacity ? CprPalette.danger : CprPalette.cyan,
+              onChanged: (String? val) => setState(() => _parentFoundationId = val),
+            ),
+            if (isSlotOvercapacity && selectedFoundation != null) ...<Widget>[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: CprPalette.veil(CprPalette.danger, 0.18),
+                  border: Border.all(color: CprPalette.danger, width: 2),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    const Icon(Icons.error, color: CprPalette.danger, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'TUTTI GLI SLOT OCCUPATI',
+                            style: CprType.title.copyWith(
+                              color: CprPalette.danger,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'La base fondamentale "${selectedFoundation.name}" ha gia\' esaurito la capacita\' '
+                            '($usedSlots/${selectedFoundation.optionSlots} slot occupati, richiesti: $_slotsRequired). '
+                            'Impossibile installare ulteriori opzioni.',
+                            style: CprType.caption.copyWith(color: CprPalette.ink, height: 1.3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ] else ...<Widget>[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: CprPalette.veil(CprPalette.warning, 0.10),
+                border: Border.all(color: CprPalette.veil(CprPalette.warning, 0.4)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.info_outline, size: 16, color: CprPalette.warning),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Nessun componente fondamentale installato nella scheda (es. Collegamento Neuronale, Cyberocchio, Cyberbraccio). '
+                      'Questo cyberware verra\' installato come modulo autonomo o indipendente.',
+                      style: CprType.caption.copyWith(color: CprPalette.inkFaint, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ],
     );
   }

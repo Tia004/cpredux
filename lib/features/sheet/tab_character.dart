@@ -114,7 +114,8 @@ class _VitalsPanel extends StatelessWidget {
     final totals = state.totals!;
     final identity = sheet.identity;
     final int currentHp = sheet.effectiveHp;
-    final int currentLuck = sheet.effectiveLuck;
+    final int maxLuck = totals.statValue(Stat.luck);
+    final int currentLuck = sheet.effectiveLuck.clamp(0, maxLuck > 0 ? maxLuck : 10);
 
     return ChamferPanel(
       title: 'Stato vitale',
@@ -188,9 +189,11 @@ class _VitalsPanel extends StatelessWidget {
                 child: TechNumberStepper(
                   label: 'Fortuna corrente',
                   value: currentLuck,
-                  max: 99,
+                  min: 0,
+                  max: maxLuck > 0 ? maxLuck : 10,
                   accent: CprPalette.yellow,
-                  onChanged: (int v) => state.mutate((s) => s.effectiveLuck = v),
+                  onChanged: (int v) =>
+                      state.mutate((s) => s.effectiveLuck = v.clamp(0, maxLuck > 0 ? maxLuck : 10)),
                 ),
               ),
               const SizedBox(width: 10),
@@ -873,124 +876,49 @@ class _IdentityPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Sezione Abilità di Ruolo (scelta multipla in base al ruolo)
-          ChamferPanel(
-            title: 'Abilità di Ruolo',
-            accent: CprPalette.cyan,
-            trailing: const CyberHelpTooltip(
-              title: 'Abilità di Ruolo',
-              message: 'Le abilità speciali di ciascun ruolo (Combat Awareness, Interfaccia, ecc.) sbloccabili e potenziabili con gli IP.',
-              tag: 'Abilità',
-              accent: CprPalette.cyan,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    for (final String a in identity.roleAbilities)
-                      _AbilityTag(
-                        label: a,
-                        onDelete: () => state.mutate((s) => s.identity.removeRoleAbility(a)),
-                      ),
-                    PopupMenuButton<String>(
-                      tooltip: 'Seleziona le abilità corrispondenti ai ruoli scelti',
-                      color: CprPalette.surfaceRaised,
-                      elevation: 8,
-                      shape: Border.all(color: CprPalette.cyan, width: 1),
-                      onSelected: (String ability) {
-                        state.mutate((s) {
-                          if (s.identity.roleAbilities.any((a) => a.toLowerCase() == ability.toLowerCase())) {
-                            s.identity.removeRoleAbility(ability);
-                          } else {
-                            s.identity.addRoleAbility(ability);
-                          }
-                        });
-                      },
-                      itemBuilder: (BuildContext ctx) {
-                        final Set<String> selectedRolesLower =
-                            identity.roles.map((String r) => r.toLowerCase()).toSet();
-                        final List<Map<String, String>> relevantRoles = _standardRoles
-                            .where((Map<String, String> m) => selectedRolesLower.contains(m['role']!.toLowerCase()))
-                            .toList();
-                        final List<Map<String, String>> toShow =
-                            relevantRoles.isNotEmpty ? relevantRoles : _standardRoles;
-
-                        return <PopupMenuEntry<String>>[
-                          for (final Map<String, String> r in toShow)
-                            CheckedPopupMenuItem<String>(
-                              value: r['ability']!,
-                              checked: identity.roleAbilities
-                                  .any((String x) => x.toLowerCase() == r['ability']!.toLowerCase()),
-                              child: Text(
-                                '${r['role']}: ${r['ability']}',
-                                style: CprType.body.copyWith(fontSize: 12, color: CprPalette.ink),
-                              ),
-                            ),
-                        ];
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: CprPalette.surface,
-                          border: Border.all(color: CprPalette.cyan, width: 1),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const <Widget>[
-                            Icon(Icons.checklist, size: 13, color: CprPalette.cyan),
-                            SizedBox(width: 5),
-                            Text(
-                              'SCEGLI ABILITÀ',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: CprPalette.cyan,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                            SizedBox(width: 4),
-                            Icon(Icons.arrow_drop_down, size: 15, color: CprPalette.cyan),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+          // Sezione Abilità di Ruolo (box impilati per ciascuna classe posseduta con rango individuale)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (int rIdx = 0; rIdx < identity.roleEntries.length; rIdx++) ...<Widget>[
+                _RoleClassCard(
+                  index: rIdx,
+                  entry: identity.roleEntries[rIdx],
+                  canRemove: identity.roleEntries.length > 1,
+                  onRemove: () {
+                    state.mutate((s) {
+                      s.identity.roleEntries.removeAt(rIdx);
+                      s.identity.syncRoleFieldsFromEntries();
+                    });
+                  },
+                  onChanged: (RoleEntry updated) {
+                    state.mutate((s) {
+                      s.identity.roleEntries[rIdx] = updated;
+                      s.identity.syncRoleFieldsFromEntries();
+                    });
+                  },
+                  standardRoles: _standardRoles,
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      flex: 3,
-                      child: TechField(
-                        label: 'Abilità attive (modifica manuale)',
-                        value: identity.roleAbility,
-                        hint: 'Separati da virgola',
-                        onChanged: (String v) => state.mutate((s) => s.identity.roleAbility = v),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: Tooltip(
-                        message: 'Grado di competenza dell\'abilità di ruolo (da 1 a 10, di norma 4 alla creazione).',
-                        waitDuration: const Duration(milliseconds: 200),
-                        child: TechField(
-                          label: 'Rango',
-                          value: identity.roleRank,
-                          numeric: true,
-                          onChanged: (String v) => state.mutate((s) => s.identity.roleRank = v),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                const SizedBox(height: 12),
               ],
-            ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TechButton(
+                  label: 'Aggiungi Classe / Multiclasse',
+                  icon: Icons.add_circle_outline,
+                  variant: TechButtonVariant.ghost,
+                  compact: true,
+                  onPressed: () {
+                    state.mutate((s) {
+                      s.identity.roleEntries.add(
+                        RoleEntry(role: 'Netrunner', ability: 'Interfaccia', rank: 4),
+                      );
+                      s.identity.syncRoleFieldsFromEntries();
+                    });
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1118,41 +1046,152 @@ class _RoleTag extends StatelessWidget {
   }
 }
 
-class _AbilityTag extends StatelessWidget {
-  const _AbilityTag({required this.label, required this.onDelete});
+class _RoleClassCard extends StatelessWidget {
+  const _RoleClassCard({
+    required this.index,
+    required this.entry,
+    required this.canRemove,
+    required this.onRemove,
+    required this.onChanged,
+    required this.standardRoles,
+  });
 
-  final String label;
-  final VoidCallback onDelete;
+  final int index;
+  final RoleEntry entry;
+  final bool canRemove;
+  final VoidCallback onRemove;
+  final ValueChanged<RoleEntry> onChanged;
+  final List<Map<String, String>> standardRoles;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(left: 8, right: 4, top: 3, bottom: 3),
-      decoration: BoxDecoration(
-        color: CprPalette.veil(CprPalette.cyan, 0.15),
-        border: Border.all(color: CprPalette.cyan, width: 1),
-        borderRadius: BorderRadius.circular(2),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    final String displayTitle =
+        entry.role.trim().isEmpty ? 'Nuova Classe #${index + 1}' : entry.role.trim();
+
+    return ChamferPanel(
+      title: 'Classe #${index + 1}: $displayTitle',
+      accent: CprPalette.yellow,
+      trailing: canRemove
+          ? IconButton(
+              icon: const Icon(Icons.delete_outline, size: 18, color: CprPalette.danger),
+              tooltip: 'Rimuovi questa classe / ruolo',
+              onPressed: onRemove,
+              splashRadius: 18,
+            )
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Text(
-            label.toUpperCase(),
-            style: CprType.label.copyWith(
-              fontSize: 10,
-              color: CprPalette.cyan,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.6,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    TechField(
+                      label: 'Ruolo / Classe',
+                      value: entry.role,
+                      hint: 'es. Solo, Netrunner, Medtech...',
+                      onChanged: (String v) {
+                        entry.role = v;
+                        onChanged(entry);
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: standardRoles.map((Map<String, String> item) {
+                        final String rName = item['role'] ?? '';
+                        final String rAbility = item['ability'] ?? '';
+                        final bool isCurrent =
+                            entry.role.trim().toLowerCase() == rName.toLowerCase();
+                        return InkWell(
+                          onTap: () {
+                            entry.role = rName;
+                            if (entry.ability.trim().isEmpty ||
+                                standardRoles.any((r) => r['ability'] == entry.ability)) {
+                              entry.ability = rAbility;
+                            }
+                            onChanged(entry);
+                          },
+                          borderRadius: BorderRadius.circular(3),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isCurrent
+                                  ? CprPalette.yellow.withValues(alpha: 0.25)
+                                  : CprPalette.surfaceRaised,
+                              border: Border.all(
+                                color: isCurrent ? CprPalette.yellow : CprPalette.hairline,
+                                width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: Text(
+                              rName,
+                              style: CprType.caption.copyWith(
+                                fontSize: 9,
+                                color: isCurrent ? CprPalette.yellow : CprPalette.inkMuted,
+                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 130,
+                child: TechNumberStepper(
+                  label: 'Rango Ruolo',
+                  value: entry.rank,
+                  min: 1,
+                  max: 10,
+                  accent: CprPalette.yellow,
+                  onChanged: (int v) {
+                    entry.rank = v;
+                    onChanged(entry);
+                  },
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: onDelete,
-            borderRadius: BorderRadius.circular(10),
-            child: const Padding(
-              padding: EdgeInsets.all(2),
-              child: Icon(Icons.close, size: 12, color: CprPalette.cyan),
-            ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                flex: 3,
+                child: TechField(
+                  label: 'Abilità di Ruolo Principale',
+                  value: entry.ability,
+                  hint: 'es. Consapevolezza del Combattimento, Interfaccia...',
+                  onChanged: (String v) {
+                    entry.ability = v;
+                    onChanged(entry);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 4,
+                child: TechField(
+                  label: 'Note / Sotto-abilità / Specializzazioni',
+                  value: entry.notes,
+                  hint: 'Distribuzione punti, opzioni, subroutine...',
+                  onChanged: (String v) {
+                    entry.notes = v;
+                    onChanged(entry);
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),

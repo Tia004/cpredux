@@ -49,20 +49,23 @@ class _CyberHelpTooltipState extends State<CyberHelpTooltip> {
           child: CompositedTransformFollower(
             link: _layerLink,
             showWhenUnlinked: false,
-            offset: Offset(-130 + widget.size / 2, -12 - 110),
+            offset: const Offset(0, -6),
             targetAnchor: Alignment.topCenter,
             followerAnchor: Alignment.bottomCenter,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _isHovered = true),
-              onExit: (_) {
-                setState(() => _isHovered = false);
-                _hideOverlay();
-              },
-              child: _CyberBubbleWidget(
-                title: widget.title,
-                message: widget.message,
-                tag: widget.tag,
-                accent: widget.accent,
+            child: Material(
+              type: MaterialType.transparency,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHovered = true),
+                onExit: (_) {
+                  setState(() => _isHovered = false);
+                  _hideOverlay();
+                },
+                child: _CyberBubbleWidget(
+                  title: widget.title,
+                  message: widget.message,
+                  tag: widget.tag,
+                  accent: widget.accent,
+                ),
               ),
             ),
           ),
@@ -88,7 +91,7 @@ class _CyberHelpTooltipState extends State<CyberHelpTooltip> {
           _showOverlay();
         },
         onExit: (_) {
-          Future<void>.delayed(const Duration(milliseconds: 60), () {
+          Future<void>.delayed(const Duration(milliseconds: 50), () {
             if (mounted && !_isHovered) {
               _hideOverlay();
             }
@@ -171,6 +174,7 @@ class _CyberBubbleWidget extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.1,
                       color: accent,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ),
@@ -180,7 +184,11 @@ class _CyberBubbleWidget extends StatelessWidget {
                     color: accent.withValues(alpha: 0.15),
                     child: Text(
                       tag!.toUpperCase(),
-                      style: CprType.label.copyWith(fontSize: 8, color: accent),
+                      style: CprType.label.copyWith(
+                        fontSize: 8,
+                        color: accent,
+                        decoration: TextDecoration.none,
+                      ),
                     ),
                   ),
               ],
@@ -192,6 +200,7 @@ class _CyberBubbleWidget extends StatelessWidget {
                 color: CprPalette.ink,
                 fontSize: 11,
                 height: 1.35,
+                decoration: TextDecoration.none,
               ),
             ),
           ],

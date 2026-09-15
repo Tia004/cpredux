@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_state.dart';
 import '../../data/app_paths.dart';
 import '../../data/cpredux_file.dart';
+import '../../data/settings_store.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/sheet.dart';
@@ -141,34 +142,7 @@ class SettingsScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     Entrance(
                       delay: const Duration(milliseconds: 160),
-                      child: ChamferPanel(
-                        title: 'Aspetto',
-                        trailing: Text(
-                          'in arrivo',
-                          style: CprType.label.copyWith(color: CprPalette.inkFaint, fontSize: 9.5),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Il tema chiaro e\' gia\' definito, ma i widget usano ancora i '
-                              'colori del tema scuro letti come costanti. Va prima introdotto un '
-                              'insieme di token di colore risolti in base al tema: finche\' non e\' '
-                              'fatto, esporre l\'interruttore darebbe una schermata illeggibile. '
-                              'La scelta e\' deliberata: meglio un\'opzione assente che una rotta.',
-                              style: CprType.caption.copyWith(color: CprPalette.inkMuted, height: 1.5),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: <Widget>[
-                                _DisabledChip(label: 'Tema scuro', active: true),
-                                const SizedBox(width: 8),
-                                _DisabledChip(label: 'Tema chiaro', active: false),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: _AppearancePanel(state: state),
                     ),
                     const SizedBox(height: 16),
                     Entrance(
@@ -323,27 +297,301 @@ class _ToggleRow extends StatelessWidget {
   }
 }
 
-class _DisabledChip extends StatelessWidget {
-  const _DisabledChip({required this.label, required this.active});
+class _AppearancePanel extends StatefulWidget {
+  const _AppearancePanel({required this.state});
 
-  final String label;
-  final bool active;
+  final AppState state;
+
+  @override
+  State<_AppearancePanel> createState() => _AppearancePanelState();
+}
+
+class _AppearancePanelState extends State<_AppearancePanel> {
+  final TextEditingController _hexController = TextEditingController();
+
+  static const List<(String, String, String, Color)> _baseThemes = <(String, String, String, Color)>[
+    ('dark', 'Scuro', 'Fondali neri high-tech e superfici graduate', Color(0xFF07080A)),
+    ('light', 'Chiaro', 'Superfici luminose tattiche ad alta leggibilita\'', Color(0xFFF1F2F4)),
+    ('oled', 'OLED', 'Nero puro #000000 per display OLED e contrasto estremo', Color(0xFF000000)),
+  ];
+
+  static const List<(String, String, String, Color, Color)> _subThemes = <(String, String, String, Color, Color)>[
+    ('cyberpunk2077', 'Cyberpunk 2077', 'Giallo segnaletico, ciano e magenta', Color(0xFFFCEE0A), Color(0xFF22E6D2)),
+    ('cyberpunkRed', 'Cyberpunk RED', 'Rosso cremisi da combattimento e carmine', Color(0xFFE8002D), Color(0xFFFF5E00)),
+    ('militech', 'Militech', 'Verde fosforo tattico e verde militare', Color(0xFF00FF66), Color(0xFF3DDC84)),
+    ('custom', 'Personalizzato', 'Colore d\'accento a tua scelta', Color(0xFF8B5CF6), Color(0xFFFF2E88)),
+  ];
+
+  static const List<Color> _customPresets = <Color>[
+    Color(0xFFFCEE0A), // Giallo 2077
+    Color(0xFFE8002D), // Cyberpunk Red
+    Color(0xFF00FF66), // Militech
+    Color(0xFF22E6D2), // Ciano
+    Color(0xFFFF2E88), // Magenta
+    Color(0xFF8B5CF6), // Violetto
+    Color(0xFFFF5E00), // Arancio Neon
+    Color(0xFF00D2FF), // Blu Elettrico
+    Color(0xFFFFD700), // Oro Cromato
+    Color(0xFFFF2A85), // Rosa Tokyo
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController.text =
+        '#${(widget.state.settings.customAccentColorValue & 0x00FFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _applyHex(String value) {
+    String clean = value.replaceAll('#', '').trim();
+    if (clean.length == 6) {
+      final int? parsed = int.tryParse(clean, radix: 16);
+      if (parsed != null) {
+        widget.state.updateSettings((s) => s.customAccentColorValue = 0xFF000000 | parsed);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.45,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          border: Border.all(color: active ? CprPalette.yellow : CprPalette.hairline),
-        ),
-        child: Text(
-          label.toUpperCase(),
-          style: CprType.label.copyWith(
-            fontSize: 10,
-            color: active ? CprPalette.yellow : CprPalette.inkMuted,
+    final AppSettings settings = widget.state.settings;
+    final Color activeAccent = Theme.of(context).colorScheme.primary;
+
+    return ChamferPanel(
+      title: 'Tema e Aspetto',
+      accent: activeAccent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'TEMA BASE',
+            style: CprType.label.copyWith(color: activeAccent, fontSize: 11, letterSpacing: 0.8),
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Imposta lo sfondo e le superfici visive dell\'intera suite.',
+            style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              for (final (String id, String title, String desc, Color bg) in _baseThemes)
+                _ThemeCard(
+                  title: title,
+                  subtitle: desc,
+                  previewColor: bg,
+                  isSelected: settings.baseTheme == id,
+                  accent: activeAccent,
+                  onTap: () => widget.state.updateSettings((s) => s.baseTheme = id),
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'SOTTOTEMA (PALETTE CROMATICA)',
+            style: CprType.label.copyWith(color: activeAccent, fontSize: 11, letterSpacing: 0.8),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Modifica gli accenti, i bordi e gli stati grafici dei controlli cyberpunk.',
+            style: CprType.caption.copyWith(color: CprPalette.inkMuted),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              for (final (String id, String title, String desc, Color p, Color s) in _subThemes)
+                _ThemeCard(
+                  title: title,
+                  subtitle: desc,
+                  previewColor: id == 'custom' ? Color(settings.customAccentColorValue) : p,
+                  secondaryColor: s,
+                  isSelected: settings.subTheme == id,
+                  accent: activeAccent,
+                  onTap: () => widget.state.updateSettings((s) => s.subTheme = id),
+                ),
+            ],
+          ),
+          if (settings.subTheme == 'custom') ...<Widget>[
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: CprPalette.surfaceSunken,
+                border: Border.all(color: activeAccent.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'COLORE D\'ACCENTO PERSONALIZZATO',
+                    style: CprType.label.copyWith(color: activeAccent, fontSize: 10, letterSpacing: 0.6),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      for (final Color color in _customPresets)
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _hexController.text =
+                                  '#${(color.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+                            });
+                            widget.state.updateSettings(
+                              (s) => s.customAccentColorValue = color.toARGB32(),
+                            );
+                          },
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: settings.customAccentColorValue == color.toARGB32()
+                                    ? Colors.white
+                                    : CprPalette.hairlineBright,
+                                width: settings.customAccentColorValue == color.toARGB32() ? 2.5 : 1.0,
+                              ),
+                              boxShadow: settings.customAccentColorValue == color.toARGB32()
+                                  ? <BoxShadow>[
+                                      BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: <Widget>[
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: Color(settings.customAccentColorValue),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 140,
+                        child: TechField(
+                          label: 'Codice HEX',
+                          value: _hexController.text,
+                          hint: '#FF0055',
+                          onChanged: (String v) => _applyHex(v),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeCard extends StatelessWidget {
+  const _ThemeCard({
+    required this.title,
+    required this.subtitle,
+    required this.previewColor,
+    this.secondaryColor,
+    required this.isSelected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final Color previewColor;
+  final Color? secondaryColor;
+  final bool isSelected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 255,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? accent.withValues(alpha: 0.12) : CprPalette.surfaceSunken,
+          border: Border.all(
+            color: isSelected ? accent : CprPalette.hairline,
+            width: isSelected ? 1.8 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? <BoxShadow>[
+                  BoxShadow(color: accent.withValues(alpha: 0.25), blurRadius: 10),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: previewColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1),
+                  ),
+                ),
+                if (secondaryColor != null) ...<Widget>[
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: secondaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title.toUpperCase(),
+                    style: CprType.label.copyWith(
+                      color: isSelected ? accent : CprPalette.ink,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  Icon(Icons.check_circle, size: 16, color: accent),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 10.5, height: 1.3),
+            ),
+          ],
         ),
       ),
     );

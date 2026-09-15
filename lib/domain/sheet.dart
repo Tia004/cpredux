@@ -253,6 +253,35 @@ class PhysicalDescription {
       );
 }
 
+/// Singolo ruolo posseduto dal personaggio con la sua specifica abilità di ruolo e rango.
+class RoleEntry {
+  RoleEntry({
+    required this.role,
+    required this.ability,
+    this.rank = 4,
+    this.notes = '',
+  });
+
+  String role;
+  String ability;
+  int rank;
+  String notes;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'role': role,
+        'ability': ability,
+        'rank': rank,
+        'notes': notes,
+      };
+
+  static RoleEntry fromJson(Map<String, Object?> json) => RoleEntry(
+        role: readString(json['role']),
+        ability: readString(json['ability']),
+        rank: readInt(json['rank'], 4),
+        notes: readString(json['notes']),
+      );
+}
+
 /// I dati anagrafici della sezione "Personaggio".
 class SheetIdentity {
   SheetIdentity({
@@ -264,6 +293,7 @@ class SheetIdentity {
     this.role = '',
     this.roleAbility = '',
     this.roleRank = '',
+    List<RoleEntry>? roleEntries,
     this.currentHp = 0,
     this.currentLuck = 0,
     this.currentImprovementPoints = 0,
@@ -273,7 +303,13 @@ class SheetIdentity {
     this.inspirationPoints = 0,
     this.currentHumanity = 0,
     this.currentEmpathy = 0,
-  });
+  }) : roleEntries = roleEntries ?? <RoleEntry>[] {
+    if (this.roleEntries.isEmpty) {
+      syncEntriesFromRoleFields();
+    } else {
+      syncRoleFieldsFromEntries();
+    }
+  }
 
   String tag;
   String playerName;
@@ -285,6 +321,43 @@ class SheetIdentity {
   String role;
   String roleAbility;
   String roleRank;
+
+  /// Lista strutturata di classi/ruoli con rango individuale per ciascuna abilità.
+  List<RoleEntry> roleEntries;
+
+  void syncRoleFieldsFromEntries() {
+    final List<RoleEntry> valid =
+        roleEntries.where((e) => e.role.isNotEmpty || e.ability.isNotEmpty).toList();
+    if (valid.isEmpty) {
+      if (role.isEmpty && roleAbility.isEmpty) {
+        roleRank = '';
+      }
+      return;
+    }
+    role = valid.map((e) => e.role).join(', ');
+    roleAbility = valid.map((e) => e.ability).join(', ');
+    roleRank = valid.map((e) => '${e.rank}').join(', ');
+  }
+
+  void syncEntriesFromRoleFields() {
+    final List<String> rList = roles;
+    final List<String> aList = roleAbilities;
+    final List<String> kList =
+        roleRank.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    if (rList.isEmpty && aList.isEmpty) {
+      roleEntries = <RoleEntry>[];
+      return;
+    }
+    final int count = rList.length > aList.length ? rList.length : aList.length;
+    final List<RoleEntry> entries = <RoleEntry>[];
+    for (int i = 0; i < count; i++) {
+      final String r = i < rList.length ? rList[i] : '';
+      final String a = i < aList.length ? aList[i] : '';
+      final int rk = i < kList.length ? (int.tryParse(kList[i]) ?? 4) : 4;
+      entries.add(RoleEntry(role: r, ability: a, rank: rk));
+    }
+    roleEntries = entries;
+  }
 
   List<String> get roles => role
       .split(RegExp(r'[,/|]'))
@@ -345,6 +418,7 @@ class SheetIdentity {
         'role': role,
         'roleAbility': roleAbility,
         'roleRank': roleRank,
+        'roleEntries': roleEntries.map((RoleEntry r) => r.toJson()).toList(),
         'currentHp': currentHp,
         'currentLuck': currentLuck,
         'currentImprovementPoints': currentImprovementPoints,
@@ -365,6 +439,9 @@ class SheetIdentity {
         role: readString(json['role']),
         roleAbility: readString(json['roleAbility']),
         roleRank: readString(json['roleRank']),
+        roleEntries: readObjectList(json['roleEntries'])
+            .map(RoleEntry.fromJson)
+            .toList(growable: true),
         currentHp: readInt(json['currentHp']),
         currentLuck: readInt(json['currentLuck']),
         currentImprovementPoints: readInt(json['currentImprovementPoints']),
@@ -510,6 +587,7 @@ class CharacterSheet {
     Map<Skill, int>? skillLevels,
     List<StatModifier>? statModifiers,
     List<SkillModifier>? skillModifiers,
+    List<ProficiencyModifier>? proficiencyModifiers,
     List<Proficiency>? proficiencies,
     List<InventoryEntry>? inventory,
     List<Cyberware>? cyberware,
@@ -527,6 +605,7 @@ class CharacterSheet {
             <Skill, int>{for (final Skill s in Skill.values) s: s.isEssential ? 2 : 0},
         statModifiers = statModifiers ?? <StatModifier>[],
         skillModifiers = skillModifiers ?? <SkillModifier>[],
+        proficiencyModifiers = proficiencyModifiers ?? <ProficiencyModifier>[],
         proficiencies = proficiencies ?? <Proficiency>[],
         inventory = inventory ?? <InventoryEntry>[],
         cyberware = cyberware ?? <Cyberware>[],
@@ -548,6 +627,7 @@ class CharacterSheet {
   /// Correzioni inserite a mano (non generate da cyberware o effetti).
   final List<StatModifier> statModifiers;
   final List<SkillModifier> skillModifiers;
+  final List<ProficiencyModifier> proficiencyModifiers;
 
   final List<Proficiency> proficiencies;
   final List<InventoryEntry> inventory;
@@ -641,6 +721,7 @@ class CharacterSheet {
         },
         'statModifiers': statModifiers.map((StatModifier m) => m.toJson()).toList(),
         'skillModifiers': skillModifiers.map((SkillModifier m) => m.toJson()).toList(),
+        'proficiencyModifiers': proficiencyModifiers.map((ProficiencyModifier m) => m.toJson()).toList(),
         'proficiencies': proficiencies.map((Proficiency p) => p.toJson()).toList(),
         'inventory': inventory.map((InventoryEntry i) => i.toJson()).toList(),
         'cyberware': cyberware.map((Cyberware c) => c.toJson()).toList(),
@@ -711,6 +792,7 @@ class CharacterSheet {
       skillLevels: skills,
       statModifiers: readObjectList(json['statModifiers']).map(StatModifier.fromJson).toList(),
       skillModifiers: readObjectList(json['skillModifiers']).map(SkillModifier.fromJson).toList(),
+      proficiencyModifiers: readObjectList(json['proficiencyModifiers']).map(ProficiencyModifier.fromJson).toList(),
       proficiencies: readObjectList(json['proficiencies']).map(Proficiency.fromJson).toList(),
       inventory: readObjectList(json['inventory']).map(InventoryEntry.fromJson).toList(),
       cyberware: readObjectList(json['cyberware']).map(Cyberware.fromJson).toList(),
