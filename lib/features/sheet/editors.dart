@@ -1463,7 +1463,9 @@ class _ModifierList extends StatelessWidget {
               ],
             ),
           ),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
           children: <Widget>[
             TechButton(
               label: 'Correzione a una caratteristica',
@@ -1472,7 +1474,6 @@ class _ModifierList extends StatelessWidget {
               compact: true,
               onPressed: onAddStat,
             ),
-            const SizedBox(width: 8),
             TechButton(
               label: 'Correzione a un\'abilita',
               icon: Icons.add,
