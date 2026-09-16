@@ -86,7 +86,7 @@ class _CatalogPickerDialogState extends State<_CatalogPickerDialog> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
                         Expanded(flex: 3, child: _list(results)),
-                        const VerticalDivider(width: 1, color: CprPalette.hairline),
+                        VerticalDivider(width: 1, color: CprPalette.hairline),
                         Expanded(flex: 2, child: _details()),
                       ],
                     ),
@@ -104,7 +104,7 @@ class _CatalogPickerDialogState extends State<_CatalogPickerDialog> {
   Widget _header(Map<ItemCategory, int> counts) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
       child: Row(
@@ -385,7 +385,7 @@ class _CatalogPickerDialogState extends State<_CatalogPickerDialog> {
   Widget _footer() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: CprPalette.hairline)),
       ),
       child: Row(

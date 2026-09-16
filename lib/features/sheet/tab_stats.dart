@@ -97,7 +97,7 @@ class _StatsTabState extends State<StatsTab> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          const Icon(Icons.edit_outlined, size: 12, color: CprPalette.yellow),
+                          Icon(Icons.edit_outlined, size: 12, color: CprPalette.yellow),
                           const SizedBox(width: 4),
                           Text(
                             'MODIFICA',
@@ -127,7 +127,7 @@ class _StatsTabState extends State<StatsTab> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          const Icon(Icons.lock_open, size: 12, color: CprPalette.cyan),
+                          Icon(Icons.lock_open, size: 12, color: CprPalette.cyan),
                           const SizedBox(width: 4),
                           Text(
                             'SBLOCCATO',
@@ -563,7 +563,7 @@ class _SkillRow extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
+                      Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
                       const SizedBox(width: 4),
                       Text(
                         '$checkTotal',
@@ -682,7 +682,7 @@ class _ManualModifiersPanel extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const CyberHelpTooltip(
+          CyberHelpTooltip(
             title: 'Modificatori Manuali',
             message:
                 'In Cyberpunk puoi alterare statistiche, abilità e competenze con droghe (es. Black Lace, Blue Glass), chip di abilità e innesti provvisori.\n'
@@ -701,7 +701,7 @@ class _ManualModifiersPanel extends StatelessWidget {
         ],
       ),
       child: total == 0
-          ? const TechWell(
+          ? TechWell(
               child: Text(
                 'Nessuna correzione manuale.\n'
                 'I bonus di cyberware ed effetti vengono applicati automaticamente: '
@@ -933,7 +933,7 @@ class _AddModifierDialogState extends State<_AddModifierDialog> {
                 )
               else ...<Widget>[
                 if (widget.sheet.proficiencies.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
                     child: Text(
                       'Nessuna competenza presente sulla scheda.\n'
@@ -1022,7 +1022,7 @@ class _ProficienciesPanel extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const CyberHelpTooltip(
+          CyberHelpTooltip(
             title: 'Competenze Specializzate',
             message:
                 'Le competenze sono le specializzazioni concrete delle 4 abilità master (Musica, Lingua, Scienza, Conoscenza della Zona).\n'
@@ -1041,7 +1041,7 @@ class _ProficienciesPanel extends StatelessWidget {
         ],
       ),
       child: sheet.proficiencies.isEmpty
-          ? const TechWell(
+          ? TechWell(
               child: Text(
                 'Nessuna competenza.\n'
                 'Musica, Linguaggio, Scienza e Conoscenza della Zona funzionano per '
@@ -1175,7 +1175,7 @@ class _ProficienciesPanel extends StatelessWidget {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: <Widget>[
-                                    const Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
+                                    Icon(Icons.casino_outlined, size: 12, color: CprPalette.yellow),
                                     const SizedBox(width: 4),
                                     Text(
                                       '$checkTotal',

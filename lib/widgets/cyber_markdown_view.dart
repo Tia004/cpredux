@@ -203,7 +203,7 @@ class CyberMarkdownView extends StatelessWidget {
       spans.add(
         TextSpan(
           text: boldContent,
-          style: const TextStyle(fontWeight: FontWeight.bold, color: CprPalette.ink),
+          style: TextStyle(fontWeight: FontWeight.bold, color: CprPalette.ink),
         ),
       );
       lastIndex = match.end;

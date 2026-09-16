@@ -20,15 +20,17 @@ class CyberHelpTooltip extends StatefulWidget {
     required this.title,
     required this.message,
     this.tag,
-    this.accent = CprPalette.cyan,
+    this.accent,
     this.size = 16.0,
   });
 
   final String title;
   final String message;
   final String? tag;
-  final Color accent;
+  final Color? accent;
   final double size;
+
+  Color get resolvedAccent => accent ?? CprPalette.cyan;
 
   @override
   State<CyberHelpTooltip> createState() => _CyberHelpTooltipState();
@@ -135,7 +137,7 @@ class _CyberHelpTooltipState extends State<CyberHelpTooltip> {
                     title: widget.title,
                     message: widget.message,
                     tag: widget.tag,
-                    accent: widget.accent,
+                    accent: widget.resolvedAccent,
                     arrowX: arrowX,
                     pointingUp: showBelow,
                   ),
@@ -199,15 +201,15 @@ class _CyberHelpTooltipState extends State<CyberHelpTooltip> {
           height: widget.size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isHighlighted ? widget.accent.withValues(alpha: 0.25) : CprPalette.surfaceSunken,
+            color: isHighlighted ? widget.resolvedAccent.withValues(alpha: 0.25) : CprPalette.surfaceSunken,
             border: Border.all(
-              color: isHighlighted ? widget.accent : widget.accent.withValues(alpha: 0.5),
+              color: isHighlighted ? widget.resolvedAccent : widget.resolvedAccent.withValues(alpha: 0.5),
               width: 1.2,
             ),
             boxShadow: isHighlighted
                 ? <BoxShadow>[
                     BoxShadow(
-                      color: widget.accent.withValues(alpha: 0.45),
+                      color: widget.resolvedAccent.withValues(alpha: 0.45),
                       blurRadius: 7,
                       spreadRadius: 1,
                     ),

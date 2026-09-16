@@ -1848,7 +1848,6 @@ class AppState extends ChangeNotifier {
         description: "Tavolo aperto sulla porta ${host.port}",
         delta: 'SESSIONE',
       );
-      SessionVoiceTranscriber.instance.startLiveListening(speaker: 'Master');
       _scheduleSave();
     } on SocketException catch (e) {
       // La porta occupata e' l'errore piu' comune e ha una causa precisa:
@@ -1859,10 +1858,34 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  bool _isSessionLive = false;
+  bool get isSessionLive => _isSessionLive;
+  DateTime? _sessionStartTime;
+  DateTime? get sessionStartTime => _sessionStartTime;
+
+  void startLiveSession() {
+    _isSessionLive = true;
+    _sessionStartTime = DateTime.now();
+    SessionVoiceTranscriber.instance.startLiveListening(speaker: 'Master');
+    _appendSession(description: 'Sessione di gioco AVVIATA dal Master', delta: 'LIVE');
+    notifyListeners();
+  }
+
+  void endLiveSession() {
+    _isSessionLive = false;
+    _sessionStartTime = null;
+    SessionVoiceTranscriber.instance.stopLiveListening();
+    broadcastSessionEnd();
+    _appendSession(description: 'Sessione di gioco TERMINATA dal Master', delta: 'FINE');
+    notifyListeners();
+  }
+
   Future<void> stopHosting() async {
     final CampaignHost? host = _host;
     if (host == null) return;
     _host = null;
+    _isSessionLive = false;
+    _sessionStartTime = null;
     SessionVoiceTranscriber.instance.stopLiveListening();
     await host.stop();
     _appendSession(description: 'Tavolo chiuso', delta: 'SESSIONE');

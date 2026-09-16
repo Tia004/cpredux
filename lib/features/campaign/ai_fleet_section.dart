@@ -59,7 +59,7 @@ class _AiFleetMasterSectionState extends State<AiFleetMasterSection> {
                       Text('PROGRAMMAZIONE IA: ${bot.name}', style: CprType.title.copyWith(fontSize: 14)),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                        icon: Icon(Icons.close, color: CprPalette.inkMuted),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
@@ -225,7 +225,7 @@ class _AiFleetMasterSectionState extends State<AiFleetMasterSection> {
           // Header Sezione
           Row(
             children: <Widget>[
-              const Icon(Icons.smart_toy_outlined, color: CprPalette.magenta, size: 24),
+              Icon(Icons.smart_toy_outlined, color: CprPalette.magenta, size: 24),
               const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -43,7 +43,7 @@ class EffectsTab extends StatelessWidget {
               },
             ),
             child: active.isEmpty
-                ? const TechWell(
+                ? TechWell(
                     child: Text(
                       'Nessun effetto attivo.\n'
                       'Ferite, droghe, malattie e condizioni: ogni effetto attivo incide sui '
@@ -86,7 +86,7 @@ class EffectsTab extends StatelessWidget {
               style: CprType.caption.copyWith(color: CprPalette.inkFaint),
             ),
             child: archived.isEmpty
-                ? const TechWell(
+                ? TechWell(
                     child: Text(
                       'Nessun effetto archiviato.\n'
                       'Un effetto che guarisce non viene cancellato: viene disattivato e '

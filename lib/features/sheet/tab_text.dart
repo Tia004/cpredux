@@ -49,7 +49,7 @@ class _NotesTabState extends State<NotesTab> {
               onPressed: () => _addNote(state),
             ),
             child: sheet.notes.isEmpty
-                ? const TechWell(
+                ? TechWell(
                     child: Text(
                       'Nessuna nota.\n\nLe note sono appunti liberi: un piano, un nome, un debito.'
                       ' Restano dentro la scheda e non vengono toccati dal calcolo dei valori.',
@@ -789,7 +789,7 @@ class _Portrait extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          const Icon(Icons.person_outline, size: 42, color: CprPalette.inkFaint),
+          Icon(Icons.person_outline, size: 42, color: CprPalette.inkFaint),
           const SizedBox(height: 10),
           Text(
             'Nessuna immagine',

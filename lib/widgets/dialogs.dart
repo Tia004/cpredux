@@ -496,7 +496,7 @@ class _TechDialog extends StatelessWidget {
               children: <Widget>[
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     border: Border(bottom: BorderSide(color: CprPalette.hairline)),
                   ),
                   child: Row(
@@ -519,7 +519,7 @@ class _TechDialog extends StatelessWidget {
                 ),
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     border: Border(top: BorderSide(color: CprPalette.hairline)),
                   ),
                   child: Row(

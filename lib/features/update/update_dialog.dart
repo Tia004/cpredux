@@ -66,7 +66,7 @@ class _UpdateDialog extends StatelessWidget {
           children: <Widget>[
             Container(
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: CprPalette.hairline)),
               ),
               child: Row(
@@ -149,7 +149,7 @@ class _UpdateDialog extends StatelessWidget {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: CprPalette.hairline)),
               ),
               child: Column(

@@ -187,7 +187,7 @@ class _FileBrowserDialogState extends State<_FileBrowserDialog> {
                       child: Row(
                         children: <Widget>[
                           _places(),
-                          const VerticalDivider(width: 1, color: CprPalette.hairline),
+                          VerticalDivider(width: 1, color: CprPalette.hairline),
                           Expanded(child: _listing()),
                         ],
                       ),
@@ -208,7 +208,7 @@ class _FileBrowserDialogState extends State<_FileBrowserDialog> {
   Widget _header() {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
       child: Row(
@@ -242,7 +242,7 @@ class _FileBrowserDialogState extends State<_FileBrowserDialog> {
   Widget _breadcrumb() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
       child: Row(
@@ -390,7 +390,7 @@ class _FileBrowserDialogState extends State<_FileBrowserDialog> {
   Widget _footer() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: CprPalette.hairline)),
       ),
       child: Row(

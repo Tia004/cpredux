@@ -239,7 +239,7 @@ class _TopBar extends StatelessWidget {
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
       child: Row(

@@ -33,28 +33,51 @@ import 'ai_fleet_section.dart';
 import 'cyberpunk_red_suite.dart';
 import 'extended_tools.dart';
 import 'session_transcriber.dart';
+import 'session_summaries_section.dart';
 
 /// Le sezioni del tavolo.
 enum CampaignSection {
-  players('Giocatori', Icons.groups_2_outlined, CprPalette.cyan),
-  map('Mappa', Icons.map_outlined, CprPalette.info),
-  netrun('Mappa NET', Icons.hub_outlined, CprPalette.cyan),
-  table('Tavolo', Icons.forum_outlined, CprPalette.yellow),
-  aiBots('IA del gioco', Icons.smart_toy_outlined, CprPalette.magenta),
-  dice('Dadi', Icons.casino_outlined, CprPalette.yellow),
-  notebook('Quaderno', Icons.menu_book_outlined, CprPalette.violet),
-  gmTools('Strumenti GM', Icons.dashboard_customize_outlined, CprPalette.violet, masterOnly: true),
-  aiChat('Cyber-Assistente IA', Icons.smart_toy_outlined, CprPalette.cyan, masterOnly: true),
-  settings('Impostazioni', Icons.tune_outlined, CprPalette.inkFaint);
+  players('Giocatori', Icons.groups_2_outlined),
+  map('Mappa', Icons.map_outlined),
+  netrun('Mappa NET', Icons.hub_outlined),
+  table('Tavolo', Icons.forum_outlined),
+  sessionSummaries('Riepiloghi Sessioni', Icons.history_edu_outlined),
+  aiBots('IA del gioco', Icons.smart_toy_outlined),
+  dice('Dadi', Icons.casino_outlined),
+  notebook('Quaderno', Icons.menu_book_outlined),
+  gmTools('Strumenti GM', Icons.dashboard_customize_outlined, masterOnly: true),
+  aiChat('Cyber-Assistente IA', Icons.smart_toy_outlined, masterOnly: true),
+  settings('Impostazioni', Icons.tune_outlined);
 
-  const CampaignSection(this.label, this.icon, this.accent, {this.masterOnly = false});
+  const CampaignSection(this.label, this.icon, {this.masterOnly = false});
 
   final String label;
   final IconData icon;
-  final Color accent;
 
   /// Se `true` la sezione e' visibile solo al Master della campagna.
   final bool masterOnly;
+
+  Color get accent {
+    switch (this) {
+      case CampaignSection.players:
+      case CampaignSection.netrun:
+      case CampaignSection.aiChat:
+        return CprPalette.cyan;
+      case CampaignSection.map:
+        return CprPalette.info;
+      case CampaignSection.table:
+      case CampaignSection.sessionSummaries:
+      case CampaignSection.dice:
+        return CprPalette.yellow;
+      case CampaignSection.aiBots:
+        return CprPalette.magenta;
+      case CampaignSection.notebook:
+      case CampaignSection.gmTools:
+        return CprPalette.violet;
+      case CampaignSection.settings:
+        return CprPalette.inkFaint;
+    }
+  }
 }
 
 /// La schermata del master.
@@ -85,6 +108,8 @@ class _CampaignScreenState extends State<CampaignScreen> {
         return const _NetrunSection();
       case CampaignSection.table:
         return const _TableSection();
+      case CampaignSection.sessionSummaries:
+        return const SessionSummariesSection();
       case CampaignSection.aiBots:
         return const AiFleetMasterSection();
       case CampaignSection.dice:
@@ -110,14 +135,16 @@ class _CampaignScreenState extends State<CampaignScreen> {
 
     return Column(
       children: <Widget>[
-        const _CampaignHeader(),
+        const RepaintBoundary(child: _CampaignHeader()),
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _CampaignRail(
-                current: _section,
-                onSelect: (CampaignSection s) => setState(() => _section = s),
+              RepaintBoundary(
+                child: _CampaignRail(
+                  current: _section,
+                  onSelect: (CampaignSection s) => setState(() => _section = s),
+                ),
               ),
               Expanded(
                 child: AnimatedSwitcher(
@@ -147,7 +174,7 @@ class _CampaignHeader extends StatelessWidget {
     final Campaign campaign = state.campaign!;
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
       child: Column(
@@ -178,7 +205,7 @@ class _CampaignHeader extends StatelessWidget {
                   const SizedBox(width: 14),
                   _SessionBadge(state: state),
                   const SizedBox(width: 8),
-                  const CyberHelpTooltip(
+                  CyberHelpTooltip(
                     title: 'Tavolo & Connessione LAN/Web',
                     message: 'Il Master apre il tavolo su una porta TCP (es. :20199 o :21099). I giocatori si collegano inserendo l\'indirizzo o cliccando il link di invito.',
                     tag: 'Rete',
@@ -329,32 +356,44 @@ class _CampaignHeader extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  TechButton(
-                    label: 'Termina Sessione & Riepilogo IA',
-                    icon: Icons.summarize_outlined,
-                    compact: true,
-                    variant: TechButtonVariant.primary,
-                    tooltip: 'Compila trascrizioni vocali, genera commit con note e riassunto IA',
-                    onPressed: () {
-                      state.broadcastSessionEnd();
-                      showDialog<void>(
-                        context: context,
-                        builder: (_) => EndSessionSummaryDialog(
-                          campaign: campaign,
-                          initialPlayerSummaries: state.pendingPlayerSummaries.values.toList(),
-                          onSaveCommit: (CampaignSessionCommit commit) {
-                            state.mutateCampaign((Campaign c) {
-                              c.sessionCommits.add(commit);
-                            });
-                            state.pendingPlayerSummaries.clear();
-                            state.appendSessionEvent(
-                              description: 'Master: Sessione archiviata: ${commit.title} (ID: ${commit.id})',
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                  if (!state.isSessionLive)
+                    TechButton(
+                      label: 'Avvia Sessione',
+                      icon: Icons.play_arrow_outlined,
+                      compact: true,
+                      variant: TechButtonVariant.primary,
+                      tooltip: 'Avvia la sessione live: attiva il microfono e la registrazione Voice-to-Text',
+                      onPressed: () {
+                        state.startLiveSession();
+                      },
+                    )
+                  else
+                    TechButton(
+                      label: 'Termina Sessione & Riepilogo IA',
+                      icon: Icons.summarize_outlined,
+                      compact: true,
+                      variant: TechButtonVariant.danger,
+                      tooltip: 'Compila trascrizioni vocali, genera commit con note e riassunto IA',
+                      onPressed: () {
+                        state.endLiveSession();
+                        showDialog<void>(
+                          context: context,
+                          builder: (_) => EndSessionSummaryDialog(
+                            campaign: campaign,
+                            initialPlayerSummaries: state.pendingPlayerSummaries.values.toList(),
+                            onSaveCommit: (CampaignSessionCommit commit) {
+                              state.mutateCampaign((Campaign c) {
+                                c.sessionCommits.add(commit);
+                              });
+                              state.pendingPlayerSummaries.clear();
+                              state.appendSessionEvent(
+                                description: 'Master: Sessione archiviata: ${commit.title} (ID: ${commit.id})',
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
@@ -386,14 +425,14 @@ class _CampaignClockBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(Icons.schedule, size: 12, color: CprPalette.cyan),
+            Icon(Icons.schedule, size: 12, color: CprPalette.cyan),
             const SizedBox(width: 5),
             Text(
               '${campaign.gameDate} · ${campaign.gameTime}',
               style: CprType.label.copyWith(color: CprPalette.cyan, fontSize: 9.5),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.edit, size: 9, color: CprPalette.cyan),
+            Icon(Icons.edit, size: 9, color: CprPalette.cyan),
           ],
         ),
       ),
@@ -414,11 +453,11 @@ Future<void> showCampaignClockDialog(BuildContext context, AppState state, Campa
             backgroundColor: CprPalette.surfaceRaised,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(4),
-              side: const BorderSide(color: CprPalette.cyan, width: 1.5),
+              side: BorderSide(color: CprPalette.cyan, width: 1.5),
             ),
             title: Row(
               children: <Widget>[
-                const Icon(Icons.schedule, color: CprPalette.cyan, size: 22),
+                Icon(Icons.schedule, color: CprPalette.cyan, size: 22),
                 const SizedBox(width: 10),
                 Text(
                   'OROLOGIO DI CAMPAGNA',
@@ -445,7 +484,7 @@ Future<void> showCampaignClockDialog(BuildContext context, AppState state, Campa
                         child: TextField(
                           controller: dateCtrl,
                           style: CprType.body.copyWith(color: CprPalette.ink),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Data di gioco (AAAA-MM-GG)',
                             filled: true,
                             fillColor: CprPalette.surfaceSunken,
@@ -459,7 +498,7 @@ Future<void> showCampaignClockDialog(BuildContext context, AppState state, Campa
                         child: TextField(
                           controller: timeCtrl,
                           style: CprType.body.copyWith(color: CprPalette.ink),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Ora (HH:MM)',
                             filled: true,
                             fillColor: CprPalette.surfaceSunken,
@@ -673,11 +712,11 @@ class _InviteDialogState extends State<_InviteDialog> {
       backgroundColor: CprPalette.surfaceRaised,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(4),
-        side: const BorderSide(color: CprPalette.cyan, width: 1.5),
+        side: BorderSide(color: CprPalette.cyan, width: 1.5),
       ),
       title: Row(
         children: <Widget>[
-          const Icon(Icons.share, color: CprPalette.cyan, size: 22),
+          Icon(Icons.share, color: CprPalette.cyan, size: 22),
           const SizedBox(width: 10),
           Text(
             'INVITA GIOCATORI AL TAVOLO',
@@ -772,7 +811,7 @@ class _InviteDialogState extends State<_InviteDialog> {
             if (context.mounted) {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                   content: Text('Invito completo copiato negli appunti! Incollalo ai tuoi giocatori.'),
                   backgroundColor: CprPalette.surface,
                   duration: Duration(seconds: 4),
@@ -869,11 +908,11 @@ Future<void> showEditPortDialog(BuildContext context, AppState state, Campaign c
             backgroundColor: CprPalette.surfaceRaised,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(4),
-              side: const BorderSide(color: CprPalette.yellow, width: 1.5),
+              side: BorderSide(color: CprPalette.yellow, width: 1.5),
             ),
             title: Row(
               children: <Widget>[
-                const Icon(Icons.settings_ethernet, color: CprPalette.yellow, size: 22),
+                Icon(Icons.settings_ethernet, color: CprPalette.yellow, size: 22),
                 const SizedBox(width: 10),
                 Text(
                   'MODIFICA PORTA SERVER',
@@ -907,10 +946,10 @@ Future<void> showEditPortDialog(BuildContext context, AppState state, Campaign c
                       errorText: error,
                       filled: true,
                       fillColor: CprPalette.surfaceSunken,
-                      enabledBorder: const OutlineInputBorder(
+                      enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: CprPalette.hairline),
                       ),
-                      focusedBorder: const OutlineInputBorder(
+                      focusedBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: CprPalette.yellow),
                       ),
                     ),
@@ -1069,7 +1108,7 @@ class _CampaignRail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 200,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(right: BorderSide(color: CprPalette.hairline)),
       ),
       child: SingleChildScrollView(
@@ -1216,7 +1255,7 @@ class _EmptyTavolo extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(Icons.edit, size: 12, color: CprPalette.cyan),
+                            Icon(Icons.edit, size: 12, color: CprPalette.cyan),
                             const SizedBox(width: 5),
                             Text(
                               'Modifica porta',
@@ -1323,7 +1362,7 @@ class _AddressRow extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(Icons.edit, size: 12, color: CprPalette.yellow),
+                          Icon(Icons.edit, size: 12, color: CprPalette.yellow),
                         ],
                       ),
                     ),
@@ -1722,10 +1761,10 @@ class _PlayerCardState extends State<_PlayerCard> {
                     final DocumentEntry entry = sheets[idx];
                     return ListTile(
                       dense: true,
-                      leading: const Icon(Icons.person, color: CprPalette.cyan, size: 20),
+                      leading: Icon(Icons.person, color: CprPalette.cyan, size: 20),
                       title: Text(entry.name, style: CprType.body.copyWith(fontSize: 13)),
                       subtitle: Text(entry.fileName, style: CprType.caption.copyWith(fontSize: 10)),
-                      trailing: const Icon(Icons.send_outlined, size: 16, color: CprPalette.yellow),
+                      trailing: Icon(Icons.send_outlined, size: 16, color: CprPalette.yellow),
                       onTap: () {
                         Navigator.of(ctx).pop();
                         try {
@@ -2126,7 +2165,7 @@ class _TableSectionState extends State<_TableSection> {
                 Row(
                   children: <Widget>[
                     IconButton(
-                      icon: const Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
+                      icon: Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
                       tooltip: 'Aggiungi emoji Unicode',
                       onPressed: state.isHosting
                           ? () async {
@@ -2138,7 +2177,7 @@ class _TableSectionState extends State<_TableSection> {
                           : null,
                     ),
                     IconButton(
-                      icon: const Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
+                      icon: Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
                       tooltip: 'Invia GIF (Tenor / Giphy)',
                       onPressed: state.isHosting
                           ? () async {
@@ -2150,7 +2189,7 @@ class _TableSectionState extends State<_TableSection> {
                           : null,
                     ),
                     IconButton(
-                      icon: const Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
+                      icon: Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
                       tooltip: 'Invia file o immagine P2P',
                       onPressed: state.isHosting
                           ? () => pickAndSendAttachment(
@@ -2470,7 +2509,7 @@ class _ConnectedPlayersSidebar extends StatelessWidget {
                         ),
                         // Bottone Whisper rapido
                         IconButton(
-                          icon: const Icon(Icons.lock_outline, size: 16, color: CprPalette.magenta),
+                          icon: Icon(Icons.lock_outline, size: 16, color: CprPalette.magenta),
                           tooltip: 'Apri chat segreta con $charName',
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -2612,7 +2651,7 @@ class _LogRow extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const Icon(Icons.lock, size: 10, color: CprPalette.magenta),
+                      Icon(Icons.lock, size: 10, color: CprPalette.magenta),
                       const SizedBox(width: 4),
                       Text(
                         event.whisperTo.isNotEmpty ? 'SUSSURRO A: ${event.whisperTo.toUpperCase()}' : 'SUSSURRO',
@@ -2663,7 +2702,7 @@ class _LogRow extends StatelessWidget {
               child: Image.network(
                 event.gifUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                errorBuilder: (BuildContext context, Object error, StackTrace? stack) => Padding(
                   padding: EdgeInsets.all(8.0),
                   child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
                 ),
@@ -2687,7 +2726,7 @@ class _LogRow extends StatelessWidget {
                           Image.memory(
                             base64Decode(event.attachmentData),
                             fit: BoxFit.cover,
-                            errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                            errorBuilder: (BuildContext context, Object error, StackTrace? stack) => Padding(
                               padding: EdgeInsets.all(8.0),
                               child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
                             ),
@@ -2699,7 +2738,7 @@ class _LogRow extends StatelessWidget {
                               backgroundColor: CprPalette.veil(CprPalette.voidBlack, 0.7),
                               radius: 14,
                               child: IconButton(
-                                icon: const Icon(Icons.download, size: 14, color: CprPalette.cyan),
+                                icon: Icon(Icons.download, size: 14, color: CprPalette.cyan),
                                 tooltip: 'Salva immagine',
                                 padding: EdgeInsets.zero,
                                 onPressed: () => saveAttachmentToDisk(
@@ -2723,7 +2762,7 @@ class _LogRow extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          const Icon(Icons.insert_drive_file_outlined, color: CprPalette.cyan, size: 20),
+                          Icon(Icons.insert_drive_file_outlined, color: CprPalette.cyan, size: 20),
                           const SizedBox(width: 8),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3206,7 +3245,7 @@ class _SessionCommitCard extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  const Icon(Icons.schedule, size: 12, color: CprPalette.cyan),
+                  Icon(Icons.schedule, size: 12, color: CprPalette.cyan),
                   const SizedBox(width: 4),
                   Text(
                     '${commit.date} · ${commit.time}',
@@ -3237,7 +3276,7 @@ class _SessionCommitCard extends StatelessWidget {
                       children: <Widget>[
                         Row(
                           children: <Widget>[
-                            const Icon(Icons.smart_toy_outlined, size: 14, color: CprPalette.cyan),
+                            Icon(Icons.smart_toy_outlined, size: 14, color: CprPalette.cyan),
                             const SizedBox(width: 6),
                             Text(
                               'RIEPILOGO PRINCIPALE DELLA SESSIONE (IA)',
@@ -3270,7 +3309,7 @@ class _SessionCommitCard extends StatelessWidget {
                       children: <Widget>[
                         Row(
                           children: <Widget>[
-                            const Icon(Icons.edit_note, size: 16, color: CprPalette.yellow),
+                            Icon(Icons.edit_note, size: 16, color: CprPalette.yellow),
                             const SizedBox(width: 6),
                             Text(
                               'NOTE PERSONALI DEL MASTER',
@@ -3310,7 +3349,7 @@ class _SessionCommitCard extends StatelessWidget {
                         children: <Widget>[
                           Row(
                             children: <Widget>[
-                              const Icon(Icons.person_pin, size: 14, color: CprPalette.cyan),
+                              Icon(Icons.person_pin, size: 14, color: CprPalette.cyan),
                               const SizedBox(width: 6),
                               Text(
                                 player.playerName.toUpperCase(),

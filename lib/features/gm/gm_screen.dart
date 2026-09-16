@@ -66,88 +66,103 @@ enum GmTool {
     'Dadi e macro',
     'Espressioni complete: 1d10 + RIF + Pistole, (1d10+8)*2−4, 4d6kh3.',
     Icons.casino_outlined,
-    CprPalette.yellow,
   ),
   incontro(
     'Incontro notturno',
     'Un agguato, una pattuglia o solo la pioggia acida, con i nemici pronti.',
     Icons.nightlight_outlined,
-    CprPalette.magenta,
   ),
   bottino(
     'Bottino',
     'Cosa aveva addosso chi e\' caduto, gia\' contato.',
     Icons.inventory_2_outlined,
-    CprPalette.yellow,
   ),
   screamsheet(
     'Screamsheet',
     'Un trafiletto di giornale da leggere ai giocatori prima della sessione.',
     Icons.newspaper_outlined,
-    CprPalette.cyan,
   ),
-  png('PNG rapidi', 'Nemici di scena con tre numeri, in dieci secondi.', Icons.groups_outlined, CprPalette.danger),
+  png('PNG rapidi', 'Nemici di scena con tre numeri, in dieci secondi.', Icons.groups_outlined),
   dv(
     'DV balistico',
     'Distanza in metri, classe d\'arma, DV da battere.',
     Icons.my_location_outlined,
-    CprPalette.warning,
   ),
   terapia(
     'Cyberpsicosi e terapia',
     'Quanta Umanita\' manca, quanto costa tornare indietro e in quante settimane.',
     Icons.psychology_alt_outlined,
-    CprPalette.humanityEroded,
   ),
   guarigione(
     'Guarigione',
     'Giorni di degenza, con o senza Medtech, con o senza un letto.',
     Icons.healing_outlined,
-    CprPalette.success,
   ),
   stileVita(
     'Stile di vita',
     'Cibo, alloggio e debiti: quanto costa un mese e quanti ne restano.',
     Icons.home_work_outlined,
-    CprPalette.cyan,
   ),
   debiti(
     'Debiti',
     'Prestiti, interessi settimanali e chi sta crescendo piu\' in fretta.',
     Icons.receipt_long_outlined,
-    CprPalette.warning,
   ),
   mercato(
     'Mercato nero',
     'Cosa si trova davvero, in base al rango di Contatti.',
     Icons.storefront_outlined,
-    CprPalette.violet,
   ),
   trasporti(
     'Trasporti in tempo reale',
     'Metti un mezzo in strada, guardalo andare, e fermalo quando serve.',
     Icons.local_taxi_outlined,
-    CprPalette.info,
   ),
   rete(
     'Console di rete',
     'Attacchi ai programmi con il REZ che scende, colpo per colpo.',
     Icons.lan_outlined,
-    CprPalette.info,
   ),
   regole(
     'Numeri e regole',
     'Ogni valore usato qui, con la sua provenienza e la possibilita\' di correggerlo.',
     Icons.tune_outlined,
-    CprPalette.inkMuted,
   );
 
-  const GmTool(this.label, this.description, this.icon, this.accent);
+  const GmTool(this.label, this.description, this.icon);
 
   final String label;
   final String description;
   final IconData icon;
-  final Color accent;
+
+  Color get accent {
+    switch (this) {
+      case GmTool.dadi:
+      case GmTool.bottino:
+        return CprPalette.yellow;
+      case GmTool.incontro:
+        return CprPalette.magenta;
+      case GmTool.screamsheet:
+      case GmTool.stileVita:
+        return CprPalette.cyan;
+      case GmTool.png:
+        return CprPalette.danger;
+      case GmTool.dv:
+      case GmTool.debiti:
+        return CprPalette.warning;
+      case GmTool.terapia:
+        return CprPalette.humanityEroded;
+      case GmTool.guarigione:
+        return CprPalette.success;
+      case GmTool.mercato:
+        return CprPalette.violet;
+      case GmTool.trasporti:
+      case GmTool.rete:
+        return CprPalette.info;
+      case GmTool.regole:
+        return CprPalette.inkMuted;
+    }
+  }
 }
 
 /// La console vera e propria, usabile sia come pagina sia come pannello.

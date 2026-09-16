@@ -31,7 +31,7 @@ class TechBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: <Widget>[
-        const Positioned.fill(child: ColoredBox(color: CprPalette.voidBlack)),
+        Positioned.fill(child: ColoredBox(color: CprPalette.voidBlack)),
         Positioned.fill(
           child: RepaintBoundary(
             child: CustomPaint(

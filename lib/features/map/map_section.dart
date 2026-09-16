@@ -99,7 +99,12 @@ class _MapSectionState extends State<MapSection> {
         _imageError = null;
       });
       try {
-        final ByteData data = await rootBundle.load('assets/images/night_city_full.jpg');
+        ByteData? data;
+        try {
+          data = await rootBundle.load('assets/images/Map_Base_Full.png');
+        } catch (_) {
+          data = await rootBundle.load('assets/images/night_city_full.jpg');
+        }
         final ui.Codec codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
         final ui.FrameInfo frame = await codec.getNextFrame();
         if (!mounted) return;
@@ -623,7 +628,7 @@ class _ControlsPanel extends StatelessWidget {
           else
             Row(
               children: <Widget>[
-                const Icon(Icons.visibility_outlined, size: 13, color: CprPalette.inkFaint),
+                Icon(Icons.visibility_outlined, size: 13, color: CprPalette.inkFaint),
                 const SizedBox(width: 8),
                 Text(
                   'Aspetto: ${state.mapStyle.label.toUpperCase()}',
@@ -1215,7 +1220,7 @@ class _WaypointRow extends StatelessWidget {
                         ),
                         if (hidden) ...<Widget>[
                           const SizedBox(width: 7),
-                          const _Badge(text: 'PRIVATO', color: CprPalette.inkMuted, icon: Icons.lock_outline),
+                          _Badge(text: 'PRIVATO', color: CprPalette.inkMuted, icon: Icons.lock_outline),
                         ],
                         if (pending) ...<Widget>[
                           const SizedBox(width: 7),
@@ -1537,7 +1542,7 @@ class _LegendPanel extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: <Widget>[
-              const Icon(Icons.lock_outline, size: 12, color: CprPalette.inkMuted),
+              Icon(Icons.lock_outline, size: 12, color: CprPalette.inkMuted),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(

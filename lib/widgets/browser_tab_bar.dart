@@ -46,7 +46,7 @@ class BrowserTabBar extends StatelessWidget implements PreferredSizeWidget {
       child: Container(
         height: height,
         width: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: CprPalette.surfaceSunken,
           border: Border(bottom: BorderSide(color: CprPalette.hairline)),
         ),
@@ -90,7 +90,7 @@ class BrowserTabBar extends StatelessWidget implements PreferredSizeWidget {
                     border: Border.all(color: CprPalette.hairline),
                     borderRadius: BorderRadius.circular(3),
                   ),
-                  child: const Icon(Icons.add, size: 16, color: CprPalette.yellow),
+                  child: Icon(Icons.add, size: 16, color: CprPalette.yellow),
                 ),
               ),
             ),
@@ -114,7 +114,7 @@ class BrowserTabBar extends StatelessWidget implements PreferredSizeWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const Icon(Icons.cloud_outlined, size: 14, color: CprPalette.cyan),
+                      Icon(Icons.cloud_outlined, size: 14, color: CprPalette.cyan),
                       const SizedBox(width: 5),
                       Text(
                         'CLOUD',
@@ -201,8 +201,8 @@ class _BrowserTabItem extends StatelessWidget {
               color: isActive ? accent : Colors.transparent,
               width: 2.2,
             ),
-            left: const BorderSide(color: CprPalette.hairline, width: 0.5),
-            right: const BorderSide(color: CprPalette.hairline, width: 0.5),
+            left: BorderSide(color: CprPalette.hairline, width: 0.5),
+            right: BorderSide(color: CprPalette.hairline, width: 0.5),
           ),
         ),
         child: Row(
@@ -231,7 +231,7 @@ class _BrowserTabItem extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: CprPalette.yellow,
                 ),

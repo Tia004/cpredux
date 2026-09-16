@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show AppExitResponse;
 
@@ -20,9 +21,11 @@ import '../features/sheet/sheet_screen.dart';
 import '../features/update/update_dialog.dart';
 import '../data/catalog.dart';
 import '../net/update_manifest.dart';
+import '../net/updater.dart';
 import '../widgets/browser_tab_bar.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/tech_background.dart';
+import '../widgets/tech_button.dart';
 import '../widgets/window_title_bar.dart';
 import 'app_state.dart';
 import 'startup.dart';
@@ -52,6 +55,7 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   static const MethodChannel _fileOpenChannel = MethodChannel('cpredux/file_open');
+  Timer? _backgroundUpdateTimer;
 
   @override
   void initState() {
@@ -77,6 +81,13 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
     _state.consumePendingUpdateOutcome();
     _state.startDiscordPresenceLoop();
     await _state.refreshPresence();
+
+    // Timer di controllo periodico in background ogni 5 minuti
+    _backgroundUpdateTimer?.cancel();
+    _backgroundUpdateTimer = Timer.periodic(const Duration(minutes: 5), (_) async {
+      if (!_state.settings.autoCheckUpdates) return;
+      await _state.checkForUpdates(silent: true);
+    });
 
     if (widget.startup.mode == StartupMode.justUpdated) {
       await _state.confirmUpdateApplied();
@@ -169,6 +180,7 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _backgroundUpdateTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _state.dispose();
     super.dispose();
@@ -220,6 +232,8 @@ class _Root extends StatelessWidget {
                 const WindowTitleBar(),
                 const BrowserTabBar(),
                 if (state.errorMessage != null) _ErrorBar(message: state.errorMessage!),
+                if (state.availableUpdate != null && state.updateStage != UpdateStage.upToDate)
+                  _UpdateBanner(manifest: state.availableUpdate!),
                 Expanded(
                   child: Stack(
                     children: <Widget>[
@@ -327,6 +341,152 @@ class _ErrorBar extends StatelessWidget {
               onTap: state.clearError,
               child: const Icon(Icons.close, size: 15, color: CprPalette.danger),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Banner Cyberpunk per la notifica e l'aggiornamento 1-Click con riavvio
+class _UpdateBanner extends StatefulWidget {
+  const _UpdateBanner({required this.manifest});
+
+  final UpdateManifest manifest;
+
+  @override
+  State<_UpdateBanner> createState() => _UpdateBannerState();
+}
+
+class _UpdateBannerState extends State<_UpdateBanner> {
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissed) return const SizedBox.shrink();
+    final AppState state = AppScope.of(context);
+    final bool isDownloading = state.updateStage == UpdateStage.downloading;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+      decoration: BoxDecoration(
+        color: CprPalette.veil(CprPalette.cyan, 0.12),
+        border: Border(bottom: BorderSide(color: CprPalette.cyan, width: 1.2)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: CprPalette.cyan.withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: CprPalette.cyan.withValues(alpha: 0.2),
+            ),
+            child: Icon(Icons.system_update_alt, size: 16, color: CprPalette.cyan),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Text(
+                      'NUOVO AGGIORNAMENTO DISPONIBILE',
+                      style: CprType.label.copyWith(
+                        fontSize: 10,
+                        color: CprPalette.cyan,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: CprPalette.cyan.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: CprPalette.cyan),
+                      ),
+                      child: Text(
+                        'v${widget.manifest.version}',
+                        style: CprType.mono(CprPalette.cyan, size: 10, weight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                if (isDownloading)
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: state.updateProgress > 0 ? state.updateProgress : null,
+                          backgroundColor: CprPalette.surfaceRaised,
+                          color: CprPalette.cyan,
+                          minHeight: 4,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Download in corso: ${(state.updateProgress * 100).toInt()}%',
+                        style: CprType.mono(CprPalette.inkMuted, size: 11),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    widget.manifest.notes.isNotEmpty
+                        ? widget.manifest.notes.first
+                        : 'Nuove funzionalità, miglioramenti e correzioni pronti per l\'installazione.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: CprType.caption.copyWith(color: CprPalette.ink),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          if (!isDownloading) ...<Widget>[
+            TechButton(
+              label: '1-Click Aggiorna & Riavvia',
+              icon: Icons.download_for_offline_outlined,
+              variant: TechButtonVariant.primary,
+              compact: true,
+              onPressed: () async {
+                state.save(notify: false);
+                final bool downloaded = await state.downloadUpdate();
+                if (!downloaded) return;
+                await state.scheduleUpdateOnClose();
+                await state.startPendingUpdate();
+                exit(0);
+              },
+            ),
+            const SizedBox(width: 8),
+            TechButton(
+              label: 'Dettagli',
+              icon: Icons.info_outline,
+              variant: TechButtonVariant.secondary,
+              compact: true,
+              onPressed: () => showUpdateDialog(
+                context,
+                release: widget.manifest,
+                platform: state.updatePlatform,
+              ),
+            ),
+          ],
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(Icons.close, size: 15, color: CprPalette.inkMuted),
+            tooltip: 'Nascondi banner',
+            onPressed: () => setState(() => _dismissed = true),
           ),
         ],
       ),

@@ -182,7 +182,7 @@ class _CyberwareTabState extends State<CyberwareTab> {
                       padding: const EdgeInsets.all(8.0),
                       child: Row(
                         children: <Widget>[
-                          const Icon(Icons.biotech, size: 16, color: CprPalette.cyan),
+                          Icon(Icons.biotech, size: 16, color: CprPalette.cyan),
                           const SizedBox(width: 8),
                           Text(
                             'Scanner anatomico compresso. Clicca per espandere il visualizzatore 3D.',
@@ -206,7 +206,7 @@ class _CyberwareTabState extends State<CyberwareTab> {
               ),
               child: Row(
                 children: <Widget>[
-                  const Icon(Icons.filter_alt, size: 16, color: CprPalette.cyan),
+                  Icon(Icons.filter_alt, size: 16, color: CprPalette.cyan),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -244,7 +244,7 @@ class _CyberwareTabState extends State<CyberwareTab> {
               title: 'Impianti installati',
               accent: CprPalette.magenta,
               trailing: _AddButton(onPressed: () => _add(context, state)),
-              child: const TechWell(
+              child: TechWell(
                 child: Text(
                   'Nessun impianto installato.\n'
                   'Aggiungi il cyberware del personaggio: ogni impianto porta con se\' '
@@ -270,7 +270,7 @@ class _CyberwareTabState extends State<CyberwareTab> {
                   children: <Widget>[
                     Text(
                       'Nessun cyberware installato nella zona ${CyberBodyZone.fromId(_selectedZone).label.toUpperCase()}.',
-                      style: const TextStyle(color: CprPalette.inkMuted, fontSize: 12),
+                      style: TextStyle(color: CprPalette.inkMuted, fontSize: 12),
                     ),
                     const SizedBox(height: 10),
                     TechButton(
@@ -549,7 +549,7 @@ class _CyberwareRowState extends State<_CyberwareRow> {
           child: Row(
             children: <Widget>[
               if (isOption) ...<Widget>[
-                const Icon(Icons.subdirectory_arrow_right, size: 14, color: CprPalette.cyan),
+                Icon(Icons.subdirectory_arrow_right, size: 14, color: CprPalette.cyan),
                 const SizedBox(width: 6),
               ],
               Container(
@@ -560,13 +560,13 @@ class _CyberwareRowState extends State<_CyberwareRow> {
                     ? Image.file(
                         File(item.imagePath!),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const Icon(
+                        errorBuilder: (_, _, _) => Icon(
                           Icons.memory,
                           size: 15,
                           color: CprPalette.magenta,
                         ),
                       )
-                    : const Icon(Icons.memory, size: 15, color: CprPalette.magenta),
+                    : Icon(Icons.memory, size: 15, color: CprPalette.magenta),
               ),
               const SizedBox(width: 12),
               Expanded(

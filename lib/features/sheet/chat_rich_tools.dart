@@ -109,7 +109,7 @@ class _CyberEmojiDialogState extends State<_CyberEmojiDialog> {
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: CprPalette.inkMuted),
+                      icon: Icon(Icons.close, size: 18, color: CprPalette.inkMuted),
                       onPressed: () => Navigator.of(context).pop(),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -240,7 +240,7 @@ class _CyberGifDialogState extends State<_CyberGifDialog> {
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: CprPalette.inkMuted),
+                      icon: Icon(Icons.close, size: 18, color: CprPalette.inkMuted),
                       onPressed: () => Navigator.of(context).pop(),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -258,7 +258,7 @@ class _CyberGifDialogState extends State<_CyberGifDialog> {
                     decoration: InputDecoration(
                       hintText: 'Cerca per titolo o categoria (o inserisci URL personalizzato)',
                       hintStyle: CprType.caption.copyWith(color: CprPalette.inkFaint),
-                      prefixIcon: const Icon(Icons.search, size: 18, color: CprPalette.cyan),
+                      prefixIcon: Icon(Icons.search, size: 18, color: CprPalette.cyan),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                     ),
@@ -280,7 +280,7 @@ class _CyberGifDialogState extends State<_CyberGifDialog> {
                           decoration: InputDecoration(
                             hintText: 'Incolla URL diretto GIF (Giphy / Tenor)',
                             hintStyle: CprType.caption.copyWith(color: CprPalette.inkFaint),
-                            prefixIcon: const Icon(Icons.link, size: 18, color: CprPalette.cyan),
+                            prefixIcon: Icon(Icons.link, size: 18, color: CprPalette.cyan),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                           ),
@@ -331,7 +331,7 @@ class _CyberGifDialogState extends State<_CyberGifDialog> {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      const Icon(Icons.broken_image_outlined, color: CprPalette.inkMuted),
+                                      Icon(Icons.broken_image_outlined, color: CprPalette.inkMuted),
                                       const SizedBox(height: 4),
                                       Text(item.title, style: CprType.caption.copyWith(color: CprPalette.inkFaint)),
                                     ],
@@ -339,7 +339,7 @@ class _CyberGifDialogState extends State<_CyberGifDialog> {
                                 ),
                                 loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? progress) {
                                   if (progress == null) return child;
-                                  return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: CprPalette.cyan));
+                                  return Center(child: CircularProgressIndicator(strokeWidth: 2, color: CprPalette.cyan));
                                 },
                               ),
                               Positioned(

@@ -57,7 +57,7 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
         color: CprPalette.surfaceRaised,
         border: widget.isFullWidth
             ? null
-            : const Border(left: BorderSide(color: CprPalette.cyan, width: 1.5)),
+            : Border(left: BorderSide(color: CprPalette.cyan, width: 1.5)),
         boxShadow: widget.isFullWidth
             ? null
             : <BoxShadow>[
@@ -89,7 +89,7 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
       color: CprPalette.surface,
       child: Row(
         children: <Widget>[
-          const Icon(Icons.smart_toy_outlined, color: CprPalette.cyan, size: 20),
+          Icon(Icons.smart_toy_outlined, color: CprPalette.cyan, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -116,13 +116,13 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined, size: 16, color: CprPalette.inkMuted),
+            icon: Icon(Icons.settings_outlined, size: 16, color: CprPalette.inkMuted),
             tooltip: 'Configura Chiave Google Gemini Gratuita',
             onPressed: () => _promptConfigApiKey(context, ai),
           ),
           if (widget.onClose != null)
             IconButton(
-              icon: const Icon(Icons.close, size: 18, color: CprPalette.ink),
+              icon: Icon(Icons.close, size: 18, color: CprPalette.ink),
               tooltip: 'Chiudi assistente',
               onPressed: widget.onClose,
             ),
@@ -133,7 +133,7 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
 
   Widget _buildTabBar() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: CprPalette.surfaceSunken,
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
@@ -292,7 +292,7 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
                 children: <Widget>[
                   Row(
                     children: <Widget>[
-                      const Icon(Icons.format_quote, size: 16, color: CprPalette.cyan),
+                      Icon(Icons.format_quote, size: 16, color: CprPalette.cyan),
                       const SizedBox(width: 6),
                       Text(
                         _npcNameCtrl.text.trim().toUpperCase(),
@@ -357,7 +357,7 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        const Icon(Icons.psychology_outlined, size: 36, color: CprPalette.inkFaint),
+                        Icon(Icons.psychology_outlined, size: 36, color: CprPalette.inkFaint),
                         const SizedBox(height: 12),
                         Text(
                           'Chiedi qualsiasi regola di Cyberpunk RED o spunto per la tua campagna a Night City.',
@@ -416,7 +416,7 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
         ),
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: CprPalette.surface,
             border: Border(top: BorderSide(color: CprPalette.hairline)),
           ),
@@ -435,7 +435,7 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.send, size: 18, color: CprPalette.cyan),
+                icon: Icon(Icons.send, size: 18, color: CprPalette.cyan),
                 onPressed: () => _sendPrompt(ai),
               ),
             ],

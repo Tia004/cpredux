@@ -112,7 +112,7 @@ class _EditorFrame extends StatelessWidget {
           children: <Widget>[
             Container(
               padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: CprPalette.hairline)),
               ),
               child: Row(
@@ -147,7 +147,7 @@ class _EditorFrame extends StatelessWidget {
             ),
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: CprPalette.hairline)),
               ),
               child: Row(
@@ -416,7 +416,7 @@ class _CatalogNote extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Icon(Icons.info_outline, size: 14, color: CprPalette.cyan),
+          Icon(Icons.info_outline, size: 14, color: CprPalette.cyan),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -650,7 +650,7 @@ class _CustomItemEditorState extends State<_CustomItemEditor> {  /// La definizi
           ),
         ),
         if (_category == ItemCategory.weapon) ...<Widget>[
-          const _SectionLabel('Arma', CprPalette.violet),
+          _SectionLabel('Arma', CprPalette.violet),
           _Row2(
             left: TechDropdown<Skill>(
               label: 'Abilita',
@@ -714,7 +714,7 @@ class _CustomItemEditorState extends State<_CustomItemEditor> {  /// La definizi
           ),
         ],
         if (_category == ItemCategory.armor) ...<Widget>[
-          const _SectionLabel('Armatura', CprPalette.violet),
+          _SectionLabel('Armatura', CprPalette.violet),
           _Row2(
             left: TechDropdown<ArmorSlot>(
               label: 'Slot',
@@ -742,7 +742,7 @@ class _CustomItemEditorState extends State<_CustomItemEditor> {  /// La definizi
           ),
         ],
         if (_category == ItemCategory.clothing) ...<Widget>[
-          const _SectionLabel('Abbigliamento', CprPalette.violet),
+          _SectionLabel('Abbigliamento', CprPalette.violet),
           _Row2(
             left: TechDropdown<ClothingSlot>(
               label: 'Slot',
@@ -822,7 +822,7 @@ class _ImageRow extends StatelessWidget {
             border: Border.all(color: CprPalette.hairline),
           ),
           child: path == null
-              ? const Icon(Icons.image_outlined, size: 18, color: CprPalette.inkFaint)
+              ? Icon(Icons.image_outlined, size: 18, color: CprPalette.inkFaint)
               : ClipRect(
                   child: Image.file(
                     File(path!),
@@ -1172,7 +1172,7 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
                     ),
                   ),
                   child: _foundational
-                      ? const Icon(Icons.check, size: 16, color: CprPalette.surface)
+                      ? Icon(Icons.check, size: 16, color: CprPalette.surface)
                       : null,
                 ),
                 const SizedBox(width: 12),
@@ -1231,7 +1231,7 @@ class _CyberwareEditorState extends State<_CyberwareEditor> {
             ),
             child: Row(
               children: <Widget>[
-                const Icon(Icons.hub_outlined, size: 16, color: CprPalette.magenta),
+                Icon(Icons.hub_outlined, size: 16, color: CprPalette.magenta),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

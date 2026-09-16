@@ -28,7 +28,7 @@ class GmPanel extends StatelessWidget {
     return Container(
       width: 420,
       clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: CprPalette.surface,
         border: Border(left: BorderSide(color: CprPalette.violet, width: 1.5)),
       ),
@@ -37,13 +37,13 @@ class GmPanel extends StatelessWidget {
         children: <Widget>[
           Container(
             padding: const EdgeInsets.fromLTRB(14, 11, 8, 11),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: CprPalette.surfaceRaised,
               border: Border(bottom: BorderSide(color: CprPalette.hairline)),
             ),
             child: Row(
               children: <Widget>[
-                const Icon(Icons.dashboard_customize_outlined, size: 15, color: CprPalette.violet),
+                Icon(Icons.dashboard_customize_outlined, size: 15, color: CprPalette.violet),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text('STRUMENTI DEL MASTER', style: CprType.label.copyWith(color: CprPalette.violet)),
@@ -52,7 +52,7 @@ class GmPanel extends StatelessWidget {
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: onClose,
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.all(4),
                       child: Icon(Icons.close, size: 15, color: CprPalette.inkMuted),
                     ),
@@ -105,7 +105,7 @@ class GmFloatingTab extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Icon(Icons.casino_outlined, size: 14, color: CprPalette.violet),
+              Icon(Icons.casino_outlined, size: 14, color: CprPalette.violet),
               const SizedBox(height: 5),
               RotatedBox(
                 quarterTurns: 3,

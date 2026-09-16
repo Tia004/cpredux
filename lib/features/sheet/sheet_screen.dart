@@ -26,25 +26,49 @@ import 'tab_text.dart';
 /// costringono a scorrere lateralmente. In verticale ci stanno tutte, con il
 /// nome per esteso, e la sezione attiva si legge subito.
 enum SheetSection {
-  character('Personaggio', Icons.badge_outlined, CprPalette.yellow),
-  stats('Statistiche e abilita', Icons.insights_outlined, CprPalette.yellow),
-  inventory('Inventario', Icons.inventory_2_outlined, CprPalette.cyan),
-  equipment('Equipaggiamento', Icons.shield_outlined, CprPalette.cyan),
-  cyberware('Cyberware', Icons.memory_outlined, CprPalette.magenta),
-  effects('Effetti', Icons.warning_amber_outlined, CprPalette.magenta),
-  session('Sessione', Icons.hub_outlined, CprPalette.success),
-  map('Mappa', Icons.map_outlined, CprPalette.info),
-  notes('Note', Icons.sticky_note_2_outlined, CprPalette.inkMuted),
-  background('Background', Icons.auto_stories_outlined, CprPalette.inkMuted),
-  description('Descrizione fisica', Icons.face_outlined, CprPalette.inkMuted),
-  dice('Dadi', Icons.casino_outlined, CprPalette.yellow),
-  settings('Impostazioni scheda', Icons.tune_outlined, CprPalette.inkFaint);
+  character('Personaggio', Icons.badge_outlined),
+  stats('Statistiche e abilita', Icons.insights_outlined),
+  inventory('Inventario', Icons.inventory_2_outlined),
+  equipment('Equipaggiamento', Icons.shield_outlined),
+  cyberware('Cyberware', Icons.memory_outlined),
+  effects('Effetti', Icons.warning_amber_outlined),
+  session('Sessione', Icons.hub_outlined),
+  map('Mappa', Icons.map_outlined),
+  notes('Note', Icons.sticky_note_2_outlined),
+  background('Background', Icons.auto_stories_outlined),
+  description('Descrizione fisica', Icons.face_outlined),
+  dice('Dadi', Icons.casino_outlined),
+  settings('Impostazioni scheda', Icons.tune_outlined);
 
-  const SheetSection(this.label, this.icon, this.accent);
+  const SheetSection(this.label, this.icon);
 
   final String label;
   final IconData icon;
-  final Color accent;
+
+  Color get accent {
+    switch (this) {
+      case SheetSection.character:
+      case SheetSection.stats:
+      case SheetSection.dice:
+        return CprPalette.yellow;
+      case SheetSection.inventory:
+      case SheetSection.equipment:
+        return CprPalette.cyan;
+      case SheetSection.cyberware:
+      case SheetSection.effects:
+        return CprPalette.magenta;
+      case SheetSection.session:
+        return CprPalette.success;
+      case SheetSection.map:
+        return CprPalette.info;
+      case SheetSection.notes:
+      case SheetSection.background:
+      case SheetSection.description:
+        return CprPalette.inkMuted;
+      case SheetSection.settings:
+        return CprPalette.inkFaint;
+    }
+  }
 }
 
 class SheetScreen extends StatefulWidget {
@@ -193,7 +217,7 @@ class _SheetHeader extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
       child: Row(
@@ -341,7 +365,7 @@ class _SectionRail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 216,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(right: BorderSide(color: CprPalette.hairline)),
       ),
       child: SingleChildScrollView(
@@ -464,12 +488,12 @@ class _CloudSyncIndicator extends StatelessWidget {
             final bool auth = cloud.isAuthenticated;
             return AlertDialog(
               backgroundColor: CprPalette.surface,
-              shape: const BeveledRectangleBorder(
+              shape: BeveledRectangleBorder(
                 side: BorderSide(color: CprPalette.cyan, width: 1.2),
               ),
               title: Row(
                 children: <Widget>[
-                  const Icon(Icons.cloud_outlined, color: CprPalette.cyan, size: 20),
+                  Icon(Icons.cloud_outlined, color: CprPalette.cyan, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     'SINCRONIZZAZIONE CLOUD (GRATUITA)',

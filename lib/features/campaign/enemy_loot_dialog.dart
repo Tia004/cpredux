@@ -216,12 +216,12 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
             // Header
             Row(
               children: <Widget>[
-                const Icon(Icons.inventory_2, color: CprPalette.yellow, size: 22),
+                Icon(Icons.inventory_2, color: CprPalette.yellow, size: 22),
                 const SizedBox(width: 8),
                 Text('GENERATORE DI LOOT & TASCHE NEMICI', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -421,7 +421,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
             controller: _advancedPromptCtrl,
             maxLines: 2,
             style: CprType.body.copyWith(color: CprPalette.ink),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'es. Ingegnere chimico della Biotechnica in fuga con chip cifrato',
               filled: true,
               fillColor: CprPalette.surfaceRaised,
@@ -462,7 +462,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
                   controller: _manualEbCtrl,
                   keyboardType: TextInputType.number,
                   style: CprType.body.copyWith(color: CprPalette.yellow),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     suffixText: 'eb',
                     filled: true,
                     fillColor: CprPalette.surfaceRaised,
@@ -506,7 +506,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
                 child: TextField(
                   controller: _manualItemNameCtrl,
                   style: CprType.body.copyWith(color: CprPalette.ink),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Nome Oggetto',
                     filled: true,
                     fillColor: CprPalette.surfaceRaised,
@@ -519,7 +519,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
                 flex: 2,
                 child: DropdownButtonFormField<LootKind>(
                   initialValue: _manualKind,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Tipo',
                     filled: true,
                     fillColor: CprPalette.surfaceRaised,
@@ -540,7 +540,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
                 child: TextField(
                   keyboardType: TextInputType.number,
                   style: CprType.body.copyWith(color: CprPalette.ink),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Qt.',
                     filled: true,
                     fillColor: CprPalette.surfaceRaised,
@@ -559,7 +559,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
                 child: TextField(
                   controller: _manualItemNoteCtrl,
                   style: CprType.body.copyWith(color: CprPalette.ink),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Nota / Descrizione (opzionale)',
                     filled: true,
                     fillColor: CprPalette.surfaceRaised,
@@ -634,7 +634,7 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
                         const SizedBox(width: 6),
                         InkWell(
                           onTap: () => _removeManualEntry(i),
-                          child: const Icon(Icons.close, size: 12, color: CprPalette.inkFaint),
+                          child: Icon(Icons.close, size: 12, color: CprPalette.inkFaint),
                         ),
                       ],
                     ),

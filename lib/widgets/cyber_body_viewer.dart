@@ -151,7 +151,7 @@ class _CyberBodyViewerState extends State<CyberBodyViewer>
             padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
             child: Row(
               children: <Widget>[
-                const Icon(
+                Icon(
                   Icons.biotech_outlined,
                   size: 18,
                   color: CprPalette.cyan,
@@ -475,19 +475,15 @@ class _CyberBodyViewerState extends State<CyberBodyViewer>
                           fit: StackFit.expand,
                           children: <Widget>[
                             CustomPaint(
-                              painter: _CyberAnimatedBackdrop(phase: _anim.value),
+                              painter: _CyberSpaceBackdrop(
+                                phase: _anim.value,
+                                strain: _strainRatio,
+                              ),
                             ),
                             if (_frame != null)
                               RepaintBoundary(
                                 child: CustomPaint(
                                   painter: AnatomyPainter(_frame!),
-                                ),
-                              ),
-                            if (_strainRatio > 0.01)
-                              CustomPaint(
-                                painter: _RedStrainOverlay(
-                                  strain: _strainRatio,
-                                  phase: _anim.value,
                                 ),
                               ),
                             if (_frame != null)
@@ -754,125 +750,135 @@ class _CyberBodyViewerState extends State<CyberBodyViewer>
   }
 }
 
-class _CyberAnimatedBackdrop extends CustomPainter {
-  const _CyberAnimatedBackdrop({required this.phase});
+class _CyberSpaceBackdrop extends CustomPainter {
+  const _CyberSpaceBackdrop({required this.phase, this.strain = 0.0});
   final double phase;
+  final double strain;
 
   @override
   void paint(Canvas canvas, Size size) {
     final Rect bounds = Offset.zero & size;
-    // Sfondo profondo cyberpunk con gradiente radiale
+
+    // 1. Spazio profondo cyberpunk (gradiente stellare dal vuoto cosmico)
     canvas.drawRect(
       bounds,
       Paint()
         ..shader = const RadialGradient(
-          colors: <Color>[Color(0xFF0D2228), Color(0xFF040A0D)],
-          radius: 0.85,
+          center: Alignment(0.0, -0.2),
+          radius: 1.15,
+          colors: <Color>[
+            Color(0xFF070B18), // Deep cyber midnight
+            Color(0xFF03050B), // Deep void
+            Color(0xFF010204), // Obsidian
+          ],
+          stops: <double>[0.0, 0.65, 1.0],
         ).createShader(bounds),
     );
 
-    // Griglia cibernetica a punti e linee sottili
-    final Paint gridPaint = Paint()
-      ..color = const Color(0x1200F0FF)
-      ..strokeWidth = 0.6;
-    for (double x = 20; x < size.width; x += 32) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 20; y < size.height; y += 32) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    // 2. Grandi Nebulose cosmiche cyberpunk con sfumature ciano e magenta/viola
+    final Rect cyanNebula = Rect.fromCircle(
+      center: Offset(size.width * 0.28, size.height * 0.35),
+      radius: size.width * 0.45,
+    );
+    canvas.drawOval(
+      cyanNebula,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: <Color>[
+            Color(0x2E00F0FF),
+            Color(0x1500B8D4),
+            Colors.transparent,
+          ],
+          stops: <double>[0.0, 0.45, 1.0],
+        ).createShader(cyanNebula)
+        ..blendMode = BlendMode.screen,
+    );
+
+    final Rect magentaNebula = Rect.fromCircle(
+      center: Offset(size.width * 0.72, size.height * 0.65),
+      radius: size.width * 0.50,
+    );
+    canvas.drawOval(
+      magentaNebula,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: <Color>[
+            Color(0x28FF007F),
+            Color(0x188B00FF),
+            Colors.transparent,
+          ],
+          stops: <double>[0.0, 0.50, 1.0],
+        ).createShader(magentaNebula)
+        ..blendMode = BlendMode.screen,
+    );
+
+    final Rect violetCore = Rect.fromCircle(
+      center: Offset(size.width * 0.50, size.height * 0.48),
+      radius: size.width * 0.35,
+    );
+    canvas.drawOval(
+      violetCore,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: <Color>[
+            Color(0x1A6A00FF),
+            Colors.transparent,
+          ],
+          stops: <double>[0.0, 1.0],
+        ).createShader(violetCore)
+        ..blendMode = BlendMode.plus,
+    );
+
+    // 3. Campo stellare tridimensionale (stelle fisse ma luccicanti con ciclo temporale)
+    final math.Random rng = math.Random(1337);
+    final Paint starPaint = Paint()..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 95; i++) {
+      final double sx = rng.nextDouble() * size.width;
+      final double sy = rng.nextDouble() * size.height;
+      final double baseRadius = 0.6 + rng.nextDouble() * 1.5;
+      final double starSpeed = 0.5 + rng.nextDouble() * 1.8;
+      final double starOffset = rng.nextDouble() * math.pi * 2;
+      final double twinkle = 0.35 + 0.65 * ((math.sin(phase * math.pi * 2 * starSpeed + starOffset) + 1.0) / 2.0);
+
+      final Color starColor = switch (i % 4) {
+        0 => const Color(0xFF00F0FF), // Cyber cyan
+        1 => const Color(0xFFFF2E88), // Cyber magenta
+        2 => const Color(0xFFC4B5FD), // Starlight violet
+        _ => const Color(0xFFFFFFFF), // Pure stellar white
+      };
+
+      starPaint.color = starColor.withValues(alpha: (twinkle * (0.4 + 0.6 * rng.nextDouble())).clamp(0.0, 1.0));
+      canvas.drawCircle(Offset(sx, sy), baseRadius, starPaint);
+
+      // Bagliore a 4 punte per le stelle più luminose
+      if (baseRadius > 1.6 && twinkle > 0.7) {
+        final Paint spikePaint = Paint()
+          ..color = starColor.withValues(alpha: (twinkle * 0.45).clamp(0.0, 1.0))
+          ..strokeWidth = 0.7;
+        final double arm = 4.0 * twinkle;
+        canvas.drawLine(Offset(sx - arm, sy), Offset(sx + arm, sy), spikePaint);
+        canvas.drawLine(Offset(sx, sy - arm), Offset(sx, sy + arm), spikePaint);
+      }
     }
 
-    // Laser scanline di scansione biometrica che scorre dall'alto in basso (nessuna pedana!)
-    final double scanY = (phase * (size.height + 60)) - 30;
-    if (scanY >= -20 && scanY <= size.height + 20) {
-      // Glow della scanline
-      final Rect scanRect = Rect.fromLTRB(0, math.max(0, scanY - 35), size.width, scanY);
-      canvas.drawRect(
-        scanRect,
+    // 4. Particelle cosmiche di polvere neon fluttuanti (leggero drift)
+    for (int i = 0; i < 30; i++) {
+      final double px = (rng.nextDouble() * size.width + phase * 25.0 * (i.isEven ? 1 : -1)) % size.width;
+      final double py = (rng.nextDouble() * size.height + phase * 15.0) % size.height;
+      final Color pColor = (i % 2 == 0) ? const Color(0x3300F0FF) : const Color(0x33FF007F);
+      canvas.drawCircle(
+        Offset(px, py),
+        0.9,
         Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: const <Color>[
-              Colors.transparent,
-              Color(0x2200F0FF),
-            ],
-          ).createShader(scanRect),
+          ..color = pColor
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
       );
-      // Linea laser luminosa
-      canvas.drawLine(
-        Offset(0, scanY),
-        Offset(size.width, scanY),
-        Paint()
-          ..color = const Color(0xAA00F0FF)
-          ..strokeWidth = 1.6
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-      );
-    }
-
-    // Indicatori di telemetria laterali
-    final Paint tickPaint = Paint()
-      ..color = const Color(0x2800F0FF)
-      ..strokeWidth = 1.0;
-    for (double y = 40; y < size.height - 40; y += 20) {
-      final double len = (y % 60 == 0) ? 14 : 7;
-      canvas.drawLine(Offset(10, y), Offset(10 + len, y), tickPaint);
-      canvas.drawLine(Offset(size.width - 10, y), Offset(size.width - 10 - len, y), tickPaint);
     }
   }
 
   @override
-  bool shouldRepaint(_CyberAnimatedBackdrop old) => old.phase != phase;
-}
-
-class _RedStrainOverlay extends CustomPainter {
-  const _RedStrainOverlay({required this.strain, required this.phase});
-  final double strain;
-  final double phase;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (strain <= 0.01) return;
-    final Rect bounds = Offset.zero & size;
-    final double pulse = 0.85 + math.sin(phase * math.pi * 4) * 0.15;
-    final double intensity = (strain * pulse).clamp(0.0, 1.0);
-
-    // Gradiente radiale rosso cremisi dai bordi verso l'interno (sovraccarico d'umanità)
-    final Paint vignette = Paint()
-      ..shader = RadialGradient(
-        center: Alignment.center,
-        radius: 0.90,
-        colors: <Color>[
-          Colors.transparent,
-          Color.lerp(Colors.transparent, const Color(0x66FF003C), intensity)!,
-          Color.lerp(Colors.transparent, const Color(0xAAFF0022), intensity)!,
-        ],
-        stops: const <double>[0.35, 0.75, 1.0],
-      ).createShader(bounds)
-      ..blendMode = BlendMode.screen;
-    canvas.drawRect(bounds, vignette);
-
-    // Riflesso termico della spina dorsale/nucleo centrale
-    if (strain > 0.35) {
-      final double coreAlpha = ((strain - 0.35) / 0.65 * 0.35 * pulse).clamp(0.0, 1.0);
-      final Rect spineRect = Rect.fromCenter(
-        center: Offset(size.width / 2, size.height * 0.48),
-        width: size.width * 0.28,
-        height: size.height * 0.65,
-      );
-      canvas.drawOval(
-        spineRect,
-        Paint()
-          ..color = const Color(0xFFFF003C).withValues(alpha: coreAlpha)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24)
-          ..blendMode = BlendMode.plus,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RedStrainOverlay old) =>
-      old.strain != strain || old.phase != phase;
+  bool shouldRepaint(_CyberSpaceBackdrop old) => old.phase != phase || old.strain != strain;
 }
 
 class _CyberwareNodesPainter extends CustomPainter {

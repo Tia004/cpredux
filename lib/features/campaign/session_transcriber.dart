@@ -21,58 +21,47 @@ class SessionVoiceTranscriber {
   bool isRecordingSession = false;
   String currentSpeaker = 'Master';
   final StringBuffer _transcriptBuffer = StringBuffer();
-  Timer? _dictationSimulationTimer;
+  final List<String> _recentEntries = <String>[];
 
   String get currentTranscript => _transcriptBuffer.toString();
+  List<String> get recentEntries => List<String>.unmodifiable(_recentEntries);
 
   void toggleMic() {
     isMicActive = !isMicActive;
   }
 
-  void appendSpeech(String text) {
-    if (!isMicActive) return;
+  void appendSpeech(String text, {String? speaker}) {
+    if (!isMicActive || !isRecordingSession) return;
+    final String activeSpeaker = speaker ?? currentSpeaker;
     final String timeStr = DateTime.now().toIso8601String().substring(11, 16);
-    _transcriptBuffer.writeln('[$timeStr] $currentSpeaker: $text');
+    final String entry = '[$timeStr] $activeSpeaker: $text';
+    _transcriptBuffer.writeln(entry);
+    _recentEntries.add(entry);
+    if (_recentEntries.length > 500) {
+      _recentEntries.removeAt(0);
+    }
   }
 
   void startLiveListening({String speaker = 'Master'}) {
     currentSpeaker = speaker;
     isRecordingSession = true;
-    _dictationSimulationTimer?.cancel();
-
-    // Campionatore periodico di parlato durante la sessione
-    _dictationSimulationTimer = Timer.periodic(const Duration(seconds: 20), (Timer timer) {
-      if (!isMicActive || !isRecordingSession) return;
-      final List<String> samples = <String>[
-        '"Mi muovo dietro la cassa di metallo e preparo la pistola pesante."',
-        '"Tranquillo choom, copro io l\'angolo cieco verso il vicolo."',
-        '"Faccio un Interface check sul punto di accesso a muro, tiro un 16!"',
-        '"La telecamera di sorveglianza va in loop per tre round."',
-        '"Verifico se nel terminale ci sono credenziali Trauma Team valide."',
-        '"Estraggo la katana e ingaggio il boostergang più vicino."',
-      ];
-      final String pick = samples[math.Random().nextInt(samples.length)];
-      appendSpeech(pick);
-    });
+    isMicActive = true;
   }
 
   void stopLiveListening() {
-    _dictationSimulationTimer?.cancel();
-    _dictationSimulationTimer = null;
     isRecordingSession = false;
   }
 
   String endSessionAndExport() {
-    _dictationSimulationTimer?.cancel();
-    _dictationSimulationTimer = null;
     isRecordingSession = false;
     final String res = _transcriptBuffer.toString();
     _transcriptBuffer.clear();
+    _recentEntries.clear();
     return res.isEmpty ? '[$currentSpeaker: Trascrizione sessione sincronizzata]' : res;
   }
 }
 
-/// Widget indicatore del Microfono sempre acceso con pulsante di disattivazione rapida
+/// Widget indicatore del Microfono con stato sincronizzato alla sessione live del Master
 class SessionMicrophoneIndicator extends StatefulWidget {
   const SessionMicrophoneIndicator({super.key});
 
@@ -91,33 +80,41 @@ class _SessionMicrophoneIndicatorState extends State<SessionMicrophoneIndicator>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    if (!SessionVoiceTranscriber.instance.isRecordingSession) {
-      SessionVoiceTranscriber.instance.startLiveListening();
-    }
+    // Non avviare automaticamente il microfono: attende che il Master avvii la sessione!
   }
 
   @override
   void dispose() {
     _pulseCtrl.dispose();
-    SessionVoiceTranscriber.instance.stopLiveListening();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final SessionVoiceTranscriber transcriber = SessionVoiceTranscriber.instance;
-    final bool active = transcriber.isMicActive && transcriber.isRecordingSession;
+    final bool isLive = transcriber.isRecordingSession;
+    final bool active = isLive && transcriber.isMicActive;
+
+    final String tooltip = !isLive
+        ? 'Sessione non avviata. Clicca su "Avvia Sessione" in alto per iniziare.'
+        : (active
+            ? 'Voice-to-Text ATTIVO (${transcriber.currentSpeaker} - Registra per riepilogo IA). Clicca per mutare.'
+            : 'Registrazione attiva ma microfono MUTATO. Clicca per riattivare.');
+
+    final Color statusColor = !isLive
+        ? CprPalette.inkMuted
+        : (active ? CprPalette.danger : CprPalette.yellow);
 
     return Tooltip(
-      message: active
-          ? 'Voice-to-Text ATTIVO (${transcriber.currentSpeaker} - Registra per riepilogo IA). Clicca per mutare.'
-          : 'Microfono DISATTIVATO. Clicca per riattivare.',
+      message: tooltip,
       child: InkWell(
-        onTap: () {
-          setState(() {
-            transcriber.toggleMic();
-          });
-        },
+        onTap: isLive
+            ? () {
+                setState(() {
+                  transcriber.toggleMic();
+                });
+              }
+            : null,
         borderRadius: BorderRadius.circular(4),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -133,40 +130,48 @@ class _SessionMicrophoneIndicatorState extends State<SessionMicrophoneIndicator>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              AnimatedBuilder(
-                animation: _pulseCtrl,
-                builder: (BuildContext context, _) => Container(
+              if (active)
+                AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (BuildContext context, _) => Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: CprPalette.danger,
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: CprPalette.danger.withValues(
+                            alpha: 0.4 + 0.5 * _pulseCtrl.value,
+                          ),
+                          blurRadius: 6,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Container(
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: active ? CprPalette.danger : CprPalette.inkMuted,
-                    boxShadow: active
-                        ? <BoxShadow>[
-                            BoxShadow(
-                              color: CprPalette.danger.withValues(
-                                alpha: 0.4 + 0.5 * _pulseCtrl.value,
-                              ),
-                              blurRadius: 6,
-                              spreadRadius: 2,
-                            ),
-                          ]
-                        : null,
+                    color: statusColor,
                   ),
                 ),
-              ),
               const SizedBox(width: 6),
               Icon(
-                active ? Icons.mic : Icons.mic_off,
+                !isLive ? Icons.mic_off_outlined : (active ? Icons.mic : Icons.mic_off),
                 size: 14,
-                color: active ? CprPalette.danger : CprPalette.inkMuted,
+                color: statusColor,
               ),
               const SizedBox(width: 4),
               Text(
-                active ? 'MIC ATTIVO' : 'MUTATO',
+                !isLive ? 'MIC IN PAUSA' : (active ? 'REC ATTIVO' : 'MUTATO'),
                 style: CprType.label.copyWith(
                   fontSize: 9,
-                  color: active ? CprPalette.danger : CprPalette.inkMuted,
+                  color: statusColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -216,10 +221,10 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
     final int nextIndex = widget.campaign.sessionCommits.length + 1;
     final String masterTranscript = SessionVoiceTranscriber.instance.endSessionAndExport();
 
-    _titleCtrl = TextEditingController(text: 'Sessione #$nextIndex: Infiltrazione a Watson');
+    _titleCtrl = TextEditingController(text: 'Sessione #$nextIndex');
     _transcriptCtrl = TextEditingController(text: masterTranscript);
     _aiSummaryCtrl = TextEditingController();
-    _masterNotesCtrl = TextEditingController(text: 'Note Master: Il gruppo ha recuperato il chip dati cifrato.');
+    _masterNotesCtrl = TextEditingController(text: 'Note Master: ');
 
     // Prepara i riassunti per ogni giocatore
     if (widget.initialPlayerSummaries.isNotEmpty) {
@@ -239,13 +244,13 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
       _playerSummaries.addAll(<PlayerSessionSummary>[
         PlayerSessionSummary(
           playerId: 'p1',
-          playerName: 'V (Solo)',
-          transcript: 'V: "Copertura su Jackie, ho ingaggiato due corporativi con il fucile d\'assalto."',
+          playerName: 'Edgerunner Solo',
+          transcript: '[Solo] Manovre tattiche e ingaggio a fuoco.',
         ),
         PlayerSessionSummary(
           playerId: 'p2',
-          playerName: 'T-Bug (Netrunner)',
-          transcript: 'T-Bug: "Infiltro il subnet al piano terra e neutralizzo le telecamere di sicurezza."',
+          playerName: 'Edgerunner Netrunner',
+          transcript: '[Netrunner] Infiltrazione subnet e supporto cyber.',
         ),
       ]);
     }
@@ -325,7 +330,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
               color: CprPalette.surfaceRaised,
               child: Row(
                 children: <Widget>[
-                  const Icon(Icons.commit, color: CprPalette.yellow, size: 22),
+                  Icon(Icons.commit, color: CprPalette.yellow, size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -335,7 +340,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                    icon: Icon(Icons.close, color: CprPalette.inkMuted),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -350,7 +355,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                     child: TextField(
                       controller: _titleCtrl,
                       style: CprType.body.copyWith(color: CprPalette.ink, fontWeight: FontWeight.bold),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Nome della Sessione (Personalizzabile dal Master)',
                         filled: true,
                         fillColor: CprPalette.surfaceSunken,
@@ -428,7 +433,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                             children: <Widget>[
                               Row(
                                 children: <Widget>[
-                                  const Icon(Icons.smart_toy_outlined, color: CprPalette.cyan, size: 16),
+                                  Icon(Icons.smart_toy_outlined, color: CprPalette.cyan, size: 16),
                                   const SizedBox(width: 6),
                                   Text(
                                     'RIEPILOGO PRINCIPALE UNIFICATO IA',
@@ -454,7 +459,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                                 controller: _aiSummaryCtrl,
                                 maxLines: 14,
                                 style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 12),
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   filled: true,
                                   fillColor: CprPalette.surfaceSunken,
                                   border: OutlineInputBorder(),
@@ -471,7 +476,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                             children: <Widget>[
                               Row(
                                 children: <Widget>[
-                                  const Icon(Icons.edit_note, color: CprPalette.yellow, size: 16),
+                                  Icon(Icons.edit_note, color: CprPalette.yellow, size: 16),
                                   const SizedBox(width: 6),
                                   Text(
                                     'NOTE DEL MASTER',
@@ -484,7 +489,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                                 controller: _masterNotesCtrl,
                                 maxLines: 14,
                                 style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 12),
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   filled: true,
                                   fillColor: CprPalette.surfaceSunken,
                                   border: OutlineInputBorder(),
@@ -512,7 +517,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                           children: <Widget>[
                             Row(
                               children: <Widget>[
-                                const Icon(Icons.psychology, color: CprPalette.cyan, size: 16),
+                                Icon(Icons.psychology, color: CprPalette.cyan, size: 16),
                                 const SizedBox(width: 6),
                                 Text(
                                   'RIEPILOGO AZIONI & DICHIARAZIONI',
@@ -583,7 +588,7 @@ class _EndSessionSummaryDialogState extends State<EndSessionSummaryDialog>
                             maxLines: null,
                             expands: true,
                             style: CprType.caption.copyWith(color: CprPalette.inkMuted, fontSize: 11),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               filled: true,
                               fillColor: CprPalette.surfaceSunken,
                               border: OutlineInputBorder(),

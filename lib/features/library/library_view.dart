@@ -85,7 +85,7 @@ class _LibraryViewState extends State<LibraryView> {
                     const SizedBox(height: 6),
                     Row(
                       children: <Widget>[
-                        const Icon(Icons.folder_outlined, size: 14, color: CprPalette.inkMuted),
+                        Icon(Icons.folder_outlined, size: 14, color: CprPalette.inkMuted),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -110,7 +110,7 @@ class _LibraryViewState extends State<LibraryView> {
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: 'Cerca per nome personaggio o file…',
-                        prefixIcon: const Icon(Icons.search, size: 18, color: CprPalette.inkMuted),
+                        prefixIcon: Icon(Icons.search, size: 18, color: CprPalette.inkMuted),
                         suffixIcon: _searchCtrl.text.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear, size: 16),
@@ -182,7 +182,7 @@ class _LibraryViewState extends State<LibraryView> {
                   ),
                   child: Column(
                     children: <Widget>[
-                      const Icon(Icons.folder_open, size: 36, color: CprPalette.inkFaint),
+                      Icon(Icons.folder_open, size: 36, color: CprPalette.inkFaint),
                       const SizedBox(height: 12),
                       Text(
                         'Nessun documento trovato nella libreria.',
@@ -296,7 +296,7 @@ class _LibraryViewState extends State<LibraryView> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            const Icon(Icons.cloud_done, size: 10, color: CprPalette.cyan),
+                            Icon(Icons.cloud_done, size: 10, color: CprPalette.cyan),
                             const SizedBox(width: 4),
                             Text(
                               'CLOUD',
@@ -403,10 +403,10 @@ class _LibraryViewState extends State<LibraryView> {
             mainAxisSize: MainAxisSize.min,
             children: host.players.values.map((p) {
               return ListTile(
-                leading: const Icon(Icons.person, color: CprPalette.cyan),
+                leading: Icon(Icons.person, color: CprPalette.cyan),
                 title: Text(p.characterName.isNotEmpty ? p.characterName : 'Giocatore ${p.id}'),
                 subtitle: Text('ID: ${p.id}'),
-                trailing: const Icon(Icons.send, size: 16, color: CprPalette.yellow),
+                trailing: Icon(Icons.send, size: 16, color: CprPalette.yellow),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   state.sendSheetToPlayer(p.id, sheet, reason: 'Scheda inviata dal Master');

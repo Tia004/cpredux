@@ -167,7 +167,7 @@ class _QuickNpcTokenDialogState extends State<QuickNpcTokenDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                    icon: Icon(Icons.close, color: CprPalette.inkMuted),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -535,7 +535,7 @@ class _CyberpsychosisTherapyDialogState extends State<CyberpsychosisTherapyDialo
                 Text('CLINICA DI RECUPERO UMANITÀ & TERAPIA', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -773,12 +773,12 @@ class _NightCityEncounterDialogState extends State<NightCityEncounterDialog> {
           children: <Widget>[
             Row(
               children: <Widget>[
-                const Icon(Icons.flash_on, color: CprPalette.yellow, size: 24),
+                Icon(Icons.flash_on, color: CprPalette.yellow, size: 24),
                 const SizedBox(width: 8),
                 Text('TABELLA INCONTRI NOTTURNI & METEO', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -888,12 +888,12 @@ class _BallisticDvCalculatorDialogState extends State<BallisticDvCalculatorDialo
           children: <Widget>[
             Row(
               children: <Widget>[
-                const Icon(Icons.track_changes, color: CprPalette.cyan, size: 24),
+                Icon(Icons.track_changes, color: CprPalette.cyan, size: 24),
                 const SizedBox(width: 8),
                 Text('CALCOLATORE DV BALISTICO UFFICIALE', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -945,7 +945,7 @@ class _BallisticDvCalculatorDialogState extends State<BallisticDvCalculatorDialo
               border: TableBorder.all(color: CprPalette.hairline),
               children: <TableRow>[
                 TableRow(
-                  decoration: const BoxDecoration(color: CprPalette.surfaceRaised),
+                  decoration: BoxDecoration(color: CprPalette.surfaceRaised),
                   children: const <Widget>[
                     Padding(padding: EdgeInsets.all(6), child: Text('Arma', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
                     Padding(padding: EdgeInsets.all(6), child: Text('DV Bersaglio', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
@@ -971,7 +971,7 @@ class _BallisticDvCalculatorDialogState extends State<BallisticDvCalculatorDialo
                         padding: const EdgeInsets.all(6),
                         child: Text(
                           _getDv(w, _meters) <= 15 ? 'Portata Ottimale' : (_getDv(w, _meters) <= 20 ? 'Media' : 'Difficile / Svantaggio'),
-                          style: const TextStyle(fontSize: 10, color: CprPalette.inkMuted),
+                          style: TextStyle(fontSize: 10, color: CprPalette.inkMuted),
                         ),
                       ),
                     ],

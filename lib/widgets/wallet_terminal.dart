@@ -30,7 +30,7 @@ class WalletTerminal extends StatelessWidget {
       builder: (BuildContext ctx) {
         return AlertDialog(
           backgroundColor: CprPalette.surface,
-          shape: const BeveledRectangleBorder(
+          shape: BeveledRectangleBorder(
             side: BorderSide(color: CprPalette.yellow, width: 1.2),
           ),
           title: Row(
@@ -60,10 +60,10 @@ class WalletTerminal extends StatelessWidget {
                 decoration: InputDecoration(
                   suffixText: 'eb',
                   suffixStyle: CprType.label.copyWith(color: CprPalette.inkFaint),
-                  enabledBorder: const OutlineInputBorder(
+                  enabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(color: CprPalette.hairline),
                   ),
-                  focusedBorder: const OutlineInputBorder(
+                  focusedBorder: OutlineInputBorder(
                     borderSide: BorderSide(color: CprPalette.yellow, width: 1.5),
                   ),
                   filled: true,
@@ -112,7 +112,7 @@ class WalletTerminal extends StatelessWidget {
           builder: (BuildContext context, StateSetter setState) {
             return AlertDialog(
               backgroundColor: CprPalette.surface,
-              shape: const BeveledRectangleBorder(
+              shape: BeveledRectangleBorder(
                 side: BorderSide(color: CprPalette.cyan, width: 1.2),
               ),
               title: Row(
@@ -183,7 +183,7 @@ class WalletTerminal extends StatelessWidget {
                       labelText: 'Importo (eb)',
                       labelStyle: CprType.label.copyWith(color: CprPalette.inkFaint),
                       suffixText: 'eb',
-                      enabledBorder: const OutlineInputBorder(
+                      enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: CprPalette.hairline),
                       ),
                       focusedBorder: OutlineInputBorder(
@@ -200,7 +200,7 @@ class WalletTerminal extends StatelessWidget {
                   TextField(
                     controller: reasonController,
                     style: CprType.body.copyWith(color: CprPalette.ink, fontSize: 13),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Causale (es. Mancia fixer, acquisto armi)',
                       enabledBorder: OutlineInputBorder(
                         borderSide: BorderSide(color: CprPalette.hairline),

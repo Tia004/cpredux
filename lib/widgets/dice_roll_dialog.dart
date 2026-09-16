@@ -256,7 +256,7 @@ class _CombatRollDialogContentState extends State<_CombatRollDialogContent> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 18, color: CprPalette.inkFaint),
+                    icon: Icon(Icons.close, size: 18, color: CprPalette.inkFaint),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     onPressed: () => Navigator.of(context).pop(),
@@ -292,7 +292,7 @@ class _CombatRollDialogContentState extends State<_CombatRollDialogContent> {
                 ),
                 child: Row(
                   children: <Widget>[
-                    const Icon(Icons.auto_awesome, color: CprPalette.cyan, size: 16),
+                    Icon(Icons.auto_awesome, color: CprPalette.cyan, size: 16),
                     const SizedBox(width: 8),
                     Text(
                       'CRITICO NATURALE! (10 sul D10) — Esplosione di dado!',
@@ -332,7 +332,7 @@ class _CombatRollDialogContentState extends State<_CombatRollDialogContent> {
                 ),
                 child: Row(
                   children: <Widget>[
-                    const Icon(Icons.coronavirus_outlined, color: CprPalette.magenta, size: 16),
+                    Icon(Icons.coronavirus_outlined, color: CprPalette.magenta, size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -584,7 +584,7 @@ class _SpStepper extends StatelessWidget {
         children: <Widget>[
           InkWell(
             onTap: () => onChanged(math.max(0, sp - 1)),
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               child: Text('-', style: TextStyle(color: CprPalette.cyan, fontSize: 13, fontWeight: FontWeight.bold)),
             ),
@@ -595,7 +595,7 @@ class _SpStepper extends StatelessWidget {
           ),
           InkWell(
             onTap: () => onChanged(sp + 1),
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               child: Text('+', style: TextStyle(color: CprPalette.cyan, fontSize: 13, fontWeight: FontWeight.bold)),
             ),

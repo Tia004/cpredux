@@ -105,21 +105,24 @@ abstract final class CprType {
         height: 1.25,
         color: color,
         fontWeight: weight,
-        fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+        fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
       );
 
   /// Testo con i colori applicati per il tema in uso.
   ///
   /// Il colore e' un parametro e non una costante di palette: e' cio' che
   /// permettera' al tema chiaro di funzionare senza riscrivere ogni widget.
-  static TextTheme textTheme({Color ink = CprPalette.ink}) => const TextTheme(
-        displayLarge: display,
-        titleLarge: title,
-        bodyMedium: body,
-        bodySmall: caption,
-        labelSmall: label,
-      ).apply(
-        bodyColor: ink,
-        displayColor: ink,
-      );
+  static TextTheme textTheme({Color? ink}) {
+    final Color resolvedInk = ink ?? CprPalette.ink;
+    return TextTheme(
+      displayLarge: display,
+      titleLarge: title,
+      bodyMedium: body,
+      bodySmall: caption,
+      labelSmall: label,
+    ).apply(
+      bodyColor: resolvedInk,
+      displayColor: resolvedInk,
+    );
+  }
 }

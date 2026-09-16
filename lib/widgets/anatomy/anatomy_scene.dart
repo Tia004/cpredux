@@ -153,25 +153,53 @@ class AnatomyFrame {
         _ => const Color(0xFFFFDE59),
       };
       for (int i = 0; i < p.length; i += 3) {
-        final double rx = cy * p[i] + sy * p[i + 2];
-        final double rz = -sy * p[i] + cy * p[i + 2];
-        final double ry = cp * p[i + 1] - sp * rz;
-        final double z = sp * p[i + 1] + cp * rz;
+        double px = p[i];
+        double py = p[i + 1];
+        double pz = p[i + 2];
+        final double nx = n[i];
+        final double ny = n[i + 1];
+        final double nzRaw = n[i + 2];
+
+        if (shell) {
+          // Dilatazione protettiva della mesh corporea esterna lungo le normali:
+          // crea una silhouette umana standard e impedisce rigorosamente alle ossa
+          // delle mani di uscire dall'alone azzurro trasparente.
+          final bool isHand = px.abs() > 0.31;
+          final double dilation = isHand ? 0.026 : 0.012;
+          px += nx * dilation;
+          py += ny * dilation;
+          pz += nzRaw * dilation;
+          if (isHand) {
+            px *= 1.035;
+          }
+        } else if (mesh.layer == 'skeleton') {
+          // Ossa delle mani: scalate verso l'interno dell'inviluppo cutaneo per sicurezza totale
+          if (px.abs() > 0.31) {
+            px *= 0.965;
+            py *= 0.985;
+          }
+        }
+
+        final double rx = cy * px + sy * pz;
+        final double rz = -sy * px + cy * pz;
+        final double ry = cp * py - sp * rz;
+        final double z = sp * py + cp * rz;
         final double perspective = 5 / (5 - z);
         projected[i] = centerX + rx * scale * perspective;
         projected[i + 1] = centerY - ry * scale * perspective;
         projected[i + 2] = z;
-        final double nx = cy * n[i] + sy * n[i + 2];
-        final double nz0 = -sy * n[i] + cy * n[i + 2];
-        final double ny = cp * n[i + 1] - sp * nz0;
-        final double nz = sp * n[i + 1] + cp * nz0;
-        final double key = math.max(0, -.42 * nx + .57 * ny + .71 * nz);
-        final double rim = math.pow(1 - nz.abs().clamp(0, 1), 2.2).toDouble();
+        final double normX = cy * nx + sy * nzRaw;
+        final double nz0 = -sy * nx + cy * nzRaw;
+        final double normY = cp * ny - sp * nz0;
+        final double nz = sp * ny + cp * nz0;
+        final double key = math.max(0, -.42 * normX + .57 * normY + .71 * nz);
+        final double rim = math.pow(1 - nz.abs().clamp(0, 1), 1.9).toDouble();
         final double spec =
-            math.pow(math.max(0, -.22 * nx + .29 * ny + .93 * nz), 18).toDouble() * .70;
-        final double brightness = .22 + .78 * key;
+            math.pow(math.max(0, -.22 * normX + .29 * normY + .93 * nz), 18).toDouble() * .70;
+        final double brightness = .25 + .75 * key;
+        // Corpo umano standard azzurro trasparente (~38% alpha) che copre l'intero scheletro
         final int alpha = switch (mesh.layer) {
-          'aura' || 'surface' => 38,
+          'aura' || 'surface' => 95,
           'muscles' => layer == 'surface' ? 0 : 150,
           'skeleton' => 245,
           'arteries' || 'veins' || 'nervous' => 250,
@@ -179,9 +207,9 @@ class AnatomyFrame {
         };
         colors[i ~/ 3] = Color.fromARGB(
           alpha,
-          ((base.r * brightness + spec * .9 + rim * .25) * 255).round().clamp(0, 255),
-          ((base.g * brightness + spec * .9 + rim * .45) * 255).round().clamp(0, 255),
-          ((base.b * brightness + spec * .9 + rim * .55) * 255).round().clamp(0, 255),
+          ((base.r * brightness + spec * .9 + rim * .30) * 255).round().clamp(0, 255),
+          ((base.g * brightness + spec * .9 + rim * .50) * 255).round().clamp(0, 255),
+          ((base.b * brightness + spec * .9 + rim * .60) * 255).round().clamp(0, 255),
         ).toARGB32();
       }
       final Uint32List indices = mesh.triangles;

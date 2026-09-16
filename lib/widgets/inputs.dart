@@ -510,7 +510,7 @@ class TechWell extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       painter: ChamferPainter(cut: 10, fill: CprPalette.surfaceSunken),
-      foregroundPainter: const ChamferPainter(cut: 10, stroke: CprPalette.hairline),
+      foregroundPainter: ChamferPainter(cut: 10, stroke: CprPalette.hairline),
       child: ClipPath(
         clipper: const ChamferClipper(cut: 10),
         child: Padding(padding: padding, child: child),

@@ -54,7 +54,7 @@ class _NetArchitectureEditorState extends State<NetArchitectureEditor> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           _buildHeader(context),
-          const Divider(height: 1, color: CprPalette.hairline),
+          Divider(height: 1, color: CprPalette.hairline),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -88,7 +88,7 @@ class _NetArchitectureEditorState extends State<NetArchitectureEditor> {
       color: CprPalette.surfaceRaised,
       child: Row(
         children: <Widget>[
-          const Icon(Icons.hub_outlined, color: CprPalette.cyan, size: 22),
+          Icon(Icons.hub_outlined, color: CprPalette.cyan, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -131,7 +131,7 @@ class _NetArchitectureEditorState extends State<NetArchitectureEditor> {
               ],
             ),
           ),
-          const CyberHelpTooltip(
+          CyberHelpTooltip(
             title: 'NET Architecture (Cyberpunk RED)',
             message: 'Le architetture di rete sono organizzate a piani verticali (da cima a fondo). I Netrunner usano l\'azione Incursione per scendere di piano in piano affrontando Password (DV), Black ICE e prendendo il controllo di torrette o telecamere fisiche.',
             tag: 'Regole Rete',
@@ -231,7 +231,7 @@ class _NetArchitectureEditorState extends State<NetArchitectureEditor> {
             ),
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.add_circle_outline, size: 16, color: CprPalette.cyan),
+              icon: Icon(Icons.add_circle_outline, size: 16, color: CprPalette.cyan),
               tooltip: 'Aggiungi nodo a questo piano',
               onPressed: () => _showAddNodeDialog(floor),
             ),
@@ -269,7 +269,7 @@ class _NetArchitectureEditorState extends State<NetArchitectureEditor> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  const Icon(Icons.lock, size: 16, color: CprPalette.inkFaint),
+                  Icon(Icons.lock, size: 16, color: CprPalette.inkFaint),
                   const SizedBox(width: 8),
                   Text(
                     'PIANO BLOCCATO DA CRITTOGRAFIA DI RETE (Richiede Incursione del Netrunner)',
@@ -369,7 +369,7 @@ class _NetArchitectureEditorState extends State<NetArchitectureEditor> {
                     floor.nodes.removeWhere((NetNode n) => n.id == node.id);
                     _notify();
                   },
-                  child: const Icon(Icons.close, size: 13, color: CprPalette.inkMuted),
+                  child: Icon(Icons.close, size: 13, color: CprPalette.inkMuted),
                 ),
               ],
             ],

@@ -562,13 +562,13 @@ class _QuickArmorPanel extends StatelessWidget {
             item: head,
             icon: Icons.face_retouching_natural_outlined,
           ),
-          const Divider(height: 14, color: CprPalette.hairline),
+          Divider(height: 14, color: CprPalette.hairline),
           _ArmorSlotRow(
             slotLabel: 'Corpo (SP)',
             item: body,
             icon: Icons.shield_outlined,
           ),
-          const Divider(height: 14, color: CprPalette.hairline),
+          Divider(height: 14, color: CprPalette.hairline),
           _ArmorSlotRow(
             slotLabel: 'Scudo (SP)',
             item: shield,
@@ -752,7 +752,7 @@ class _IdentityPanel extends StatelessWidget {
           ChamferPanel(
             title: 'Ruoli & Specializzazioni (Multiruolo)',
             accent: CprPalette.yellow,
-            trailing: const CyberHelpTooltip(
+            trailing: CyberHelpTooltip(
               title: 'Ruoli & Multiclasse',
               message: 'In Cyberpunk RED puoi combinare più ruoli (es. Solo + Netrunner). Ciascun ruolo conferisce la sua abilità speciale unica.',
               tag: 'Ruoli',
@@ -830,7 +830,7 @@ class _IdentityPanel extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            const Icon(Icons.add, size: 13, color: CprPalette.yellow),
+                            Icon(Icons.add, size: 13, color: CprPalette.yellow),
                             const SizedBox(width: 4),
                             Text(
                               'AGGIUNGI RUOLO',
@@ -975,7 +975,7 @@ class _CharacterAvatarThumb extends StatelessWidget {
                 if (hasImage)
                   Image.file(File(path), fit: BoxFit.cover)
                 else
-                  const Center(
+                  Center(
                     child: Icon(Icons.person_pin, size: 40, color: CprPalette.inkFaint),
                   ),
                 Positioned(
@@ -1036,7 +1036,7 @@ class _RoleTag extends StatelessWidget {
           InkWell(
             onTap: onDelete,
             borderRadius: BorderRadius.circular(10),
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.all(2),
               child: Icon(Icons.close, size: 12, color: CprPalette.yellow),
             ),
@@ -1219,7 +1219,7 @@ class _EmptySheetGuideBanner extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(Icons.lightbulb_outline, color: CprPalette.yellow, size: 18),
+              Icon(Icons.lightbulb_outline, color: CprPalette.yellow, size: 18),
               const SizedBox(width: 8),
               Text(
                 'GUIDA ALLA COMPILAZIONE DELLA SCHEDA',
@@ -1467,7 +1467,7 @@ class _CampaignProfileBar extends StatelessWidget {
                     value: null,
                     child: Row(
                       children: <Widget>[
-                        const Icon(Icons.person, size: 16, color: CprPalette.cyan),
+                        Icon(Icons.person, size: 16, color: CprPalette.cyan),
                         const SizedBox(width: 8),
                         Text(
                           'Scheda Base (Originale)',
@@ -1485,7 +1485,7 @@ class _CampaignProfileBar extends StatelessWidget {
                       value: prof.campaignId,
                       child: Row(
                         children: <Widget>[
-                          const Icon(Icons.casino_outlined, size: 16, color: CprPalette.yellow),
+                          Icon(Icons.casino_outlined, size: 16, color: CprPalette.yellow),
                           const SizedBox(width: 8),
                           Text(
                             'Campagna: ${prof.campaignName}',
@@ -1516,12 +1516,12 @@ class _CampaignProfileBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Icon(Icons.arrow_drop_down, size: 16, color: CprPalette.inkMuted),
+                      Icon(Icons.arrow_drop_down, size: 16, color: CprPalette.inkMuted),
                     ],
                   ),
                 ),
               ),
-              const CyberHelpTooltip(
+              CyberHelpTooltip(
                 title: 'Versioni & Profili Campagna',
                 message: 'In Cyberpunk RED puoi associare questa scheda a diverse campagne senza duplicare il file: i PV attuali, punti fortuna e ferite subite vengono salvati separatamente nel profilo della campagna, lasciando la tua Scheda Base intatta.',
                 tag: 'Overlay',

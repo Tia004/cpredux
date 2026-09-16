@@ -73,12 +73,12 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
           children: <Widget>[
             Row(
               children: <Widget>[
-                const Icon(Icons.inventory_2_outlined, color: CprPalette.yellow, size: 24),
+                Icon(Icons.inventory_2_outlined, color: CprPalette.yellow, size: 24),
                 const SizedBox(width: 8),
                 Text('GENERATORE DI LOOT & TASCHE NEMICI', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -221,7 +221,7 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
                 Text('REGISTRO DEBITI & PRESTITI CORPORATIVI', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -235,7 +235,7 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
             TextField(
               controller: _playerCtrl,
               style: CprType.body.copyWith(color: CprPalette.ink),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Giocatore / Personaggio Debitore',
                 filled: true,
                 fillColor: CprPalette.surfaceSunken,
@@ -274,7 +274,7 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
             TextField(
               controller: _creditorCtrl,
               style: CprType.body.copyWith(color: CprPalette.ink),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Creditore / Usuraio',
                 filled: true,
                 fillColor: CprPalette.surfaceSunken,
@@ -289,7 +289,7 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
                     controller: _amountCtrl,
                     keyboardType: TextInputType.number,
                     style: CprType.body.copyWith(color: CprPalette.ink),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Debito Residuo (eb)',
                       filled: true,
                       fillColor: CprPalette.surfaceSunken,
@@ -303,7 +303,7 @@ class _CorporateDebtsDialogState extends State<CorporateDebtsDialog> {
                     controller: _interestCtrl,
                     keyboardType: TextInputType.number,
                     style: CprType.body.copyWith(color: CprPalette.ink),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Interesse Settimanale (%)',
                       filled: true,
                       fillColor: CprPalette.surfaceSunken,
@@ -443,12 +443,12 @@ class _InitiativeTrackerDialogState extends State<InitiativeTrackerDialog> {
           children: <Widget>[
             Row(
               children: <Widget>[
-                const Icon(Icons.format_list_numbered, color: CprPalette.cyan, size: 24),
+                Icon(Icons.format_list_numbered, color: CprPalette.cyan, size: 24),
                 const SizedBox(width: 8),
                 Text('ORDINE DI INIZIATIVA & TURNI (ROUND $round)', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -613,7 +613,7 @@ class ScreamsheetNewsDialog extends StatelessWidget {
                 Text('NIGHT CITY SCREAMSHEETS · NOTIZIARIO RETE', style: CprType.title.copyWith(fontSize: 14, color: CprPalette.yellow)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],

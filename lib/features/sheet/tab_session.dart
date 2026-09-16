@@ -591,7 +591,7 @@ class _ChatPanel extends StatelessWidget {
                                 child: Image.network(
                                   event.gifUrl,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                                  errorBuilder: (BuildContext context, Object error, StackTrace? stack) => Padding(
                                     padding: EdgeInsets.all(8.0),
                                     child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
                                   ),
@@ -613,7 +613,7 @@ class _ChatPanel extends StatelessWidget {
                                       Image.memory(
                                         base64Decode(event.attachmentData),
                                         fit: BoxFit.cover,
-                                        errorBuilder: (BuildContext context, Object error, StackTrace? stack) => const Padding(
+                                        errorBuilder: (BuildContext context, Object error, StackTrace? stack) => Padding(
                                           padding: EdgeInsets.all(8.0),
                                           child: Icon(Icons.broken_image, color: CprPalette.inkMuted),
                                         ),
@@ -625,7 +625,7 @@ class _ChatPanel extends StatelessWidget {
                                           backgroundColor: CprPalette.veil(CprPalette.voidBlack, 0.7),
                                           radius: 14,
                                           child: IconButton(
-                                            icon: const Icon(Icons.download, size: 14, color: CprPalette.cyan),
+                                            icon: Icon(Icons.download, size: 14, color: CprPalette.cyan),
                                             tooltip: 'Salva immagine',
                                             padding: EdgeInsets.zero,
                                             onPressed: () => saveAttachmentToDisk(
@@ -650,7 +650,7 @@ class _ChatPanel extends StatelessWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      const Icon(Icons.insert_drive_file_outlined, color: CprPalette.cyan, size: 20),
+                                      Icon(Icons.insert_drive_file_outlined, color: CprPalette.cyan, size: 20),
                                       const SizedBox(width: 8),
                                       Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,7 +698,7 @@ class _ChatPanel extends StatelessWidget {
           Row(
             children: <Widget>[
               IconButton(
-                icon: const Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
+                icon: Icon(Icons.emoji_emotions_outlined, color: CprPalette.yellow, size: 20),
                 tooltip: 'Aggiungi emoji Unicode',
                 onPressed: () async {
                   final String? emoji = await showCyberEmojiPicker(context);
@@ -708,7 +708,7 @@ class _ChatPanel extends StatelessWidget {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
+                icon: Icon(Icons.gif_box_outlined, color: CprPalette.cyan, size: 20),
                 tooltip: 'Invia GIF (Tenor / Giphy)',
                 onPressed: () async {
                   final String? gifUrl = await showCyberGifPicker(context);
@@ -718,7 +718,7 @@ class _ChatPanel extends StatelessWidget {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
+                icon: Icon(Icons.attach_file, color: CprPalette.magenta, size: 20),
                 tooltip: 'Invia file o immagine P2P',
                 onPressed: () => pickAndSendAttachment(context, onSend: state.sendAttachment),
               ),
@@ -783,7 +783,7 @@ class _DiffRegisterPanelState extends State<_DiffRegisterPanel> {
                 ),
                 const SizedBox(width: 6),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 16, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.delete_outline, size: 16, color: CprPalette.inkMuted),
                   tooltip: 'Pulisci registro differenze',
                   onPressed: widget.state.clearStateDiffLog,
                   padding: EdgeInsets.zero,
@@ -891,11 +891,11 @@ class _DiffEntryCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 16, color: CprPalette.inkMuted),
+                    icon: Icon(Icons.more_vert, size: 16, color: CprPalette.inkMuted),
                     tooltip: 'Esporta confronto',
                     padding: EdgeInsets.zero,
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                      const PopupMenuItem<String>(
+                      PopupMenuItem<String>(
                         value: 'copy',
                         child: Row(
                           children: <Widget>[
@@ -905,7 +905,7 @@ class _DiffEntryCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const PopupMenuItem<String>(
+                      PopupMenuItem<String>(
                         value: 'html',
                         child: Row(
                           children: <Widget>[
@@ -915,7 +915,7 @@ class _DiffEntryCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const PopupMenuItem<String>(
+                      PopupMenuItem<String>(
                         value: 'json',
                         child: Row(
                           children: <Widget>[
@@ -984,7 +984,7 @@ class _DiffEntryCard extends StatelessWidget {
             ),
           ),
           if (isExpanded) ...<Widget>[
-            const Divider(height: 1, color: CprPalette.hairline),
+            Divider(height: 1, color: CprPalette.hairline),
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
@@ -1209,7 +1209,7 @@ class _RollPanelState extends State<_RollPanel> {
                     onTap: () => widget.onRoll(skill),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
                       ),
                       child: Row(
@@ -1226,7 +1226,7 @@ class _RollPanelState extends State<_RollPanel> {
                             style: CprType.numeralSmall.copyWith(color: CprPalette.yellow),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.campaign_outlined, size: 13, color: CprPalette.inkFaint),
+                          Icon(Icons.campaign_outlined, size: 13, color: CprPalette.inkFaint),
                         ],
                       ),
                     ),
@@ -1292,7 +1292,7 @@ class _TablePlayersPanel extends StatelessWidget {
                         ],
                         if (onWhisper != null && p.characterName.isNotEmpty)
                           IconButton(
-                            icon: const Icon(Icons.lock_outline, size: 14, color: CprPalette.magenta),
+                            icon: Icon(Icons.lock_outline, size: 14, color: CprPalette.magenta),
                             tooltip: 'Sussurra a ${p.characterName}',
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(minWidth: 24, minHeight: 24),

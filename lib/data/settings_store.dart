@@ -45,7 +45,7 @@ class AppSettings {
   static const String githubUpdateFeedUrl = 'https://raw.githubusercontent.com/Tia004/cpredux/main/site/latest.json';
 
   /// Application ID Discord ufficiale di CPRED Visualizer.
-  static const String defaultDiscordClientId = '1541315898835472408';
+  static const String defaultDiscordClientId = '1548828729759899789';
 
   /// Tema base: 'dark' (predefinito), 'light', 'oled'.
   String baseTheme;

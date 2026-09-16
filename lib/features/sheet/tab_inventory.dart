@@ -192,7 +192,7 @@ class _InventoryTabState extends State<InventoryTab> {
                 const SizedBox(height: 14),
                 _CatalogStatus(state: state),
                 if (visible.isEmpty)
-                  const TechWell(
+                  TechWell(
                     child: Text(
                       'Nessun oggetto.\n'
                       'Aggiungi armi, armature, vestiti, munizioni ed equipaggiamento: '
@@ -480,7 +480,7 @@ class _ItemRowState extends State<_ItemRow> {
                         ),
                         if (item.isCustom) ...<Widget>[
                           const SizedBox(width: 7),
-                          const _Tag(label: 'A MANO', color: CprPalette.violet),
+                          _Tag(label: 'A MANO', color: CprPalette.violet),
                         ] else if (item.isPersonalised) ...<Widget>[
                           const SizedBox(width: 7),
                           const _Tag(label: 'PERS.', color: CprPalette.warning),
@@ -727,7 +727,7 @@ class _Thumbnail extends StatelessWidget {
         width: 34,
         height: 34,
         color: CprPalette.surfaceSunken,
-        child: const Icon(Icons.inventory_2_outlined, size: 14, color: CprPalette.inkFaint),
+        child: Icon(Icons.inventory_2_outlined, size: 14, color: CprPalette.inkFaint),
       );
     }
     return Container(
@@ -846,7 +846,7 @@ class _EmptyHint extends StatelessWidget {
     return TechWell(
       child: Text(
         text,
-        style: const TextStyle(color: CprPalette.inkFaint, height: 1.5, fontSize: 12),
+        style: TextStyle(color: CprPalette.inkFaint, height: 1.5, fontSize: 12),
       ),
     );
   }

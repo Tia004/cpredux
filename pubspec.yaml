@@ -1,7 +1,7 @@
 name: cpredux
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.2.9+1
+version: 0.3.0+1
 
 environment:
   sdk: ^3.13.3
@@ -38,7 +38,8 @@ flutter:
     # Catalogo oggetti in sola lettura, spedito con l'app.
     # Si rigenera con: dart run tool/build_catalog.dart
     - assets/catalog/catalog.sqlite
-    # Mappa completa di Night City 2077 con rete NCART e distretti
+    # Mappa completa ad altissima risoluzione di Night City con rete NCART e distretti
+    - assets/images/Map_Base_Full.png
     - assets/images/night_city_full.jpg
     # Risorse grafiche e branding Cyberpunk
     - assets/branding/

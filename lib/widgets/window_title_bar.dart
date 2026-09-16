@@ -75,7 +75,7 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
     return Container(
       height: height,
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: CprPalette.surfaceSunken,
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
@@ -95,14 +95,14 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
                     letterSpacing: 0.4,
                   ),
                   children: <TextSpan>[
-                    const TextSpan(
+                    TextSpan(
                       text: 'CPRedux Desktop',
                       style: TextStyle(
                         color: CprPalette.inkMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const TextSpan(
+                    TextSpan(
                       text: ' — ',
                       style: TextStyle(
                         color: CprPalette.inkMuted,
@@ -111,7 +111,7 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                     TextSpan(
                       text: activeTitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: CprPalette.ink,
                         fontWeight: FontWeight.w600,
                       ),
@@ -248,7 +248,7 @@ class WindowTitleBar extends StatelessWidget implements PreferredSizeWidget {
             child: Padding(
               padding: const EdgeInsets.all(3.0),
               child: isChecking
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 12,
                       height: 12,
                       child: CircularProgressIndicator(

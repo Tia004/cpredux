@@ -21,7 +21,7 @@ class ChamferPanel extends StatelessWidget {
     this.cut = 14,
     this.corners = ChamferCorners.all,
     this.padding = const EdgeInsets.fromLTRB(16, 14, 16, 16),
-    this.fill = CprPalette.surface,
+    this.fill,
     this.border,
     this.glow = false,
     this.headerSpacing = 12,

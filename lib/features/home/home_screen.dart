@@ -961,7 +961,7 @@ class _Recent extends StatelessWidget {
         style: CprType.label.copyWith(color: CprPalette.inkFaint),
       ),
       child: recents.isEmpty
-          ? const TechWell(
+          ? TechWell(
               child: Text(
                 'Nessun documento aperto di recente.\nCrea una scheda per iniziare.',
                 style: TextStyle(color: CprPalette.inkFaint, height: 1.5),
@@ -1049,7 +1049,7 @@ class _RecentTileState extends State<_RecentTile> {
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: widget.onForget,
-                    child: const Padding(
+                    child: Padding(
                       padding: EdgeInsets.all(4),
                       child: Icon(Icons.close, size: 13, color: CprPalette.inkFaint),
                     ),

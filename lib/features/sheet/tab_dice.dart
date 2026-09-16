@@ -432,7 +432,7 @@ class _SkillPanelState extends State<_SkillPanel> {
                     onTap: () => widget.onRoll(skill),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
                       ),
                       child: Row(
@@ -458,7 +458,7 @@ class _SkillPanelState extends State<_SkillPanel> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.casino_outlined, size: 14, color: CprPalette.inkFaint),
+                          Icon(Icons.casino_outlined, size: 14, color: CprPalette.inkFaint),
                         ],
                       ),
                     ),

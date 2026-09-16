@@ -335,7 +335,7 @@ class _Hint extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Icon(Icons.info_outline, size: 13, color: CprPalette.inkFaint),
+        Icon(Icons.info_outline, size: 13, color: CprPalette.inkFaint),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

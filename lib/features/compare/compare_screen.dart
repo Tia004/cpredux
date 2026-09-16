@@ -162,7 +162,7 @@ class _TopBar extends StatelessWidget {
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: CprPalette.hairline)),
       ),
       child: SingleChildScrollView(
@@ -888,7 +888,7 @@ class _CyberpunkChatView extends StatelessWidget {
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: CprPalette.surfaceSunken,
                   border: Border(top: BorderSide(color: CprPalette.hairline)),
                 ),
@@ -1000,7 +1000,7 @@ class _CyberpunkChatView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: CprPalette.veil(CprPalette.inkMuted, 0.05),
-            border: const Border(left: BorderSide(color: CprPalette.hairline, width: 2)),
+            border: Border(left: BorderSide(color: CprPalette.hairline, width: 2)),
           ),
           child: Row(
             children: <Widget>[
@@ -1189,10 +1189,10 @@ class _ChatBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: CprPalette.surfaceRaised,
           border: Border(
-            left: isLeft ? BorderSide(color: accent, width: 3) : const BorderSide(color: CprPalette.hairline),
-            right: !isLeft ? BorderSide(color: accent, width: 3) : const BorderSide(color: CprPalette.hairline),
-            top: const BorderSide(color: CprPalette.hairline),
-            bottom: const BorderSide(color: CprPalette.hairline),
+            left: isLeft ? BorderSide(color: accent, width: 3) : BorderSide(color: CprPalette.hairline),
+            right: !isLeft ? BorderSide(color: accent, width: 3) : BorderSide(color: CprPalette.hairline),
+            top: BorderSide(color: CprPalette.hairline),
+            bottom: BorderSide(color: CprPalette.hairline),
           ),
         ),
         child: Column(

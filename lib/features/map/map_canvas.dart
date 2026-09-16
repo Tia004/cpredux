@@ -493,7 +493,7 @@ class _PlacingHint extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const Icon(Icons.gps_fixed, size: 13, color: CprPalette.yellow),
+          Icon(Icons.gps_fixed, size: 13, color: CprPalette.yellow),
           const SizedBox(width: 8),
           Text(
             'CLICCA SULLA MAPPA PER POSIZIONARE',

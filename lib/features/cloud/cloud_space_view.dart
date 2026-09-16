@@ -186,7 +186,7 @@ class _CloudSpaceViewState extends State<CloudSpaceView> {
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  const Icon(Icons.storage, size: 16, color: CprPalette.yellow),
+                  Icon(Icons.storage, size: 16, color: CprPalette.yellow),
                   const SizedBox(width: 8),
                   Text(
                     'SPAZIO CLOUD UTILIZZATO',
@@ -334,7 +334,7 @@ class _CloudSpaceViewState extends State<CloudSpaceView> {
         ),
         child: Column(
           children: <Widget>[
-            const Icon(Icons.cloud_off, size: 38, color: CprPalette.inkFaint),
+            Icon(Icons.cloud_off, size: 38, color: CprPalette.inkFaint),
             const SizedBox(height: 12),
             Text(
               'Nessun documento presente in questa sezione cloud.',

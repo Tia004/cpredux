@@ -131,7 +131,7 @@ class _DelamainRideBookingDialogState extends State<DelamainRideBookingDialog> {
                 Text('DELAMAIN TRANSPORT SERVICE EXCELSIOR', style: CprType.title.copyWith(fontSize: 14, color: CprPalette.yellow)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -191,7 +191,7 @@ class _DelamainRideBookingDialogState extends State<DelamainRideBookingDialog> {
               initialValue: _destination,
               dropdownColor: CprPalette.surfaceRaised,
               style: CprType.body.copyWith(color: CprPalette.ink),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 filled: true,
                 fillColor: CprPalette.surfaceSunken,
                 border: OutlineInputBorder(),
@@ -344,12 +344,12 @@ class _IllegalAiHackDialogState extends State<IllegalAiHackDialog> {
           children: <Widget>[
             Row(
               children: <Widget>[
-                const Icon(Icons.security, color: CprPalette.magenta, size: 24),
+                Icon(Icons.security, color: CprPalette.magenta, size: 24),
                 const SizedBox(width: 8),
                 Text('BRECCIA ILLEGALE AI / SIFONE EDDY', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -365,7 +365,7 @@ class _IllegalAiHackDialogState extends State<IllegalAiHackDialog> {
               initialValue: _selectedBot,
               dropdownColor: CprPalette.surfaceRaised,
               style: CprType.body.copyWith(color: CprPalette.ink),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Target IA',
                 filled: true,
                 fillColor: CprPalette.surfaceSunken,
@@ -534,7 +534,7 @@ class _TransferMoneyDialogState extends State<TransferMoneyDialog> {
                 Text('TRASFERISCI EURODOLLARI (EDDY)', style: CprType.title.copyWith(fontSize: 14)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close, color: CprPalette.inkMuted),
+                  icon: Icon(Icons.close, color: CprPalette.inkMuted),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -549,7 +549,7 @@ class _TransferMoneyDialogState extends State<TransferMoneyDialog> {
               initialValue: recipients.contains(_selectedRecipient) ? _selectedRecipient : (recipients.isNotEmpty ? recipients.first : null),
               dropdownColor: CprPalette.surfaceRaised,
               style: CprType.body.copyWith(color: CprPalette.ink),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Destinatario (IA o Giocatore)',
                 filled: true,
                 fillColor: CprPalette.surfaceSunken,
