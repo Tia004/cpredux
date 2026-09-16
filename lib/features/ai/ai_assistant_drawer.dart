@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_state.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
+import '../../widgets/cyber_gear_spinner.dart';
 import '../../widgets/cyber_markdown_view.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/tech_button.dart';
@@ -260,23 +261,52 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
           ),
           const SizedBox(height: 14),
 
-          // Pulsante Genera
-          TechButton(
-            label: ai.isGenerating ? 'Generazione in corso…' : 'Genera Battuta PNG con IA',
-            icon: Icons.auto_awesome,
-            variant: TechButtonVariant.primary,
-            compact: true,
-            onPressed: ai.isGenerating
-                ? () {}
-                : () async {
-                    final String res = await ai.generateNpcDialogue(
-                      archetype: _selectedArchetype,
-                      tone: _selectedTone,
-                      npcName: _npcNameCtrl.text.trim(),
-                      situationOrTopic: _npcSituationCtrl.text.trim(),
-                    );
-                    setState(() => _generatedNpcDialogue = res);
-                  },
+          // Pulsante Genera con indicatore rotelle quando l'IA è attiva
+          ListenableBuilder(
+            listenable: ai,
+            builder: (BuildContext context, _) {
+              if (ai.isGenerating) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: CprPalette.surfaceSunken,
+                    border: Border.all(color: CprPalette.cyan.withValues(alpha: 0.5)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      const CyberGearSpinner(size: 22, duration: Duration(milliseconds: 1800)),
+                      const SizedBox(width: 12),
+                      Text(
+                        'GENERAZIONE IN CORSO...',
+                        style: CprType.label.copyWith(
+                          fontSize: 10,
+                          letterSpacing: 1.0,
+                          color: CprPalette.cyan,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return TechButton(
+                label: 'Genera Battuta PNG con IA',
+                icon: Icons.auto_awesome,
+                variant: TechButtonVariant.primary,
+                compact: true,
+                onPressed: () async {
+                  final String res = await ai.generateNpcDialogue(
+                    archetype: _selectedArchetype,
+                    tone: _selectedTone,
+                    npcName: _npcNameCtrl.text.trim(),
+                    situationOrTopic: _npcSituationCtrl.text.trim(),
+                  );
+                  setState(() => _generatedNpcDialogue = res);
+                },
+              );
+            },
           ),
 
           if (_generatedNpcDialogue.isNotEmpty) ...<Widget>[
@@ -350,7 +380,18 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
           child: ListenableBuilder(
             listenable: ai,
             builder: (BuildContext context, _) {
-              if (ai.messages.isEmpty) {
+              // Scroll automatico a fine lista quando arriva una risposta
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_scrollCtrl.hasClients) {
+                  _scrollCtrl.animateTo(
+                    _scrollCtrl.position.maxScrollExtent,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  );
+                }
+              });
+
+              if (ai.messages.isEmpty && !ai.isGenerating) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -373,8 +414,13 @@ class _AiAssistantDrawerState extends State<AiAssistantDrawer> {
               return ListView.builder(
                 controller: _scrollCtrl,
                 padding: const EdgeInsets.all(12),
-                itemCount: ai.messages.length,
+                itemCount: ai.messages.length + (ai.isGenerating ? 1 : 0),
                 itemBuilder: (BuildContext context, int index) {
+                  if (index == ai.messages.length && ai.isGenerating) {
+                    return const CyberAiProcessingCard(
+                      statusText: 'ELABORAZIONE NEURALE IN CORSO...',
+                    );
+                  }
                   final AiChatMessage m = ai.messages[index];
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),

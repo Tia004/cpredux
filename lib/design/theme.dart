@@ -47,6 +47,13 @@ abstract final class CprTheme {
     String subTheme = 'cyberpunk2077',
     Color? customAccent,
   }) {
+    // Sincronizza la palette globale di CPRedux con il tema e sottotema scelti.
+    CprPalette.applyTheme(
+      baseTheme: baseTheme,
+      subTheme: subTheme,
+      customAccent: customAccent,
+    );
+
     final bool isLight = baseTheme == 'light';
     final bool isOled = baseTheme == 'oled';
 

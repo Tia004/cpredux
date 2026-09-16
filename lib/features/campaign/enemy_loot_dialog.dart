@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../design/palette.dart';
 import '../../design/typography.dart';
 import '../../domain/gm/gm_generators.dart';
+import '../../widgets/cyber_gear_spinner.dart';
 import '../../widgets/tech_button.dart';
 import '../ai/ai_assistant_service.dart';
 
@@ -367,16 +368,40 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
             onChanged: (double v) => setState(() => _baseQuality = v.round()),
           ),
           const SizedBox(height: 8),
-          TechButton(
-            label: _isBaseGenerating
-                ? 'GENERAZIONE LOOT IN CORSO...'
-                : 'REROLL LOOT BASE (GENERAZIONE IA)',
-            icon: Icons.casino,
-            expand: true,
-            variant: TechButtonVariant.primary,
-            tooltip: 'Genera un nuovo bottino casuale senza basarsi su quello precedente',
-            onPressed: _isBaseGenerating ? null : _generateBaseLoot,
-          ),
+          if (_isBaseGenerating)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              decoration: BoxDecoration(
+                color: CprPalette.surface,
+                border: Border.all(color: CprPalette.yellow.withValues(alpha: 0.5)),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  CyberGearSpinner(size: 20, accent: CprPalette.yellow, duration: const Duration(milliseconds: 1600)),
+                  const SizedBox(width: 12),
+                  Text(
+                    'CALCOLO LOOT IN CORSO...',
+                    style: CprType.label.copyWith(
+                      fontSize: 10,
+                      letterSpacing: 1.0,
+                      color: CprPalette.yellow,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            TechButton(
+              label: 'REROLL LOOT BASE (GENERAZIONE IA)',
+              icon: Icons.casino,
+              expand: true,
+              variant: TechButtonVariant.primary,
+              tooltip: 'Genera un nuovo bottino casuale senza basarsi su quello precedente',
+              onPressed: _generateBaseLoot,
+            ),
         ],
       ),
     );
@@ -429,14 +454,40 @@ class _EnemyLootDialogState extends State<EnemyLootDialog> {
             ),
           ),
           const SizedBox(height: 14),
-          TechButton(
-            label: _isAiGenerating ? 'GENERAZIONE IN CORSO...' : 'GENERA LOOT CON IA (REROLL INDIPENDENTE)',
-            icon: Icons.auto_awesome,
-            expand: true,
-            variant: TechButtonVariant.secondary,
-            tooltip: 'L\'IA analizza il prompt e genera un bottino contestuale senza memoria pregressa',
-            onPressed: _isAiGenerating ? null : _generateAdvancedLoot,
-          ),
+          if (_isAiGenerating)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              decoration: BoxDecoration(
+                color: CprPalette.surface,
+                border: Border.all(color: CprPalette.magenta.withValues(alpha: 0.5)),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  CyberGearSpinner(size: 20, accent: CprPalette.magenta, duration: const Duration(milliseconds: 1800)),
+                  const SizedBox(width: 12),
+                  Text(
+                    'GENERAZIONE IA IN CORSO...',
+                    style: CprType.label.copyWith(
+                      fontSize: 10,
+                      letterSpacing: 1.0,
+                      color: CprPalette.magenta,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            TechButton(
+              label: 'GENERA LOOT CON IA (REROLL INDIPENDENTE)',
+              icon: Icons.auto_awesome,
+              expand: true,
+              variant: TechButtonVariant.secondary,
+              tooltip: 'L\'IA analizza il prompt e genera un bottino contestuale senza memoria pregressa',
+              onPressed: _generateAdvancedLoot,
+            ),
         ],
       ),
     );

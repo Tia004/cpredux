@@ -202,7 +202,11 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
               subTheme: _state.settings.subTheme,
               customAccent: Color(_state.settings.customAccentColorValue),
             ),
-            home: const _Root(),
+            home: _Root(
+              key: ValueKey<String>(
+                'cpr_${_state.settings.baseTheme}_${_state.settings.subTheme}_${_state.settings.customAccentColorValue}',
+              ),
+            ),
           );
         },
       ),
@@ -211,7 +215,7 @@ class _CpredAppState extends State<CpredApp> with WidgetsBindingObserver {
 }
 
 class _Root extends StatelessWidget {
-  const _Root();
+  const _Root({super.key});
 
   @override
   Widget build(BuildContext context) {
